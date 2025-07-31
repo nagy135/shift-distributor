@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { doctorsApi, unavailableDatesApi, shiftsApi, type Doctor, type UnavailableDate, type Shift } from "@/lib/api";
+import { doctorsApi, unavailableDatesApi, shiftsApi, type Doctor, type UnavailableDate } from "@/lib/api";
 import React from "react";
 
 export default function DoctorsPage() {
@@ -108,7 +108,7 @@ export default function DoctorsPage() {
 
   // Get current selected dates for the selected doctor
   const currentSelectedDates = selectedDoctor ? selectedDatesByDoctor[selectedDoctor.id] || [] : [];
-  
+
   // Compute selected dates from unavailable dates
   const computedSelectedDates = React.useMemo(() => {
     if (!isUnavailableDialogOpen || !selectedDoctor) return [];
@@ -167,12 +167,9 @@ export default function DoctorsPage() {
                 <div className="flex items-center gap-2">
                   <h3 className="font-medium">{doctor.name}</h3>
                   <span className="text-sm text-muted-foreground">
-                    ({getDoctorShiftCount(doctor.id)} shifts)
+                    ({getDoctorShiftCount(doctor.id)})
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Added on {format(new Date(doctor.createdAt), 'MMM d, yyyy')}
-                </p>
               </div>
               <div className="flex gap-2">
                 <Button
