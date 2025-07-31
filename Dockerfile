@@ -69,6 +69,11 @@ RUN mkdir -p /app/logs && \
     chmod 777 /app/logs /app/logs/error.log /app/logs/combined.log && \
     chown -R nextjs:nodejs /app/logs
 
+# Create data directory with proper permissions
+RUN mkdir -p /app/data && \
+    chmod 777 /app/data && \
+    chown -R nextjs:nodejs /app/data
+
 USER nextjs
 
 EXPOSE 3000
