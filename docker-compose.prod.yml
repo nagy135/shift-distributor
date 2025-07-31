@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  shift-distributor:
+    container_name: shift-distributor
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3069:3000"
+    environment:
+      - NODE_ENV=production
+
+volumes:
+  postgres-db:
