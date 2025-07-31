@@ -1,36 +1,136 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Shift Distributor
+
+A Next.js application for managing doctor shifts and schedules. Built with shadcn/ui components and Drizzle ORM with SQLite.
+
+## Features
+
+- **Calendar View**: Interactive calendar to view and assign shifts for specific dates
+- **Shift Management**: Assign doctors to 17-shift and 20-shift slots
+- **Doctor Management**: Add and manage doctors with their unavailable dates
+- **Responsive Design**: Works on both desktop and mobile devices
+
+## Tech Stack
+
+- **Framework**: Next.js 15 with App Router
+- **UI Components**: shadcn/ui with Tailwind CSS
+- **Database**: SQLite with Drizzle ORM
+- **Date Handling**: date-fns
+- **Icons**: Lucide React
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js 18+ 
+- npm or yarn
+
+### Installation
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <repository-url>
+cd shift-distributor
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up the database:
+```bash
+# Generate the database schema
+npm run db:generate
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Run migrations
+npm run db:migrate
+```
 
-## Learn More
+4. Start the development server:
+```bash
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Usage
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Adding Doctors
 
-## Deploy on Vercel
+1. Navigate to the "Doctors" page
+2. Click "Add Doctor"
+3. Enter the doctor's name
+4. Click "Add Doctor" to save
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Managing Unavailable Dates
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. On the "Doctors" page, click "Manage Unavailable Dates" for any doctor
+2. Select the dates when the doctor cannot work
+3. Click "Save Changes"
+
+### Assigning Shifts
+
+1. Go to the "Calendar" page
+2. Click on any date in the calendar
+3. For each shift type (17-shift or 20-shift):
+   - Click "Assign" or "Change"
+   - Select a doctor from the dropdown
+   - The assignment will be saved automatically
+
+## Database Schema
+
+The application uses three main tables:
+
+- **doctors**: Stores doctor information (id, name, created_at)
+- **shifts**: Stores shift assignments (id, date, shift_type, doctor_id, created_at)
+- **unavailable_dates**: Stores dates when doctors cannot work (id, doctor_id, date, created_at)
+
+## API Endpoints
+
+- `GET /api/doctors` - Get all doctors
+- `POST /api/doctors` - Create a new doctor
+- `GET /api/doctors/[id]/unavailable-dates` - Get unavailable dates for a doctor
+- `POST /api/doctors/[id]/unavailable-dates` - Update unavailable dates for a doctor
+- `GET /api/shifts` - Get shifts (optionally filtered by date)
+- `POST /api/shifts` - Create or update a shift assignment
+
+## Development
+
+### Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm run db:generate` - Generate database migrations
+- `npm run db:migrate` - Run database migrations
+- `npm run db:studio` - Open Drizzle Studio
+
+### Project Structure
+
+```
+src/
+├── app/
+│   ├── api/           # API routes
+│   ├── doctors/       # Doctors management page
+│   ├── globals.css    # Global styles
+│   ├── layout.tsx     # Root layout
+│   └── page.tsx       # Calendar page
+├── components/
+│   └── ui/            # shadcn/ui components
+└── lib/
+    ├── db/            # Database configuration
+    └── utils.ts       # Utility functions
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and linting
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
