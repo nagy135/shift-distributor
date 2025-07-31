@@ -113,7 +113,7 @@ export default function DoctorsPage() {
   const computedSelectedDates = React.useMemo(() => {
     if (!isUnavailableDialogOpen || !selectedDoctor) return [];
     return unavailableDates.map((ud: UnavailableDate) => new Date(ud.date));
-  }, [unavailableDates, isUnavailableDialogOpen, selectedDoctor?.id]);
+  }, [unavailableDates, isUnavailableDialogOpen, selectedDoctor]);
 
 
 

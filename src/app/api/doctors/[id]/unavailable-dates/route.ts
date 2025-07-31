@@ -5,10 +5,11 @@ import { eq } from 'drizzle-orm';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const doctorId = parseInt(params.id);
+    const { id } = await params;
+    const doctorId = parseInt(id);
     const dates = await db
       .select()
       .from(unavailableDates)
@@ -23,10 +24,11 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const doctorId = parseInt(params.id);
+    const { id } = await params;
+    const doctorId = parseInt(id);
     const { dates } = await request.json();
     
     if (!dates || !Array.isArray(dates)) {

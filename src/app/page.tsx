@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { format } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,14 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ClientOnly } from "@/components/client-only";
 import { Check } from "lucide-react";
-import { doctorsApi, shiftsApi, type Doctor, type Shift } from "@/lib/api";
+import { doctorsApi, shiftsApi } from "@/lib/api";
 
 export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
 
   // Queries
-  const { data: doctors = [], isLoading: doctorsLoading } = useQuery({
+  const { data: doctors = [] } = useQuery({
     queryKey: ['doctors'],
     queryFn: doctorsApi.getAll,
   });
