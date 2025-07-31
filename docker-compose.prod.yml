@@ -10,6 +10,5 @@ services:
       - "3069:3000"
     environment:
       - NODE_ENV=production
-
-volumes:
-  postgres-db:
+    volumes:
+      - ./sqlite.db:/app/sqlite.db
