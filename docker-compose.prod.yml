@@ -11,4 +11,5 @@ services:
     environment:
       - NODE_ENV=production
     volumes:
-      - ./sqlite.db:/app/sqlite.db
+      - ./data:/app/data
+    working_dir: /app/data
