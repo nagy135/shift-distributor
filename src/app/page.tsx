@@ -222,6 +222,7 @@ export default function CalendarPage() {
           if (!selectedDate) return
           await handleShiftAssignment(type, id)
         }}
+        unavailableByDoctor={unavailableByDoctor}
       />
     </div>
   );

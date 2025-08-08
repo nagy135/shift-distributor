@@ -9,6 +9,7 @@ import type { Doctor, Shift } from '@/lib/api'
 import { SHIFT_LABELS, SHIFT_TYPES, isWeekendOnly } from '@/lib/shifts'
 import { getDay } from 'date-fns'
 import { Pill } from '@/components/ui/pill'
+import { cn } from '@/lib/utils'
 
 interface ShiftAssignmentModalProps {
   open: boolean
@@ -17,6 +18,7 @@ interface ShiftAssignmentModalProps {
   doctors: Doctor[]
   getShiftForType: (shiftType: string) => Shift | undefined
   onAssign: (shiftType: string, doctorId: number | null) => Promise<void>
+  unavailableByDoctor?: Record<number, Set<string>>
 }
 
 export function ShiftAssignmentModal({
@@ -26,6 +28,7 @@ export function ShiftAssignmentModal({
   doctors,
   getShiftForType,
   onAssign,
+  unavailableByDoctor = {},
 }: ShiftAssignmentModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -35,40 +38,48 @@ export function ShiftAssignmentModal({
         </DialogHeader>
         <div className="space-y-4">
           {SHIFT_TYPES.map((t) => {
-            const disabledByWeekend = date ? (isWeekendOnly(t) && !([0,6].includes(getDay(date)))) : false
+            const disabledByWeekend = date ? (isWeekendOnly(t) && !([0, 6].includes(getDay(date)))) : false
             if (disabledByWeekend) return null
             return (
-            <div key={t} className="p-3 border rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium text-sm">{SHIFT_LABELS[t]}</h3>
-                </div>
-                <div>
-                  <Select
-                    defaultValue={(() => {
-                      const s = getShiftForType(t)
-                      return s && s.doctorId != null ? String(s.doctorId) : 'none'
-                    })()}
-                    onValueChange={(value) => onAssign(t, value === 'none' ? null : parseInt(value))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a doctor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No doctor</SelectItem>
-                      {doctors.map((doctor) => {
-                        return (
-                          <SelectItem key={doctor.id} value={doctor.id.toString()}>
-                            <Pill color={doctor.color || undefined} className="text-xs px-2 py-0">{doctor.name}</Pill>
-                          </SelectItem>
-                        )
-                      })}
-                    </SelectContent>
-                  </Select>
+              <div key={t} className="p-3 border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium text-sm">{SHIFT_LABELS[t]}</h3>
+                  </div>
+                  <div>
+                    <Select
+                      defaultValue={(() => {
+                        const s = getShiftForType(t)
+                        return s && s.doctorId != null ? String(s.doctorId) : 'none'
+                      })()}
+                      onValueChange={(value) => onAssign(t, value === 'none' ? null : parseInt(value))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a doctor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No doctor</SelectItem>
+                        {doctors.map((doctor) => {
+                          const dateKey = date ? format(date, 'yyyy-MM-dd') : null
+                          const hasConflict = dateKey ? (unavailableByDoctor[doctor.id]?.has(dateKey) ?? false) : false
+                          return (
+                            <SelectItem key={doctor.id} value={doctor.id.toString()}>
+                              <Pill
+                                color={doctor.color || undefined}
+                                className={cn('text-xs px-2 py-0', hasConflict ? 'bg-red-500 text-yellow-200' : undefined)}
+                              >
+                                {doctor.name}
+                              </Pill>
+                            </SelectItem>
+                          )
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
-            </div>
-          )})}
+            )
+          })}
 
           <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full">
             Close
