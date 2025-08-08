@@ -1,6 +1,7 @@
 import { format, isSameDay, subDays } from 'date-fns'
 import type { Doctor } from '@/lib/api'
-import { SHIFT_TYPES, type ShiftType } from '@/lib/shifts'
+import { SHIFT_TYPES, type ShiftType, isWeekendOnly } from '@/lib/shifts'
+import { getDay } from 'date-fns'
 
 // ShiftType now comes from shared shifts constants
 
@@ -67,6 +68,14 @@ export function generateAssignmentsForMonth(params: GenerateAssignmentsParams): 
       let chosen: number | null = null
 
       for (const candidateId of candidateIds) {
+        // Enforce weekend-only constraint
+        if (isWeekendOnly(shiftType)) {
+          const day = getDay(date) // 0 Sunday .. 6 Saturday
+          const isWeekend = day === 0 || day === 6
+          if (!isWeekend) {
+            continue
+          }
+        }
         // Cannot assign same doctor twice on same day
         if (dayAssignments.includes(candidateId)) continue
 
@@ -92,6 +101,13 @@ export function generateAssignmentsForMonth(params: GenerateAssignmentsParams): 
       // If no candidate fits the consecutive-day constraint, relax it but still avoid same day double assignment
       if (chosen == null) {
         for (const candidateId of candidateIds) {
+          if (isWeekendOnly(shiftType)) {
+            const day = getDay(date)
+            const isWeekend = day === 0 || day === 6
+            if (!isWeekend) {
+              continue
+            }
+          }
           if (dayAssignments.includes(candidateId)) continue
           // Still respect unavailable dates when relaxing
           if (unavailableDatesByDoctor) {

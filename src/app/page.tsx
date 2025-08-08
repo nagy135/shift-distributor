@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { ClientOnly } from "@/components/client-only";
-import { doctorsApi, shiftsApi, unavailableDatesApi } from "@/lib/api";
+import { doctorsApi, shiftsApi, unavailableDatesApi, type UnavailableDate } from "@/lib/api";
 import { generateAssignmentsForMonth } from "@/lib/scheduler";
-import { SHIFT_TYPES } from "@/lib/shifts";
+import { SHIFT_TYPES, isWeekendOnly } from "@/lib/shifts";
 import { MonthlyShiftTable } from "@/components/shifts/MonthlyShiftTable";
 import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
 
@@ -31,6 +31,21 @@ export default function CalendarPage() {
     queryKey: ['shifts', doctors?.map(d => `${d.id}:${d.color ?? ''}`).join('|')],
     queryFn: shiftsApi.getAll,
   });
+
+  // Unavailable dates map for all doctors (used for conflict highlighting in table view)
+  const { data: unavailableByDoctor = {} } = useQuery({
+    queryKey: ['unavailable-by-doctor', doctors?.map(d => `${d.id}:${d.color ?? ''}`).join('|')],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        (doctors ?? []).map(async (d) => {
+          const records: UnavailableDate[] = await unavailableDatesApi.getByDoctor(d.id)
+          return [d.id, new Set(records.map((r) => r.date))] as const
+        })
+      )
+      return Object.fromEntries(entries) as Record<number, Set<string>>
+    },
+    enabled: (doctors ?? []).length > 0,
+  })
 
   // Remove the individual date query - we'll filter from allShifts instead
 
@@ -118,14 +133,23 @@ export default function CalendarPage() {
     return allShifts.find(shift => shift.date === dateStr && shift.shiftType === shiftType);
   };
 
-  // Remove this function as it's no longer needed
-
   // Remove unused memoized calculation
 
   const isUnassignedDay = useCallback((date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    const dateShifts = allShifts.filter(shift => shift.date === dateStr);
-    return dateShifts.length < 2 || dateShifts.some(shift => !shift.doctorId);
+    const dayShifts = allShifts.filter(shift => shift.date === dateStr);
+    const isWeekend = [0, 6].includes(getDay(date));
+
+    // Required shift types for this day (exclude weekend-only if weekday)
+    const requiredTypes = SHIFT_TYPES.filter(t => isWeekend || !isWeekendOnly(t));
+
+    // For each required type, we must have one shift with a doctor assigned
+    for (const type of requiredTypes) {
+      const shift = dayShifts.find(s => s.shiftType === type);
+      if (!shift || !shift.doctorId) return true; // unassigned
+    }
+
+    return false;
   }, [allShifts]);
 
   return (
@@ -158,6 +182,7 @@ export default function CalendarPage() {
             <MonthlyShiftTable
               month={currentMonth}
               shifts={allShifts}
+              unavailableByDoctor={unavailableByDoctor}
               onRowClick={openAssignModalForDate}
             />
           ) : (

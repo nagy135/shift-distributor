@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Doctor, Shift } from '@/lib/api'
-import { SHIFT_LABELS, SHIFT_TYPES } from '@/lib/shifts'
+import { SHIFT_LABELS, SHIFT_TYPES, isWeekendOnly } from '@/lib/shifts'
+import { getDay } from 'date-fns'
 import { Pill } from '@/components/ui/pill'
 
 interface ShiftAssignmentModalProps {
@@ -33,7 +34,10 @@ export function ShiftAssignmentModal({
           <DialogTitle>Assign Shifts {date ? `- ${format(date, 'MMM d, yyyy')}` : ''}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {SHIFT_TYPES.map((t) => (
+          {SHIFT_TYPES.map((t) => {
+            const disabledByWeekend = date ? (isWeekendOnly(t) && !([0,6].includes(getDay(date)))) : false
+            if (disabledByWeekend) return null
+            return (
             <div key={t} className="p-3 border rounded-lg">
               <div className="flex items-center justify-between">
                 <div>
@@ -55,7 +59,7 @@ export function ShiftAssignmentModal({
                       {doctors.map((doctor) => {
                         return (
                           <SelectItem key={doctor.id} value={doctor.id.toString()}>
-                            <Pill color={doctor.color} className="text-xs px-2 py-0">{doctor.name}</Pill>
+                            <Pill color={doctor.color || undefined} className="text-xs px-2 py-0">{doctor.name}</Pill>
                           </SelectItem>
                         )
                       })}
@@ -64,7 +68,7 @@ export function ShiftAssignmentModal({
                 </div>
               </div>
             </div>
-          ))}
+          )})}
 
           <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full">
             Close

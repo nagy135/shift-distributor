@@ -4,7 +4,7 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 interface PillProps extends React.HTMLAttributes<HTMLSpanElement> {
-  color?: string | null
+  color?: string | undefined
 }
 
 export function Pill({ color, className, children, ...props }: PillProps) {

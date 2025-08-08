@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { format, startOfMonth, isSameMonth, compareAsc } from "date-fns";
+import { format, startOfMonth, isSameMonth, addMonths } from "date-fns";
 import { SHIFT_LABELS } from "@/lib/shifts";
 import { Pill } from "@/components/ui/pill";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -24,7 +24,7 @@ export default function DoctorsPage() {
   const [isColorDialogOpen, setIsColorDialogOpen] = useState(false);
   const [pendingColor, setPendingColor] = useState<string | null>(null);
   const [pendingName, setPendingName] = useState<string>("");
-  const [selectedShiftsMonth, setSelectedShiftsMonth] = useState<Date>(startOfMonth(new Date()));
+  const [selectedMonth, setSelectedMonth] = useState<Date>(startOfMonth(new Date()));
   const queryClient = useQueryClient();
 
   // Queries
@@ -61,6 +61,9 @@ export default function DoctorsPage() {
       if (selectedDoctor) {
         queryClient.invalidateQueries({ queryKey: ['unavailable-dates', selectedDoctor.id] });
       }
+      // Refresh calendar/table conflict highlights
+      queryClient.invalidateQueries({ queryKey: ['unavailable-by-doctor'] });
+      queryClient.invalidateQueries({ queryKey: ['shifts'] });
       setIsUnavailableDialogOpen(false);
     },
   });
@@ -99,13 +102,6 @@ export default function DoctorsPage() {
 
   const openShiftDetailsDialog = (doctor: Doctor) => {
     setSelectedDoctor(doctor);
-    // Default to most recent month that has shifts for this doctor, otherwise current month
-    const months = getDoctorMonths(doctor.id);
-    if (months.length > 0) {
-      setSelectedShiftsMonth(months[months.length - 1]);
-    } else {
-      setSelectedShiftsMonth(startOfMonth(new Date()));
-    }
     setIsShiftDetailsDialogOpen(true);
   };
 
@@ -132,24 +128,13 @@ export default function DoctorsPage() {
 
   // Helper functions
   const getDoctorShiftCount = (doctorId: number) => {
-    return allShifts.filter(shift => shift.doctorId === doctorId).length;
+    return allShifts.filter(shift => shift.doctorId === doctorId && isSameMonth(new Date(shift.date), selectedMonth)).length;
   };
 
   const getDoctorShifts = (doctorId: number) => {
     return allShifts
       .filter(shift => shift.doctorId === doctorId)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  };
-
-  const getDoctorMonths = (doctorId: number): Date[] => {
-    const monthsSet = new Map<number, Date>();
-    for (const shift of allShifts) {
-      if (shift.doctorId !== doctorId) continue;
-      const m = startOfMonth(new Date(shift.date));
-      monthsSet.set(m.getTime(), m);
-    }
-    const months = Array.from(monthsSet.values()).sort(compareAsc);
-    return months;
   };
 
   const getDoctorShiftsForMonth = (doctorId: number, month: Date) => {
@@ -209,13 +194,20 @@ export default function DoctorsPage() {
         </Dialog>
       </div>
 
+      {/* Month selector for the whole page */}
+      <div className="flex items-center gap-2">
+        <Button variant="outline" onClick={() => setSelectedMonth(prev => addMonths(prev, -1))}>{'<'}</Button>
+        <div className="text-sm font-medium w-40 text-center">{format(selectedMonth, 'MMMM yyyy')}</div>
+        <Button variant="outline" onClick={() => setSelectedMonth(prev => addMonths(prev, 1))}>{'>'}</Button>
+      </div>
+
       <div className="grid gap-4">
         {doctors.map((doctor) => (
           <div key={doctor.id} className="p-4 border rounded-lg">
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <Pill color={doctor.color} className="cursor-pointer" onClick={() => openColorDialog(doctor)}>
+                  <Pill color={doctor.color || undefined} className="cursor-pointer" onClick={() => openColorDialog(doctor)}>
                     {doctor.name}
                   </Pill>
                   <span className="text-sm text-muted-foreground">
@@ -254,7 +246,7 @@ export default function DoctorsPage() {
               <Input id="edit-name" value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
             </div>
             <div className="flex items-center gap-3">
-              <Pill color={pendingColor}>Preview</Pill>
+              <Pill color={pendingColor || undefined}>Preview</Pill>
               <input
                 type="color"
                 value={pendingColor ?? '#22c55e'}
@@ -337,30 +329,10 @@ export default function DoctorsPage() {
           <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
             {selectedDoctor && (
               <div className="space-y-2 flex-1 overflow-hidden flex flex-col">
-                {/* Month selector */}
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm">Month</Label>
-                  <Select
-                    value={selectedShiftsMonth.toISOString()}
-                    onValueChange={(value) => setSelectedShiftsMonth(new Date(value))}
-                  >
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Select month" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getDoctorMonths(selectedDoctor.id).map((m) => (
-                        <SelectItem key={m.toISOString()} value={m.toISOString()}>
-                          {format(m, 'MMMM yyyy')}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 <div className="flex-1 overflow-y-auto min-h-0">
-                  {getDoctorShiftsForMonth(selectedDoctor.id, selectedShiftsMonth).length > 0 ? (
+                  {getDoctorShiftsForMonth(selectedDoctor.id, selectedMonth).length > 0 ? (
                     <div className="space-y-2">
-                      {getDoctorShiftsForMonth(selectedDoctor.id, selectedShiftsMonth).map((shift) => (
+                      {getDoctorShiftsForMonth(selectedDoctor.id, selectedMonth).map((shift) => (
                         <div key={`${shift.date}-${shift.shiftType}`} className="flex justify-between items-center p-2 border rounded">
                           <span className="font-medium">
                             {format(new Date(shift.date), 'MMM d, yyyy')}
@@ -373,7 +345,7 @@ export default function DoctorsPage() {
                     </div>
                   ) : (
                     <p className="text-center text-muted-foreground py-4">
-                      No shifts assigned for {format(selectedShiftsMonth, 'MMMM yyyy')}.
+                      No shifts assigned for {format(selectedMonth, 'MMMM yyyy')}.
                     </p>
                   )}
                 </div>
