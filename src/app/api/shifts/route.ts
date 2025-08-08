@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
           shiftType: shifts.shiftType,
           doctorId: shifts.doctorId,
           doctorName: doctors.name,
+          doctorColor: doctors.color,
         })
         .from(shifts)
         .leftJoin(doctors, eq(shifts.doctorId, doctors.id))
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
           shiftType: shifts.shiftType,
           doctorId: shifts.doctorId,
           doctorName: doctors.name,
+          doctorColor: doctors.color,
         })
         .from(shifts)
         .leftJoin(doctors, eq(shifts.doctorId, doctors.id));

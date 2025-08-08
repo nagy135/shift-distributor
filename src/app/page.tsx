@@ -1,19 +1,24 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ClientOnly } from "@/components/client-only";
-import { Check } from "lucide-react";
-import { doctorsApi, shiftsApi } from "@/lib/api";
+import { doctorsApi, shiftsApi, unavailableDatesApi } from "@/lib/api";
+import { generateAssignmentsForMonth } from "@/lib/scheduler";
+import { SHIFT_TYPES } from "@/lib/shifts";
+import { MonthlyShiftTable } from "@/components/shifts/MonthlyShiftTable";
+import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
 
 export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const [isDistributing, setIsDistributing] = useState(false);
+  const [useTableView, setUseTableView] = useState(true);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const queryClient = useQueryClient();
 
   // Queries
@@ -23,7 +28,7 @@ export default function CalendarPage() {
   });
 
   const { data: allShifts = [], isLoading: shiftsLoading } = useQuery({
-    queryKey: ['shifts'],
+    queryKey: ['shifts', doctors?.map(d => `${d.id}:${d.color ?? ''}`).join('|')],
     queryFn: shiftsApi.getAll,
   });
 
@@ -40,7 +45,13 @@ export default function CalendarPage() {
 
   const handleDateSelect = useCallback((date: Date | undefined) => {
     setSelectedDate(date);
+    if (date) setIsAssignModalOpen(true);
   }, []);
+
+  const openAssignModalForDate = (date: Date) => {
+    setSelectedDate(date);
+    setIsAssignModalOpen(true);
+  };
 
   const handleShiftAssignment = async (shiftType: string, doctorId: number | null) => {
     if (!selectedDate) return;
@@ -53,6 +64,51 @@ export default function CalendarPage() {
       });
     } catch (error) {
       console.error('Error assigning shift:', error);
+    }
+  };
+
+  const handleDistributeMonth = async () => {
+    try {
+      setIsDistributing(true);
+      const range = {
+        start: startOfMonth(currentMonth),
+        end: endOfMonth(currentMonth),
+      };
+      const dates = eachDayOfInterval(range);
+
+      // Build unavailable map for all doctors
+      const unavailableDatesByDoctorEntries = await Promise.all(
+        doctors.map(async (d) => {
+          const records = await unavailableDatesApi.getByDoctor(d.id);
+          const set = new Set(records.map((r) => r.date));
+          return [d.id, set] as const;
+        })
+      );
+      const unavailableDatesByDoctor = Object.fromEntries(unavailableDatesByDoctorEntries);
+
+      const assignments = generateAssignmentsForMonth({
+        dates,
+        doctors,
+        shiftTypes: SHIFT_TYPES,
+        unavailableDatesByDoctor,
+      });
+
+      for (const a of assignments) {
+        // Overwrite existing assignments for that date/shiftType
+        // doctorId may be null in rare cases (e.g., no doctors). API supports null.
+        await assignShiftMutation.mutateAsync({
+          date: a.date,
+          shiftType: a.shiftType,
+          doctorId: a.doctorId,
+        });
+      }
+
+      // Ensure fresh data when done
+      await queryClient.invalidateQueries({ queryKey: ['shifts'] });
+    } catch (err) {
+      console.error('Distribution failed', err);
+    } finally {
+      setIsDistributing(false);
     }
   };
 
@@ -75,7 +131,14 @@ export default function CalendarPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Calendar</h1>
+        <div className="flex gap-2">
+          <Button variant={useTableView ? 'secondary' : 'outline'} onClick={() => setUseTableView((v) => !v)}>
+            {useTableView ? 'Calendar View' : 'Table View'}
+          </Button>
+          <Button onClick={handleDistributeMonth} disabled={isDistributing || shiftsLoading || doctors.length === 0}>
+            {isDistributing ? 'Distributing…' : 'Distribute'}
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-6">
@@ -91,11 +154,19 @@ export default function CalendarPage() {
             <div className="rounded-md border mx-auto max-w-md p-4 text-center text-muted-foreground">
               Loading shifts...
             </div>
+          ) : useTableView ? (
+            <MonthlyShiftTable
+              month={currentMonth}
+              shifts={allShifts}
+              onRowClick={openAssignModalForDate}
+            />
           ) : (
             <Calendar
               mode="single"
               selected={selectedDate}
               onSelect={handleDateSelect}
+              month={currentMonth}
+              onMonthChange={setCurrentMonth}
               className="rounded-md border mx-auto max-w-md"
               showOutsideDays={false}
               modifiers={{
@@ -112,109 +183,21 @@ export default function CalendarPage() {
           )}
         </ClientOnly>
 
-        {/* Shift Details - Below Calendar */}
-        {selectedDate && (
-          <div className="max-w-md mx-auto">
-            <h2 className="text-xl font-semibold mb-4 text-center">
-              Shifts for {format(selectedDate, 'MMMM d, yyyy')}
-            </h2>
-            
-            <div className="space-y-3">
-              {/* 17 Shift */}
-              <div className="p-3 border rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium text-sm">17 Shift</h3>
-                    <span className="text-sm text-muted-foreground">
-                      {getShiftForType('17shift')?.doctorName || 'No doctor assigned'}
-                    </span>
-                  </div>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="flex items-center gap-2">
-                        {getShiftForType('17shift')?.doctorName ? (
-                          <>
-                            <Check className="h-4 w-4 text-green-600" />
-                            Change
-                          </>
-                        ) : (
-                          'Assign'
-                        )}
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Assign 17 Shift</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <Select onValueChange={(value) => handleShiftAssignment('17shift', value === 'none' ? null : parseInt(value))}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a doctor" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">No doctor</SelectItem>
-                            {doctors.map((doctor) => (
-                              <SelectItem key={doctor.id} value={doctor.id.toString()}>
-                                {doctor.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </div>
-
-              {/* 20 Shift */}
-              <div className="p-3 border rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium text-sm">20 Shift</h3>
-                    <span className="text-sm text-muted-foreground">
-                      {getShiftForType('20shift')?.doctorName || 'No doctor assigned'}
-                    </span>
-                  </div>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="flex items-center gap-2">
-                        {getShiftForType('20shift')?.doctorName ? (
-                          <>
-                            <Check className="h-4 w-4 text-green-600" />
-                            Change
-                          </>
-                        ) : (
-                          'Assign'
-                        )}
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Assign 20 Shift</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <Select onValueChange={(value) => handleShiftAssignment('20shift', value === 'none' ? null : parseInt(value))}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a doctor" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">No doctor</SelectItem>
-                            {doctors.map((doctor) => (
-                              <SelectItem key={doctor.id} value={doctor.id.toString()}>
-                                {doctor.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* No inline always-open modal in calendar view */}
       </div>
+
+      {/* Reusable shift assignment modal for table rows */}
+      <ShiftAssignmentModal
+        open={isAssignModalOpen}
+        onOpenChange={setIsAssignModalOpen}
+        date={selectedDate}
+        doctors={doctors}
+        getShiftForType={getShiftForType}
+        onAssign={async (type, id) => {
+          if (!selectedDate) return
+          await handleShiftAssignment(type, id)
+        }}
+      />
     </div>
   );
 }

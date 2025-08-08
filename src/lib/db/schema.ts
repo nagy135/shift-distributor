@@ -3,13 +3,14 @@ import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 export const doctors = sqliteTable('doctors', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
+  color: text('color').default('black'),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
 
 export const shifts = sqliteTable('shifts', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   date: text('date').notNull(), // YYYY-MM-DD format
-  shiftType: text('shift_type').notNull(), // '17shift' or '20shift'
+  shiftType: text('shift_type').notNull(), // see SHIFT_TYPES in src/lib/shifts.ts
   doctorId: integer('doctor_id').references(() => doctors.id),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });

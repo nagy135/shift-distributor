@@ -1,0 +1,1 @@
+ALTER TABLE `doctors` ADD `color` text DEFAULT 'black';

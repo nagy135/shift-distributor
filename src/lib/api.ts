@@ -3,6 +3,7 @@
 export interface Doctor {
   id: number;
   name: string;
+  color?: string | null;
   createdAt: string;
 }
 
@@ -12,6 +13,7 @@ export interface Shift {
   shiftType: string;
   doctorId: number | null;
   doctorName: string | null;
+  doctorColor?: string | null;
 }
 
 export interface UnavailableDate {
@@ -40,6 +42,28 @@ export const doctorsApi = {
     });
     if (!response.ok) {
       throw new Error('Failed to create doctor');
+    }
+    return response.json();
+  },
+  updateColor: async (id: number, color: string | null): Promise<Doctor> => {
+    const response = await fetch('/api/doctors', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, color }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to update doctor color');
+    }
+    return response.json();
+  },
+  update: async (id: number, payload: Partial<Pick<Doctor, 'name' | 'color'>>): Promise<Doctor> => {
+    const response = await fetch('/api/doctors', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...payload }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to update doctor');
     }
     return response.json();
   },
