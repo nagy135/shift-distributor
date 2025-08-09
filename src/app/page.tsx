@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth } from "date-fns";
-import { enUS } from "date-fns/locale";
+import { enUS, de } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar } from "@/components/ui/calendar";
 import { Calendar as CalendarIcon, Table as TableIcon, Download as DownloadIcon, Lock as LockIcon, Unlock as UnlockIcon, Loader2 as LoaderIcon, Trash as TrashIcon } from "lucide-react";
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ClientOnly } from "@/components/client-only";
 import { doctorsApi, shiftsApi, unavailableDatesApi, type UnavailableDate, type Shift } from "@/lib/api";
 import { generateAssignmentsForMonth } from "@/lib/scheduler";
-import { SHIFT_TYPES, SHIFT_LABELS, isWeekendOnly, type ShiftType } from "@/lib/shifts";
+import { SHIFT_TYPES, isWeekendOnly, type ShiftType } from "@/lib/shifts";
 import { MonthlyShiftTable } from "@/components/shifts/MonthlyShiftTable";
 import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
 import { useMonthStore } from "@/lib/month-store";
@@ -151,30 +151,149 @@ export default function CalendarPage() {
         shiftIndex.set(s.date, byType);
       }
 
-      const rows = days.map((d) => {
+      // Build a structure like the provided example:
+      // [ TagNum | TagKurz | Nachtdienst | 20:00 Dienst | 15:00/17:00 Uhr Dienst | Hintergrund ]
+      // Note: We only fill our known shift columns; others remain blank for structure.
+      const header = [
+        '',
+        '',
+        'Nachtdienst',
+        '20:00 Dienst',
+        '15:00/17:00 Uhr Dienst',
+        'Hintergrund'
+      ];
+
+      const rowsAoa = days.map((d) => {
         const key = format(d, 'yyyy-MM-dd');
         const byType: Partial<Record<ShiftType, Shift>> =
           shiftIndex.get(key) ?? ({} as Partial<Record<ShiftType, Shift>>);
         const isWeekend = [0, 6].includes(d.getDay());
-        const row: Record<string, string> = { Date: format(d, 'MMM d, yyyy') };
+
+        // Example cell like "1 Di" in German
+        const dayNumber = format(d, 'd', { locale: de });
+        const dayNameShort = format(d, 'EEE', { locale: de }).replace('.', '');
+
+        // Prepare row with fixed number of columns (6)
+        const row: string[] = [dayNumber, dayNameShort, '', '', '', ''];
+
+        // Map our known shifts to the desired columns
+        // 20shift -> column index 4, 17shift -> column index 5
         SHIFT_TYPES.forEach((t) => {
           const showDash = isWeekendOnly(t) && !isWeekend;
-          if (showDash) {
-            row[SHIFT_LABELS[t]] = '—';
-          } else {
-            const s = byType[t];
-            row[SHIFT_LABELS[t]] = s?.doctorName ?? 'Unassigned';
-          }
+          const shift = byType[t];
+          const value = showDash ? '—' : (shift?.doctorName ?? 'Unassigned');
+
+          if (t === '20shift') row[3] = value;
+          if (t === '17shift') row[4] = value;
         });
+
         return row;
       });
 
-      const XLSX = await import('xlsx');
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Month');
+      // Use exceljs for styling (borders, column widths, fills)
+      type BorderStyle = { style: 'thin'; color: { argb: string } };
+      type ExcelCell = {
+        border?: { top: BorderStyle; left: BorderStyle; bottom: BorderStyle; right: BorderStyle };
+        alignment?: { vertical?: string; horizontal?: string };
+        font?: { bold?: boolean };
+        fill?: { type: 'pattern'; pattern: 'solid'; fgColor: { argb: string } };
+      };
+      type ExcelRow = {
+        height?: number;
+        eachCell: (callback: (cell: ExcelCell, colNumber: number) => void) => void;
+      };
+      type ExcelWorksheet = {
+        columns: { width: number }[];
+        addRow: (values: Array<string | number | null | undefined>) => ExcelRow;
+        getCell: (row: number, col: number) => ExcelCell;
+        lastRow?: { number: number };
+      };
+      type ExcelWorkbook = {
+        addWorksheet: (
+          name: string,
+          opts?: { properties?: { defaultRowHeight?: number }; views?: Array<{ state?: string; ySplit?: number }> }
+        ) => ExcelWorksheet;
+        xlsx: { writeBuffer: () => Promise<ArrayBuffer> };
+      };
+      type ExcelJSPackage = { Workbook: new () => ExcelWorkbook };
+
+      const ExcelJS = (await import('exceljs')) as unknown as ExcelJSPackage;
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Month', {
+        properties: { defaultRowHeight: 18 },
+        views: [{ state: 'frozen', ySplit: 1 }],
+      });
+
+      // Column widths: first two small
+      worksheet.columns = [
+        { width: 4 },   // day number
+        { width: 6 },   // day short name
+        { width: 16 },  // Nachtdienst
+        { width: 16 },  // 20:00 Dienst
+        { width: 22 },  // 15:00/17:00 Uhr Dienst
+        { width: 16 },  // Hintergrund
+      ];
+
+      // Helper to apply thin border to all sides
+      const applyBorder = (cell: ExcelCell) => {
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+          left: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+          bottom: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+          right: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+        };
+      };
+
+      // Header row
+      const headerRow = worksheet.addRow(header);
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        applyBorder(cell);
+      });
+
+      // Data rows with weekend highlighting
+      rowsAoa.forEach((rowVals, idx) => {
+        const d = days[idx];
+        const isWeekend = [0, 6].includes(d.getDay());
+        const row = worksheet.addRow(rowVals);
+        row.height = 18;
+        row.eachCell((cell, colNumber: number) => {
+          // Center small columns
+          if (colNumber === 1 || colNumber === 2) {
+            cell.alignment = { horizontal: 'center' };
+          }
+          applyBorder(cell);
+          if (isWeekend) {
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFEDEDED' },
+            };
+          }
+        });
+      });
+
+      // Ensure outer border lines by applying borders to entire used range
+      const lastRow = worksheet.lastRow?.number ?? 1;
+      for (let r = 1; r <= lastRow; r++) {
+        for (let c = 1; c <= header.length; c++) {
+          const cell = worksheet.getCell(r, c);
+          applyBorder(cell);
+        }
+      }
+
       const fileName = `Shifts-${format(month, 'yyyy-MM')}.xlsx`;
-      XLSX.writeFile(workbook, fileName);
+      const buffer: ArrayBuffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Export failed', error);
     }
