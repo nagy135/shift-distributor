@@ -5,7 +5,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMont
 import { enUS } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon, Table as TableIcon, Download as DownloadIcon } from "lucide-react";
+import { Calendar as CalendarIcon, Table as TableIcon, Download as DownloadIcon, Lock as LockIcon, Unlock as UnlockIcon, Loader2 as LoaderIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClientOnly } from "@/components/client-only";
 import { doctorsApi, shiftsApi, unavailableDatesApi, type UnavailableDate } from "@/lib/api";
@@ -15,6 +15,7 @@ import { MonthlyShiftTable } from "@/components/shifts/MonthlyShiftTable";
 import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
 import { useMonthStore } from "@/lib/month-store";
 import { MonthSelector } from "@/components/MonthSelector";
+import { useDistributeLockStore } from "@/lib/distribute-lock-store";
 
 export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -23,6 +24,7 @@ export default function CalendarPage() {
   const [useTableView, setUseTableView] = useState(true);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { isLocked, toggleLocked } = useDistributeLockStore();
 
   // Queries
   const { data: doctors = [] } = useQuery({
@@ -233,11 +235,29 @@ export default function CalendarPage() {
             </Button>
 
             <Button
-              variant="outline" 
+              variant="outline"
               onClick={handleDistributeMonth}
-              disabled={isDistributing || shiftsLoading || doctors.length === 0}
+              disabled={isLocked || isDistributing || shiftsLoading || doctors.length === 0}
+              title={isLocked ? 'Unlock to enable distribution' : undefined}
+              className="relative"
+              aria-busy={isDistributing}
             >
-              {isDistributing ? 'Distributing…' : 'Distribute'}
+              <span className={isDistributing ? 'opacity-0' : 'opacity-100'}>Distribute</span>
+              {isDistributing && (
+                <span className="absolute inset-0 flex items-center justify-center">
+                  <LoaderIcon className="size-4 animate-spin" />
+                </span>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleLocked}
+              aria-pressed={!isLocked}
+              aria-label={isLocked ? 'Locked. Click to unlock' : 'Unlocked. Click to lock'}
+              title={isLocked ? 'Locked' : 'Unlocked'}
+            >
+              {isLocked ? <LockIcon className="size-4" /> : <UnlockIcon className="size-4" />}
             </Button>
 
             <Button
