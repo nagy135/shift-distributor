@@ -5,8 +5,9 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMont
 import { enUS } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon, Table as TableIcon, Download as DownloadIcon, Lock as LockIcon, Unlock as UnlockIcon, Loader2 as LoaderIcon } from "lucide-react";
+import { Calendar as CalendarIcon, Table as TableIcon, Download as DownloadIcon, Lock as LockIcon, Unlock as UnlockIcon, Loader2 as LoaderIcon, Trash as TrashIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ClientOnly } from "@/components/client-only";
 import { doctorsApi, shiftsApi, unavailableDatesApi, type UnavailableDate, type Shift } from "@/lib/api";
 import { generateAssignmentsForMonth } from "@/lib/scheduler";
@@ -23,6 +24,8 @@ export default function CalendarPage() {
   const [isDistributing, setIsDistributing] = useState(false);
   const [useTableView, setUseTableView] = useState(true);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+  const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
   const queryClient = useQueryClient();
   const { isLocked, toggleLocked } = useDistributeLockStore();
 
@@ -177,6 +180,35 @@ export default function CalendarPage() {
     }
   };
 
+  const handleClearMonthAssignments = async () => {
+    try {
+      if (isLocked) return;
+      setIsClearing(true);
+
+      const targets = allShifts.filter(
+        (s) => isSameMonth(new Date(s.date), month) && s.doctorId != null
+      );
+
+      // Clear all assigned shifts for the selected month
+      await Promise.all(
+        targets.map((s) =>
+          assignShiftMutation.mutateAsync({
+            date: s.date,
+            shiftType: s.shiftType,
+            doctorId: null,
+          })
+        )
+      );
+
+      await queryClient.invalidateQueries({ queryKey: ['shifts'] });
+    } catch (error) {
+      console.error('Failed to clear assignments', error);
+    } finally {
+      setIsClearing(false);
+      setIsConfirmClearOpen(false);
+    }
+  };
+
   const getShiftForType = (shiftType: string) => {
     if (!selectedDate) return undefined;
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -319,6 +351,52 @@ export default function CalendarPage() {
 
         {/* No inline always-open modal in calendar view */}
       </div>
+
+      {useTableView && (
+        <div className="max-w-2xl mx-auto flex justify-center mt-2">
+          <Button
+            variant="destructive"
+            size="icon"
+            onClick={() => setIsConfirmClearOpen(true)}
+            disabled={
+              isLocked || isDistributing || isClearing || shiftsLoading ||
+              !allShifts.some((s) => isSameMonth(new Date(s.date), month) && s.doctorId != null)
+            }
+            title={isLocked ? 'Unlock to enable clearing' : 'Clear all assignments in this month'}
+            aria-busy={isClearing}
+            aria-label="Clear all assignments in this month"
+          >
+            {isClearing ? <LoaderIcon className="size-4 animate-spin" /> : <TrashIcon className="size-4" />}
+          </Button>
+        </div>
+      )}
+
+      {/* Confirm Clear Modal */}
+      <Dialog open={isConfirmClearOpen} onOpenChange={setIsConfirmClearOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset this month's assignments</DialogTitle>
+            <DialogDescription>
+              This will set all shifts in the selected month to Unassigned. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <div className="flex flex-col items-center items-stretch gap-2">
+            <Button
+              variant="destructive"
+              onClick={handleClearMonthAssignments}
+              disabled={isLocked || isClearing}
+              aria-busy={isClearing}
+            >
+              {isClearing ? <LoaderIcon className="size-4 animate-spin" /> : 'Reset'}
+            </Button>
+            <Button variant="outline" onClick={() => setIsConfirmClearOpen(false)}>
+              Cancel
+            </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reusable shift assignment modal for table rows */}
       <ShiftAssignmentModal
