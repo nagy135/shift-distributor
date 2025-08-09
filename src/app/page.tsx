@@ -5,6 +5,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from "dat
 import { enUS } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar } from "@/components/ui/calendar";
+import { Calendar as CalendarIcon, Table as TableIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClientOnly } from "@/components/client-only";
 import { doctorsApi, shiftsApi, unavailableDatesApi, type UnavailableDate } from "@/lib/api";
@@ -12,10 +13,12 @@ import { generateAssignmentsForMonth } from "@/lib/scheduler";
 import { SHIFT_TYPES, isWeekendOnly } from "@/lib/shifts";
 import { MonthlyShiftTable } from "@/components/shifts/MonthlyShiftTable";
 import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
+import { useMonthStore } from "@/lib/month-store";
+import { MonthSelector } from "@/components/MonthSelector";
 
 export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
+  const { month, setMonth } = useMonthStore();
   const [isDistributing, setIsDistributing] = useState(false);
   const [useTableView, setUseTableView] = useState(true);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -86,8 +89,8 @@ export default function CalendarPage() {
     try {
       setIsDistributing(true);
       const range = {
-        start: startOfMonth(currentMonth),
-        end: endOfMonth(currentMonth),
+        start: startOfMonth(month),
+        end: endOfMonth(month),
       };
       const dates = eachDayOfInterval(range);
 
@@ -154,16 +157,48 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          <Button variant={useTableView ? 'secondary' : 'outline'} onClick={() => setUseTableView((v) => !v)}>
-            {useTableView ? 'Calendar View' : 'Table View'}
-          </Button>
-          <Button onClick={handleDistributeMonth} disabled={isDistributing || shiftsLoading || doctors.length === 0}>
-            {isDistributing ? 'Distributing…' : 'Distribute'}
-          </Button>
-        </div>
-      </div>
+      <MonthSelector
+        rightActions={
+          <>
+            {/* Small screens: icon-only toggle */}
+            <Button
+              variant="default"
+              size="icon"
+              onClick={() => setUseTableView((v) => !v)}
+              className="lg:hidden"
+              aria-label={useTableView ? 'Switch to Calendar View' : 'Switch to Table View'}
+            >
+              {useTableView ? (
+                <CalendarIcon className="size-4" />
+              ) : (
+                <TableIcon className="size-4" />
+              )}
+            </Button>
+
+            {/* Large screens: icon + text */}
+            <Button
+              variant="default"
+              onClick={() => setUseTableView((v) => !v)}
+              className="hidden lg:inline-flex"
+            >
+              {useTableView ? (
+                <CalendarIcon className="size-4" />
+              ) : (
+                <TableIcon className="size-4" />
+              )}
+              <span className="ml-2">{useTableView ? 'Calendar View' : 'Table View'}</span>
+            </Button>
+
+            <Button
+              variant="outline" 
+              onClick={handleDistributeMonth}
+              disabled={isDistributing || shiftsLoading || doctors.length === 0}
+            >
+              {isDistributing ? 'Distributing…' : 'Distribute'}
+            </Button>
+          </>
+        }
+      />
 
       <div className="space-y-6">
         {/* Calendar - Full Width */}
@@ -180,7 +215,7 @@ export default function CalendarPage() {
             </div>
           ) : useTableView ? (
             <MonthlyShiftTable
-              month={currentMonth}
+              month={month}
               shifts={allShifts}
               unavailableByDoctor={unavailableByDoctor}
               onRowClick={openAssignModalForDate}
@@ -190,8 +225,8 @@ export default function CalendarPage() {
               mode="single"
               selected={selectedDate}
               onSelect={handleDateSelect}
-              month={currentMonth}
-              onMonthChange={setCurrentMonth}
+              month={month}
+              onMonthChange={setMonth}
               className="rounded-md border mx-auto max-w-md"
               showOutsideDays={false}
               modifiers={{

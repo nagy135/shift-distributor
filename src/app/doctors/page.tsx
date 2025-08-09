@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { format, startOfMonth, isSameMonth, addMonths } from "date-fns";
+import { format, isSameMonth } from "date-fns";
 import { SHIFT_LABELS } from "@/lib/shifts";
 import { Pill } from "@/components/ui/pill";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,10 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { doctorsApi, unavailableDatesApi, shiftsApi, type Doctor, type UnavailableDate } from "@/lib/api";
 import React from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MonthSelector } from "@/components/MonthSelector";
+import { useMonthStore } from "@/lib/month-store";
 
 export default function DoctorsPage() {
   const [newDoctorName, setNewDoctorName] = useState("");
@@ -24,7 +25,7 @@ export default function DoctorsPage() {
   const [isColorDialogOpen, setIsColorDialogOpen] = useState(false);
   const [pendingColor, setPendingColor] = useState<string | null>(null);
   const [pendingName, setPendingName] = useState<string>("");
-  const [selectedMonth, setSelectedMonth] = useState<Date>(startOfMonth(new Date()));
+  const { month: selectedMonth } = useMonthStore();
   const queryClient = useQueryClient();
 
   // Queries
@@ -156,11 +157,9 @@ export default function DoctorsPage() {
 
   return (
     <div className="space-y-6">
+      <MonthSelector rightActions={<Button onClick={() => setIsAddDialogOpen(true)}>Add Doctor</Button>} />
       <div className="flex items-center justify-between">
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>Add Doctor</Button>
-          </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Doctor</DialogTitle>
@@ -193,12 +192,7 @@ export default function DoctorsPage() {
         </Dialog>
       </div>
 
-      {/* Month selector for the whole page */}
-      <div className="flex items-center gap-2">
-        <Button variant="outline" onClick={() => setSelectedMonth(prev => addMonths(prev, -1))}>{'<'}</Button>
-        <div className="text-sm font-medium w-40 text-center">{format(selectedMonth, 'MMMM yyyy')}</div>
-        <Button variant="outline" onClick={() => setSelectedMonth(prev => addMonths(prev, 1))}>{'>'}</Button>
-      </div>
+        
 
       <div className="grid gap-4">
         {doctors.map((doctor) => (
