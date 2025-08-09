@@ -82,8 +82,8 @@ export function ShiftAssignmentModal({
             )
           })}
 
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full">
-            Close
+          <Button onClick={() => onOpenChange(false)} className="w-full border-2 border-green-200">
+            Apply
           </Button>
         </div>
       </DialogContent>

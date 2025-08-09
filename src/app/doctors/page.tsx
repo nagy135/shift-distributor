@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { doctorsApi, unavailableDatesApi, shiftsApi, type Doctor, type UnavailableDate } from "@/lib/api";
+import { Download } from "lucide-react";
 import React from "react";
 import { MonthSelector } from "@/components/MonthSelector";
 import { useMonthStore } from "@/lib/month-store";
@@ -140,6 +141,26 @@ export default function DoctorsPage() {
 
   const getDoctorShiftsForMonth = (doctorId: number, month: Date) => {
     return getDoctorShifts(doctorId).filter((shift) => isSameMonth(new Date(shift.date), month));
+  };
+
+  const handleExportDoctorShifts = async () => {
+    if (!selectedDoctor) return;
+    const monthlyShifts = getDoctorShiftsForMonth(selectedDoctor.id, selectedMonth);
+    if (monthlyShifts.length === 0) return;
+
+    const rows = monthlyShifts.map((shift) => ({
+      Date: format(new Date(shift.date), 'MMM d, yyyy'),
+      Shift: SHIFT_LABELS[shift.shiftType as keyof typeof SHIFT_LABELS] ?? shift.shiftType,
+    }));
+
+    const XLSX = await import('xlsx');
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Shifts');
+
+    const safeName = selectedDoctor.name.replace(/[^\w\-]+/g, '_');
+    const fileName = `${safeName}-${format(selectedMonth, 'yyyy-MM')}-shifts.xlsx`;
+    XLSX.writeFile(workbook, fileName);
   };
 
   // Get current selected dates for the selected doctor
@@ -344,11 +365,19 @@ export default function DoctorsPage() {
                 </div>
               </div>
             )}
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 flex gap-2">
+              <Button
+                onClick={handleExportDoctorShifts}
+                disabled={!selectedDoctor || getDoctorShiftsForMonth(selectedDoctor.id, selectedMonth).length === 0}
+                className="flex-1"
+              >
+                <Download />
+                Export
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => setIsShiftDetailsDialogOpen(false)}
-                className="w-full"
+                className="flex-1"
               >
                 Close
               </Button>

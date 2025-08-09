@@ -3,11 +3,12 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/lib/providers";
 import { Navigation } from "@/components/navigation";
+import { ThemeScript } from "@/components/theme-script";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Shift Distributor",
+  title: "Shift",
   description: "Manage doctor shifts and schedules",
 };
 
@@ -17,7 +18,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
       <body className={inter.className}>
         <QueryProvider>
           <div className="min-h-screen bg-background">

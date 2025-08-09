@@ -57,8 +57,8 @@ export function MonthlyShiftTable({ month, shifts, unavailableByDoctor = {}, onR
                   key={key}
                   className={cn(
                     "hover:bg-muted/30 cursor-pointer",
-                    isWeekend && "bg-gray-100",
-                    rowConflict ? 'bg-red-100 hover:bg-red-200 border rounded border-red-400' : undefined
+                    isWeekend && "bg-gray-100 dark:bg-gray-800",
+                    rowConflict ? 'bg-red-100 dark:bg-red-900 hover:bg-red-200 border rounded border-red-400' : undefined
                   )}
                   onClick={() => onRowClick(d)}
                 >

@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon, Table as TableIcon } from "lucide-react";
+import { Calendar as CalendarIcon, Table as TableIcon, Download as DownloadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClientOnly } from "@/components/client-only";
 import { doctorsApi, shiftsApi, unavailableDatesApi, type UnavailableDate } from "@/lib/api";
 import { generateAssignmentsForMonth } from "@/lib/scheduler";
-import { SHIFT_TYPES, isWeekendOnly } from "@/lib/shifts";
+import { SHIFT_TYPES, SHIFT_LABELS, isWeekendOnly } from "@/lib/shifts";
 import { MonthlyShiftTable } from "@/components/shifts/MonthlyShiftTable";
 import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
 import { useMonthStore } from "@/lib/month-store";
@@ -130,6 +130,49 @@ export default function CalendarPage() {
     }
   };
 
+  const handleExportMonthTable = async () => {
+    try {
+      // Build rows mirroring the table view for the selected month
+      const days = eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) });
+
+      // Index shifts for the month by date and type
+      const shiftIndex = new Map<string, Record<string, any>>();
+      for (const s of allShifts) {
+        const dateObj = new Date(s.date);
+        if (!isSameMonth(dateObj, month)) continue;
+        const byType = shiftIndex.get(s.date) ?? {};
+        byType[s.shiftType] = s;
+        shiftIndex.set(s.date, byType);
+      }
+
+      const rows = days.map((d) => {
+        const key = format(d, 'yyyy-MM-dd');
+        const byType = shiftIndex.get(key) || {};
+        const isWeekend = [0, 6].includes(d.getDay());
+        const row: Record<string, string> = { Date: format(d, 'MMM d, yyyy') };
+        SHIFT_TYPES.forEach((t) => {
+          const showDash = isWeekendOnly(t) && !isWeekend;
+          if (showDash) {
+            row[SHIFT_LABELS[t]] = '—';
+          } else {
+            const s = (byType as any)[t];
+            row[SHIFT_LABELS[t]] = s?.doctorName ?? 'Unassigned';
+          }
+        });
+        return row;
+      });
+
+      const XLSX = await import('xlsx');
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Month');
+      const fileName = `Shifts-${format(month, 'yyyy-MM')}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+    } catch (error) {
+      console.error('Export failed', error);
+    }
+  };
+
   const getShiftForType = (shiftType: string) => {
     if (!selectedDate) return undefined;
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
@@ -195,6 +238,15 @@ export default function CalendarPage() {
               disabled={isDistributing || shiftsLoading || doctors.length === 0}
             >
               {isDistributing ? 'Distributing…' : 'Distribute'}
+            </Button>
+
+            <Button
+              variant="default"
+              onClick={handleExportMonthTable}
+              disabled={shiftsLoading}
+            >
+              <DownloadIcon className="size-4" />
+              <span className="ml-1">Export</span>
             </Button>
           </>
         }
