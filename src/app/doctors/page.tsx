@@ -26,7 +26,7 @@ export default function DoctorsPage() {
   const [isColorDialogOpen, setIsColorDialogOpen] = useState(false);
   const [pendingColor, setPendingColor] = useState<string | null>(null);
   const [pendingName, setPendingName] = useState<string>("");
-  const { month: selectedMonth } = useMonthStore();
+  const { month: selectedMonth, setMonth } = useMonthStore();
   const queryClient = useQueryClient();
 
   // Queries
@@ -213,7 +213,7 @@ export default function DoctorsPage() {
         </Dialog>
       </div>
 
-        
+
 
       <div className="grid gap-4">
         {doctors.map((doctor) => (
@@ -292,11 +292,18 @@ export default function DoctorsPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              Unavailable Dates - {selectedDoctor?.name}
+              <div className="flex-col items-center gap-2">
+                <h1>
+                  Unavailable Dates
+                </h1>
+                <span className="text-sm text-muted-foreground">
+                  {selectedDoctor?.name}
+                </span>
+              </div>
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
+            <div className="flex flex-col gap-2 items-center">
               <Label>Select dates when this doctor cannot work:</Label>
               <Calendar
                 mode="multiple"
@@ -309,6 +316,8 @@ export default function DoctorsPage() {
                     }));
                   }
                 }}
+                month={selectedMonth}
+                onMonthChange={setMonth}
                 className="rounded-md border mt-2"
               />
             </div>
@@ -337,7 +346,14 @@ export default function DoctorsPage() {
         <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>
-              Shift Details - {selectedDoctor?.name}
+              <div className="flex-col items-center gap-2">
+                <h1>
+                  Shift Details
+                </h1>
+                <span className="text-sm text-muted-foreground">
+                  {selectedDoctor?.name}
+                </span>
+              </div>
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
