@@ -375,24 +375,24 @@ export default function CalendarPage() {
       <Dialog open={isConfirmClearOpen} onOpenChange={setIsConfirmClearOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reset this month's assignments</DialogTitle>
+            <DialogTitle>{"Reset this month's assignments"}</DialogTitle>
             <DialogDescription>
               This will set all shifts in the selected month to Unassigned. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <div className="flex flex-col items-center items-stretch gap-2">
-            <Button
-              variant="destructive"
-              onClick={handleClearMonthAssignments}
-              disabled={isLocked || isClearing}
-              aria-busy={isClearing}
-            >
-              {isClearing ? <LoaderIcon className="size-4 animate-spin" /> : 'Reset'}
-            </Button>
-            <Button variant="outline" onClick={() => setIsConfirmClearOpen(false)}>
-              Cancel
-            </Button>
+              <Button
+                variant="destructive"
+                onClick={handleClearMonthAssignments}
+                disabled={isLocked || isClearing}
+                aria-busy={isClearing}
+              >
+                {isClearing ? <LoaderIcon className="size-4 animate-spin" /> : 'Reset'}
+              </Button>
+              <Button variant="outline" onClick={() => setIsConfirmClearOpen(false)}>
+                Cancel
+              </Button>
             </div>
           </DialogFooter>
         </DialogContent>
