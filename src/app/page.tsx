@@ -116,15 +116,15 @@ export default function CalendarPage() {
         unavailableDatesByDoctor,
       });
 
-      for (const a of assignments) {
-        // Overwrite existing assignments for that date/shiftType
-        // doctorId may be null in rare cases (e.g., no doctors). API supports null.
-        await assignShiftMutation.mutateAsync({
-          date: a.date,
-          shiftType: a.shiftType,
-          doctorId: a.doctorId,
-        });
-      }
+      await Promise.all(
+        assignments.map((a) =>
+          assignShiftMutation.mutateAsync({
+            date: a.date,
+            shiftType: a.shiftType,
+            doctorId: a.doctorId,
+          })
+        )
+      );
 
       // Ensure fresh data when done
       await queryClient.invalidateQueries({ queryKey: ['shifts'] });
