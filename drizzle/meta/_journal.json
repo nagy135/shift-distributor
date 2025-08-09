@@ -15,6 +15,13 @@
       "when": 1754659952973,
       "tag": "0001_fearless_otto_octavius",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1754762724212,
+      "tag": "0002_lowly_guardsmen",
+      "breakpoints": true
     }
   ]
 }

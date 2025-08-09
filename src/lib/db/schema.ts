@@ -22,9 +22,18 @@ export const unavailableDates = sqliteTable('unavailable_dates', {
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
 
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
 export type Doctor = typeof doctors.$inferSelect;
 export type NewDoctor = typeof doctors.$inferInsert;
 export type Shift = typeof shifts.$inferSelect;
 export type NewShift = typeof shifts.$inferInsert;
 export type UnavailableDate = typeof unavailableDates.$inferSelect;
 export type NewUnavailableDate = typeof unavailableDates.$inferInsert; 
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
