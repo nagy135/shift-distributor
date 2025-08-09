@@ -56,10 +56,10 @@ export function MonthlyShiftTable({ month, shifts, unavailableByDoctor = {}, onR
                 <tr
                   key={key}
                   className={cn(
-                    "border-t hover:bg-muted/30 cursor-pointer",
-                    isWeekend && "bg-gray-100"
+                    "hover:bg-muted/30 cursor-pointer",
+                    isWeekend && "bg-gray-100",
+                    rowConflict ? 'bg-red-100 hover:bg-red-200 border rounded border-red-400' : undefined
                   )}
-                  style={rowConflict ? { outline: '3px solid #ef4444', outlineOffset: -2 } : undefined}
                   onClick={() => onRowClick(d)}
                 >
                   <td className="px-2 py-1 text-xs min-w-[100px]">{format(d, 'd. EEEE')}</td>
@@ -68,17 +68,20 @@ export function MonthlyShiftTable({ month, shifts, unavailableByDoctor = {}, onR
                     const conflict = s?.doctorId != null && (unavailableByDoctor[s?.doctorId]?.has(key) ?? false)
                     const showDash = isWeekendOnly(t) && !isWeekend
                     return (
-                      <td key={t} className="px-2 py-1">
+                      <td key={t} className="px-2 py-1 text-center">
                         {showDash ? (
                           <span className="text-muted-foreground text-xs text-center block w-full">—</span>
                         ) : (
                           s?.doctorName ? (
-                            <Pill
-                              color={s.doctorColor || undefined}
-                              className={cn('min-w-[90px] text-xs justify-center', conflict ? 'bg-red-200 text-yellow' : undefined)}
-                            >
-                              {s.doctorName}
-                            </Pill>
+                            <div className="flex items-center gap-1 justify-center min-w-[90px]">
+                              <Pill
+                                color={s.doctorColor || undefined}
+                                showX={conflict}
+                                className={cn('text-xs justify-center')}
+                              >
+                                {s.doctorName}
+                              </Pill>
+                            </div>
                           ) : 'Unassigned'
                         )}
                       </td>

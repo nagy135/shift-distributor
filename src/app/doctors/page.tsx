@@ -157,7 +157,6 @@ export default function DoctorsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Doctors</h1>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button>Add Doctor</Button>
@@ -234,37 +233,37 @@ export default function DoctorsPage() {
             </div>
           </div>
         ))}
-      {/* Color Picker Dialog */}
-      <Dialog open={isColorDialogOpen} onOpenChange={setIsColorDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Doctor Color - {selectedDoctor?.name}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Name</Label>
-              <Input id="edit-name" value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
+        {/* Color Picker Dialog */}
+        <Dialog open={isColorDialogOpen} onOpenChange={setIsColorDialogOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Doctor Color - {selectedDoctor?.name}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Name</Label>
+                <Input id="edit-name" value={pendingName} onChange={(e) => setPendingName(e.target.value)} />
+              </div>
+              <div className="flex items-center gap-3">
+                <Pill color={pendingColor || undefined}>Preview</Pill>
+                <input
+                  type="color"
+                  value={pendingColor ?? '#22c55e'}
+                  onChange={(e) => setPendingColor(e.target.value)}
+                  className="h-10 w-16 p-1 border rounded"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleUpdateColor} className="flex-1" disabled={updateColorMutation.isPending}>
+                  {updateColorMutation.isPending ? 'Saving…' : 'Save'}
+                </Button>
+                <Button variant="outline" onClick={() => setIsColorDialogOpen(false)} className="flex-1">
+                  Cancel
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <Pill color={pendingColor || undefined}>Preview</Pill>
-              <input
-                type="color"
-                value={pendingColor ?? '#22c55e'}
-                onChange={(e) => setPendingColor(e.target.value)}
-                className="h-10 w-16 p-1 border rounded"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleUpdateColor} className="flex-1" disabled={updateColorMutation.isPending}>
-                {updateColorMutation.isPending ? 'Saving…' : 'Save'}
-              </Button>
-              <Button variant="outline" onClick={() => setIsColorDialogOpen(false)} className="flex-1">
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
 
         {doctors.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
@@ -338,7 +337,7 @@ export default function DoctorsPage() {
                             {format(new Date(shift.date), 'MMM d, yyyy')}
                           </span>
                           <span className="text-sm text-muted-foreground capitalize">
-                         {SHIFT_LABELS[shift.shiftType as keyof typeof SHIFT_LABELS] ?? shift.shiftType}
+                            {SHIFT_LABELS[shift.shiftType as keyof typeof SHIFT_LABELS] ?? shift.shiftType}
                           </span>
                         </div>
                       ))}

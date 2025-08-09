@@ -66,7 +66,8 @@ export function ShiftAssignmentModal({
                             <SelectItem key={doctor.id} value={doctor.id.toString()}>
                               <Pill
                                 color={doctor.color || undefined}
-                                className={cn('text-xs px-2 py-0', hasConflict ? 'bg-red-500 text-yellow-200' : undefined)}
+                                showX={hasConflict}
+                                className={cn('text-xs px-2 py-0')}
                               >
                                 {doctor.name}
                               </Pill>
