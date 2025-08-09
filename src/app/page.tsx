@@ -8,9 +8,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Calendar as CalendarIcon, Table as TableIcon, Download as DownloadIcon, Lock as LockIcon, Unlock as UnlockIcon, Loader2 as LoaderIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ClientOnly } from "@/components/client-only";
-import { doctorsApi, shiftsApi, unavailableDatesApi, type UnavailableDate } from "@/lib/api";
+import { doctorsApi, shiftsApi, unavailableDatesApi, type UnavailableDate, type Shift } from "@/lib/api";
 import { generateAssignmentsForMonth } from "@/lib/scheduler";
-import { SHIFT_TYPES, SHIFT_LABELS, isWeekendOnly } from "@/lib/shifts";
+import { SHIFT_TYPES, SHIFT_LABELS, isWeekendOnly, type ShiftType } from "@/lib/shifts";
 import { MonthlyShiftTable } from "@/components/shifts/MonthlyShiftTable";
 import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
 import { useMonthStore } from "@/lib/month-store";
@@ -138,18 +138,20 @@ export default function CalendarPage() {
       const days = eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) });
 
       // Index shifts for the month by date and type
-      const shiftIndex = new Map<string, Record<string, any>>();
+      const shiftIndex = new Map<string, Partial<Record<ShiftType, Shift>>>();
       for (const s of allShifts) {
         const dateObj = new Date(s.date);
         if (!isSameMonth(dateObj, month)) continue;
-        const byType = shiftIndex.get(s.date) ?? {};
-        byType[s.shiftType] = s;
+        const existing = shiftIndex.get(s.date);
+        const byType: Partial<Record<ShiftType, Shift>> = existing ?? {};
+        byType[s.shiftType as ShiftType] = s;
         shiftIndex.set(s.date, byType);
       }
 
       const rows = days.map((d) => {
         const key = format(d, 'yyyy-MM-dd');
-        const byType = shiftIndex.get(key) || {};
+        const byType: Partial<Record<ShiftType, Shift>> =
+          shiftIndex.get(key) ?? ({} as Partial<Record<ShiftType, Shift>>);
         const isWeekend = [0, 6].includes(d.getDay());
         const row: Record<string, string> = { Date: format(d, 'MMM d, yyyy') };
         SHIFT_TYPES.forEach((t) => {
@@ -157,7 +159,7 @@ export default function CalendarPage() {
           if (showDash) {
             row[SHIFT_LABELS[t]] = '—';
           } else {
-            const s = (byType as any)[t];
+            const s = byType[t];
             row[SHIFT_LABELS[t]] = s?.doctorName ?? 'Unassigned';
           }
         });
