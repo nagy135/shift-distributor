@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAccessToken(newToken);
       await loadMe(newToken);
       return newToken;
-    } catch (e) {
+    } catch {
       setUser(null);
       setAccessToken(null);
       return null;
@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!accessToken) return;
     const interval = setInterval(() => {
-      refreshAccessToken().catch(() => {});
+      refreshAccessToken().catch(() => { });
     }, 1000 * 60 * 10); // every 10 minutes
     return () => clearInterval(interval);
   }, [accessToken, refreshAccessToken]);

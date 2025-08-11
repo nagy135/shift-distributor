@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     });
 
     return new Response(JSON.stringify({ accessToken }), { status: 200 });
-  } catch (e) {
+  } catch {
     return new Response(JSON.stringify({ error: "Failed to login" }), { status: 500 });
   }
 }

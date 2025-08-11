@@ -8,8 +8,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Calendar as CalendarIcon, Table as TableIcon, Download as DownloadIcon, Lock as LockIcon, Unlock as UnlockIcon, Loader2 as LoaderIcon, Trash as TrashIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Pill } from "@/components/ui/pill";
 import { ClientOnly } from "@/components/client-only";
-import { doctorsApi, shiftsApi, unavailableDatesApi, type UnavailableDate, type Shift } from "@/lib/api";
+import { doctorsApi, shiftsApi, unavailableDatesApi, type UnavailableDate, type Shift, type Doctor } from "@/lib/api";
 import { generateAssignmentsForMonth } from "@/lib/scheduler";
 import { SHIFT_TYPES, isWeekendOnly, type ShiftType } from "@/lib/shifts";
 import { MonthlyShiftTable } from "@/components/shifts/MonthlyShiftTable";
@@ -17,6 +18,33 @@ import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
 import { useMonthStore } from "@/lib/month-store";
 import { MonthSelector } from "@/components/MonthSelector";
 import { useDistributeLockStore } from "@/lib/distribute-lock-store";
+
+function DoctorShiftCounts({ doctors, shifts, month }: { doctors: Doctor[], shifts: Shift[], month: Date }) {
+  const shiftCounts = doctors.map(doctor => {
+    const doctorShifts = shifts.filter(shift => 
+      shift.doctorId === doctor.id && 
+      isSameMonth(new Date(shift.date), month)
+    );
+    return {
+      doctor,
+      count: doctorShifts.length
+    };
+  });
+
+  return (
+    <div className="flex flex-wrap gap-2 justify-center">
+      {shiftCounts.map(({ doctor, count }) => (
+        <Pill
+          key={doctor.id}
+          color={doctor.color || undefined}
+          className="font-medium"
+        >
+          {doctor.name}: {count}
+        </Pill>
+      ))}
+    </div>
+  );
+}
 
 export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -426,6 +454,27 @@ export default function CalendarPage() {
       />
 
       <div className="space-y-6">
+        {/* Doctor Shift Counts */}
+        <ClientOnly
+          fallback={
+            <div className="rounded-md border mx-auto max-w-md p-4 text-center text-muted-foreground">
+              Loading shift counts...
+            </div>
+          }
+        >
+          {shiftsLoading ? (
+            <div className="rounded-md border mx-auto max-w-md p-4 text-center text-muted-foreground">
+              Loading shifts...
+            </div>
+          ) : (
+            <DoctorShiftCounts 
+              doctors={doctors} 
+              shifts={allShifts} 
+              month={month} 
+            />
+          )}
+        </ClientOnly>
+
         {/* Calendar - Full Width */}
         <ClientOnly
           fallback={
