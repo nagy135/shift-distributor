@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { doctorsApi, unavailableDatesApi, shiftsApi, type Doctor, type UnavailableDate } from "@/lib/api";
-import { Download } from "lucide-react";
+import { Download, CheckSquare, Square } from "lucide-react";
 import React from "react";
 import { MonthSelector } from "@/components/MonthSelector";
 import { useMonthStore } from "@/lib/month-store";
@@ -126,6 +126,54 @@ export default function DoctorsPage() {
   const handleUpdateColor = async () => {
     if (!selectedDoctor) return;
     await updateColorMutation.mutateAsync({ id: selectedDoctor.id, color: pendingColor ?? null, name: pendingName });
+  };
+
+  // Helper functions for selecting all/deselecting all dates in a month
+  const getAllDatesInMonth = (month: Date): Date[] => {
+    const year = month.getFullYear();
+    const monthIndex = month.getMonth();
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    const dates: Date[] = [];
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      dates.push(new Date(year, monthIndex, day));
+    }
+
+    return dates;
+  };
+
+  const handleSelectAllMonth = () => {
+    if (!selectedDoctor) return;
+    const currentDates = selectedDatesByDoctor[selectedDoctor.id] || [];
+    const allDatesInMonth = getAllDatesInMonth(selectedMonth);
+
+    // Merge current dates with all dates from this month, removing duplicates
+    const mergedDates = [...currentDates];
+    allDatesInMonth.forEach(date => {
+      const dateString = format(date, 'yyyy-MM-dd');
+      const exists = mergedDates.some(existingDate =>
+        format(existingDate, 'yyyy-MM-dd') === dateString
+      );
+      if (!exists) {
+        mergedDates.push(date);
+      }
+    });
+
+    setSelectedDatesByDoctor(prev => ({
+      ...prev,
+      [selectedDoctor.id]: mergedDates
+    }));
+  };
+
+  const handleDeselectAllMonth = () => {
+    if (!selectedDoctor) return;
+    const currentDates = selectedDatesByDoctor[selectedDoctor.id] || [];
+    const datesToKeep = currentDates.filter(date => !isSameMonth(date, selectedMonth));
+
+    setSelectedDatesByDoctor(prev => ({
+      ...prev,
+      [selectedDoctor.id]: datesToKeep
+    }));
   };
 
   // Helper functions
@@ -318,8 +366,27 @@ export default function DoctorsPage() {
                 }}
                 month={selectedMonth}
                 onMonthChange={setMonth}
+                showOutsideDays={false}
                 className="rounded-md border mt-2"
               />
+            </div>
+            <div className="flex justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAllMonth}
+              >
+                <CheckSquare className="w-4 h-4 mr-2" />
+                Select All Month
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeselectAllMonth}
+              >
+                <Square className="w-4 h-4 mr-2" />
+                Deselect All Month
+              </Button>
             </div>
             <div className="flex gap-2">
               <Button
