@@ -7,7 +7,16 @@ import { eq } from 'drizzle-orm';
 export async function GET() {
   try {
     const allDoctors = await db.select().from(doctors);
-    return NextResponse.json(allDoctors);
+    // Parse the JSON field for unavailableShiftTypes
+    const doctorsWithParsedTypes = allDoctors.map(doctor => ({
+      ...doctor,
+      unavailableShiftTypes: doctor.unavailableShiftTypes 
+        ? (typeof doctor.unavailableShiftTypes === 'string' 
+            ? JSON.parse(doctor.unavailableShiftTypes) 
+            : doctor.unavailableShiftTypes)
+        : []
+    }));
+    return NextResponse.json(doctorsWithParsedTypes);
   } catch (error) {
     console.error('Error fetching doctors:', error);
     return NextResponse.json({ error: 'Failed to fetch doctors' }, { status: 500 });
@@ -44,7 +53,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { id, color, name } = await request.json();
+    const { id, color, name, unavailableShiftTypes } = await request.json();
     if (!id) {
       return NextResponse.json({ error: 'Doctor id is required' }, { status: 400 });
     }
@@ -55,10 +64,24 @@ export async function PATCH(request: NextRequest) {
     if (typeof name !== 'undefined') {
       updateValues.name = name;
     }
+    if (typeof unavailableShiftTypes !== 'undefined') {
+      updateValues.unavailableShiftTypes = Array.isArray(unavailableShiftTypes) 
+        ? JSON.stringify(unavailableShiftTypes) 
+        : unavailableShiftTypes;
+    }
     const [updated] = await db.update(doctors).set(updateValues).where(eq(doctors.id, id)).returning();
-    return NextResponse.json(updated);
+    // Parse the JSON field for unavailableShiftTypes in the response
+    const updatedWithParsedTypes = {
+      ...updated,
+      unavailableShiftTypes: updated.unavailableShiftTypes 
+        ? (typeof updated.unavailableShiftTypes === 'string' 
+            ? JSON.parse(updated.unavailableShiftTypes) 
+            : updated.unavailableShiftTypes)
+        : []
+    };
+    return NextResponse.json(updatedWithParsedTypes);
   } catch (error) {
-    console.error('Error updating doctor color:', error);
+    console.error('Error updating doctor:', error);
     return NextResponse.json({ error: 'Failed to update doctor' }, { status: 500 });
   }
 }

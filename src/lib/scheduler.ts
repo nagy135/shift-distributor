@@ -68,6 +68,13 @@ export function generateAssignmentsForMonth(params: GenerateAssignmentsParams): 
       let chosen: number | null = null
 
       for (const candidateId of candidateIds) {
+        const doctor = doctors.find(d => d.id === candidateId)
+        
+        // Check if doctor cannot do this shift type
+        if (doctor && doctor.unavailableShiftTypes && Array.isArray(doctor.unavailableShiftTypes) && doctor.unavailableShiftTypes.includes(shiftType)) {
+          continue
+        }
+        
         // Enforce weekend-only constraint
         if (isWeekendOnly(shiftType)) {
           const day = getDay(date) // 0 Sunday .. 6 Saturday
@@ -101,6 +108,13 @@ export function generateAssignmentsForMonth(params: GenerateAssignmentsParams): 
       // If no candidate fits the consecutive-day constraint, relax it but still avoid same day double assignment
       if (chosen == null) {
         for (const candidateId of candidateIds) {
+          const doctor = doctors.find(d => d.id === candidateId)
+          
+          // Check if doctor cannot do this shift type
+          if (doctor && doctor.unavailableShiftTypes && Array.isArray(doctor.unavailableShiftTypes) && doctor.unavailableShiftTypes.includes(shiftType)) {
+            continue
+          }
+          
           if (isWeekendOnly(shiftType)) {
             const day = getDay(date)
             const isWeekend = day === 0 || day === 6

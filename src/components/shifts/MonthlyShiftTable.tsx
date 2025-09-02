@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { eachDayOfInterval, endOfMonth, format, startOfMonth } from 'date-fns'
-import type { Shift } from '@/lib/api'
+import type { Shift, Doctor } from '@/lib/api'
 import { SHIFT_LABELS, SHIFT_TYPES, isWeekendOnly } from '@/lib/shifts'
 import { Pill } from '@/components/ui/pill'
 import { cn } from '@/lib/utils'
@@ -10,11 +10,12 @@ import { cn } from '@/lib/utils'
 interface MonthlyShiftTableProps {
   month: Date
   shifts: Shift[]
+  doctors: Doctor[]
   unavailableByDoctor?: Record<number, Set<string>>
   onRowClick: (date: Date) => void
 }
 
-export function MonthlyShiftTable({ month, shifts, unavailableByDoctor = {}, onRowClick }: MonthlyShiftTableProps) {
+export function MonthlyShiftTable({ month, shifts, doctors, unavailableByDoctor = {}, onRowClick }: MonthlyShiftTableProps) {
   const days = React.useMemo(() => {
     return eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) })
   }, [month])
@@ -28,6 +29,22 @@ export function MonthlyShiftTable({ month, shifts, unavailableByDoctor = {}, onR
     }
     return map
   }, [shifts])
+
+  // Helper function to check if a shift assignment violates constraints
+  const hasShiftConflict = (shift: Shift, date: string): boolean => {
+    if (!shift.doctorId) return false
+    
+    // Check unavailable date conflict
+    const hasDateConflict = unavailableByDoctor[shift.doctorId]?.has(date) ?? false
+    
+    // Check unavailable shift type conflict
+    const doctor = doctors.find(d => d.id === shift.doctorId)
+    const hasShiftTypeConflict = doctor?.unavailableShiftTypes && Array.isArray(doctor.unavailableShiftTypes) 
+      ? doctor.unavailableShiftTypes.includes(shift.shiftType) 
+      : false
+    
+    return hasDateConflict || hasShiftTypeConflict
+  }
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -47,7 +64,7 @@ export function MonthlyShiftTable({ month, shifts, unavailableByDoctor = {}, onR
               const byType = shiftIndex.get(key) || {}
               const rowConflict = SHIFT_TYPES.some((t) => {
                 const s = byType[t]
-                return s?.doctorId != null && (unavailableByDoctor[s.doctorId]?.has(key) ?? false)
+                return s && hasShiftConflict(s, key)
               })
               // Hide weekend-only shift content on weekdays
               const day = d.getDay()
@@ -65,7 +82,7 @@ export function MonthlyShiftTable({ month, shifts, unavailableByDoctor = {}, onR
                   <td className="px-2 py-1 text-xs min-w-[100px]">{format(d, 'd. EEEE')}</td>
                   {SHIFT_TYPES.map((t) => {
                     const s = byType[t]
-                    const conflict = s?.doctorId != null && (unavailableByDoctor[s?.doctorId]?.has(key) ?? false)
+                    const conflict = s && hasShiftConflict(s, key)
                     const showDash = isWeekendOnly(t) && !isWeekend
                     return (
                       <td key={t} className="px-2 py-1 text-center">

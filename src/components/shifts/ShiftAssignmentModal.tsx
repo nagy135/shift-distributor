@@ -61,7 +61,11 @@ export function ShiftAssignmentModal({
                         <SelectItem value="none">No doctor</SelectItem>
                         {doctors.map((doctor) => {
                           const dateKey = date ? format(date, 'yyyy-MM-dd') : null
-                          const hasConflict = dateKey ? (unavailableByDoctor[doctor.id]?.has(dateKey) ?? false) : false
+                          const hasDateConflict = dateKey ? (unavailableByDoctor[doctor.id]?.has(dateKey) ?? false) : false
+                          const hasShiftTypeConflict = doctor.unavailableShiftTypes && Array.isArray(doctor.unavailableShiftTypes) 
+                            ? doctor.unavailableShiftTypes.includes(t) 
+                            : false
+                          const hasConflict = hasDateConflict || hasShiftTypeConflict
                           return (
                             <SelectItem key={doctor.id} value={doctor.id.toString()}>
                               <Pill

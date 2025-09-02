@@ -1,0 +1,1 @@
+ALTER TABLE `doctors` ADD `unavailable_shift_types` text;

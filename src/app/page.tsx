@@ -491,6 +491,7 @@ export default function CalendarPage() {
             <MonthlyShiftTable
               month={month}
               shifts={allShifts}
+              doctors={doctors}
               unavailableByDoctor={unavailableByDoctor}
               onRowClick={openAssignModalForDate}
             />

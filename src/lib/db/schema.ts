@@ -4,6 +4,7 @@ export const doctors = sqliteTable('doctors', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
   color: text('color').default('black'),
+  unavailableShiftTypes: text('unavailable_shift_types', { mode: 'json' }).default('[]').notNull(), // JSON array of shift types the doctor cannot do
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
 

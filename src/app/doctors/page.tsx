@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { format, isSameMonth } from "date-fns";
-import { SHIFT_LABELS } from "@/lib/shifts";
+import { SHIFT_LABELS, SHIFT_TYPES, SHIFT_DEFS } from "@/lib/shifts";
 import { Pill } from "@/components/ui/pill";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { MultiSelect } from "@/components/ui/multiselect";
 import { doctorsApi, unavailableDatesApi, shiftsApi, type Doctor, type UnavailableDate } from "@/lib/api";
 import { Download, CheckSquare, Square } from "lucide-react";
 import React from "react";
@@ -26,6 +27,7 @@ export default function DoctorsPage() {
   const [isColorDialogOpen, setIsColorDialogOpen] = useState(false);
   const [pendingColor, setPendingColor] = useState<string | null>(null);
   const [pendingName, setPendingName] = useState<string>("");
+  const [pendingUnavailableShiftTypes, setPendingUnavailableShiftTypes] = useState<string[]>([]);
   const { month: selectedMonth, setMonth } = useMonthStore();
   const queryClient = useQueryClient();
 
@@ -111,11 +113,17 @@ export default function DoctorsPage() {
     setSelectedDoctor(doctor);
     setPendingColor(doctor.color ?? '#22c55e');
     setPendingName(doctor.name);
+    setPendingUnavailableShiftTypes(
+      doctor.unavailableShiftTypes && Array.isArray(doctor.unavailableShiftTypes) 
+        ? doctor.unavailableShiftTypes 
+        : []
+    );
     setIsColorDialogOpen(true);
   };
 
   const updateColorMutation = useMutation({
-    mutationFn: ({ id, color, name }: { id: number; color: string | null; name: string }) => doctorsApi.update(id, { color: color ?? null, name }),
+    mutationFn: ({ id, color, name, unavailableShiftTypes }: { id: number; color: string | null; name: string; unavailableShiftTypes: string[] }) => 
+      doctorsApi.update(id, { color: color ?? null, name, unavailableShiftTypes }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['doctors'] });
       queryClient.invalidateQueries({ queryKey: ['shifts'] });
@@ -125,7 +133,12 @@ export default function DoctorsPage() {
 
   const handleUpdateColor = async () => {
     if (!selectedDoctor) return;
-    await updateColorMutation.mutateAsync({ id: selectedDoctor.id, color: pendingColor ?? null, name: pendingName });
+    await updateColorMutation.mutateAsync({ 
+      id: selectedDoctor.id, 
+      color: pendingColor ?? null, 
+      name: pendingName,
+      unavailableShiftTypes: pendingUnavailableShiftTypes
+    });
   };
 
   // Helper functions for selecting all/deselecting all dates in a month
@@ -300,7 +313,7 @@ export default function DoctorsPage() {
         <Dialog open={isColorDialogOpen} onOpenChange={setIsColorDialogOpen}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
-              <DialogTitle>Doctor Color - {selectedDoctor?.name}</DialogTitle>
+              <DialogTitle>Doctor Settings - {selectedDoctor?.name}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -314,6 +327,18 @@ export default function DoctorsPage() {
                   value={pendingColor ?? '#22c55e'}
                   onChange={(e) => setPendingColor(e.target.value)}
                   className="h-10 w-16 p-1 border rounded"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Unavailable Shift Types</Label>
+                <MultiSelect
+                  options={SHIFT_TYPES.map(shiftType => ({
+                    value: shiftType,
+                    label: SHIFT_DEFS[shiftType].label
+                  }))}
+                  selected={pendingUnavailableShiftTypes}
+                  onChange={setPendingUnavailableShiftTypes}
+                  placeholder="Select shift types this doctor cannot do..."
                 />
               </div>
               <div className="flex gap-2">
