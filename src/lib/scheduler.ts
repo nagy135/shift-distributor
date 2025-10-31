@@ -8,7 +8,7 @@ import { getDay } from 'date-fns'
 export interface GeneratedAssignment {
   date: string // yyyy-MM-dd
   shiftType: ShiftType
-  doctorId: number | null
+  doctorIds: number[]
 }
 
 interface GenerateAssignmentsParams {
@@ -138,7 +138,7 @@ export function generateAssignmentsForMonth(params: GenerateAssignmentsParams): 
       assignments.push({
         date: format(date, 'yyyy-MM-dd'),
         shiftType,
-        doctorId: chosen ?? null,
+        doctorIds: chosen != null ? [chosen] : [],
       })
 
       if (chosen != null) {

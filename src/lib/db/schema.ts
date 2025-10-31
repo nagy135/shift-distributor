@@ -12,7 +12,7 @@ export const shifts = sqliteTable('shifts', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   date: text('date').notNull(), // YYYY-MM-DD format
   shiftType: text('shift_type').notNull(), // see SHIFT_TYPES in src/lib/shifts.ts
-  doctorId: integer('doctor_id').references(() => doctors.id),
+  doctorIds: text('doctor_ids', { mode: 'json' }).$type<number[]>().notNull().$default(() => []),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
 

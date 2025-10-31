@@ -8,13 +8,18 @@ export interface Doctor {
   createdAt: string;
 }
 
+export interface ShiftDoctor {
+  id: number;
+  name: string;
+  color?: string | null;
+}
+
 export interface Shift {
   id: number;
   date: string;
   shiftType: string;
-  doctorId: number | null;
-  doctorName: string | null;
-  doctorColor?: string | null;
+  doctorIds: number[];
+  doctors: ShiftDoctor[];
 }
 
 export interface UnavailableDate {
@@ -88,7 +93,7 @@ export const shiftsApi = {
     return response.json();
   },
 
-  assign: async (data: { date: string; shiftType: string; doctorId: number | null }): Promise<Shift> => {
+  assign: async (data: { date: string; shiftType: string; doctorIds: number[] }): Promise<Shift> => {
     const response = await fetch('/api/shifts', {
       method: 'POST',
       headers: {

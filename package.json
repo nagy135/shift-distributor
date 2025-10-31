@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node ./scripts/ensure-drizzle-migrations.js && drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {

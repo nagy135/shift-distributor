@@ -22,7 +22,8 @@ import { useDistributeLockStore } from "@/lib/distribute-lock-store";
 function DoctorShiftCounts({ doctors, shifts, month }: { doctors: Doctor[], shifts: Shift[], month: Date }) {
   const shiftCounts = doctors.map(doctor => {
     const doctorShifts = shifts.filter(shift => 
-      shift.doctorId === doctor.id && 
+      Array.isArray(shift.doctorIds) &&
+      shift.doctorIds.includes(doctor.id) && 
       isSameMonth(new Date(shift.date), month)
     );
     return {
@@ -104,14 +105,14 @@ export default function CalendarPage() {
     setIsAssignModalOpen(true);
   };
 
-  const handleShiftAssignment = async (shiftType: string, doctorId: number | null) => {
+  const handleShiftAssignment = async (shiftType: string, doctorIds: number[]) => {
     if (!selectedDate) return;
 
     try {
       await assignShiftMutation.mutateAsync({
         date: format(selectedDate, 'yyyy-MM-dd'),
         shiftType,
-        doctorId,
+        doctorIds,
       });
     } catch (error) {
       console.error('Error assigning shift:', error);
@@ -149,7 +150,7 @@ export default function CalendarPage() {
           assignShiftMutation.mutateAsync({
             date: a.date,
             shiftType: a.shiftType,
-            doctorId: a.doctorId,
+            doctorIds: a.doctorIds,
           })
         )
       );
@@ -209,7 +210,13 @@ export default function CalendarPage() {
         SHIFT_TYPES.forEach((t) => {
           const showDash = isWeekendOnly(t) && !isWeekend;
           const shift = byType[t];
-          const value = showDash ? '—' : (shift?.doctorName ?? 'Unassigned');
+          const value = showDash
+            ? '—'
+            : shift
+              ? (shift.doctors.length > 0
+                  ? shift.doctors.map((doctor) => doctor.name).join(', ')
+                  : 'Unassigned')
+              : 'Unassigned';
 
           if (t === '20shift') row[3] = value;
           if (t === '17shift') row[4] = value;
@@ -333,7 +340,7 @@ export default function CalendarPage() {
       setIsClearing(true);
 
       const targets = allShifts.filter(
-        (s) => isSameMonth(new Date(s.date), month) && s.doctorId != null
+        (s) => isSameMonth(new Date(s.date), month) && Array.isArray(s.doctorIds) && s.doctorIds.length > 0
       );
 
       // Clear all assigned shifts for the selected month
@@ -342,7 +349,7 @@ export default function CalendarPage() {
           assignShiftMutation.mutateAsync({
             date: s.date,
             shiftType: s.shiftType,
-            doctorId: null,
+            doctorIds: [],
           })
         )
       );
@@ -375,7 +382,7 @@ export default function CalendarPage() {
     // For each required type, we must have one shift with a doctor assigned
     for (const type of requiredTypes) {
       const shift = dayShifts.find(s => s.shiftType === type);
-      if (!shift || !shift.doctorId) return true; // unassigned
+      if (!shift || !Array.isArray(shift.doctorIds) || shift.doctorIds.length === 0) return true; // unassigned
     }
 
     return false;
@@ -529,7 +536,7 @@ export default function CalendarPage() {
             onClick={() => setIsConfirmClearOpen(true)}
             disabled={
               isLocked || isDistributing || isClearing || shiftsLoading ||
-              !allShifts.some((s) => isSameMonth(new Date(s.date), month) && s.doctorId != null)
+              !allShifts.some((s) => isSameMonth(new Date(s.date), month) && Array.isArray(s.doctorIds) && s.doctorIds.length > 0)
             }
             title={isLocked ? 'Unlock to enable clearing' : 'Clear all assignments in this month'}
             aria-busy={isClearing}
@@ -574,9 +581,9 @@ export default function CalendarPage() {
         date={selectedDate}
         doctors={doctors}
         getShiftForType={getShiftForType}
-        onAssign={async (type, id) => {
+        onAssign={async (type, ids) => {
           if (!selectedDate) return
-          await handleShiftAssignment(type, id)
+          await handleShiftAssignment(type, ids)
         }}
         unavailableByDoctor={unavailableByDoctor}
       />

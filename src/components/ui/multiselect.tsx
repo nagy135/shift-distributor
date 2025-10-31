@@ -1,10 +1,18 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { Button } from './button';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';
+import { Pill } from './pill';
+
+export interface MultiSelectOption {
+  value: string;
+  label: string;
+  color?: string | null;
+  hasConflict?: boolean;
+}
 
 interface MultiSelectProps {
-  options: { value: string; label: string }[];
+  options: MultiSelectOption[];
   selected: string[];
   onChange: (selected: string[]) => void;
   placeholder?: string;
@@ -13,6 +21,14 @@ interface MultiSelectProps {
 
 export function MultiSelect({ options, selected, onChange, placeholder = "Select items...", className }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
+
+  const optionsByValue = useMemo(() => {
+    const map = new Map<string, MultiSelectOption>();
+    for (const option of options) {
+      map.set(option.value, option);
+    }
+    return map;
+  }, [options]);
 
   const handleSelect = (value: string) => {
     const newSelected = selected.includes(value)
@@ -24,10 +40,6 @@ export function MultiSelect({ options, selected, onChange, placeholder = "Select
   const handleRemove = (value: string) => {
     onChange(selected.filter(item => item !== value));
   };
-
-  const selectedLabels = selected.map(value => 
-    options.find(option => option.value === value)?.label || value
-  );
 
   return (
     <div className={className}>
@@ -43,33 +55,42 @@ export function MultiSelect({ options, selected, onChange, placeholder = "Select
               {selected.length === 0 ? (
                 <span className="text-muted-foreground">{placeholder}</span>
               ) : (
-                selectedLabels.map((label, index) => (
-                  <div
-                    key={selected[index]}
-                    className="bg-secondary text-secondary-foreground px-2 py-1 rounded-sm text-sm flex items-center gap-1"
-                  >
-                    {label}
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemove(selected[index]);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
+                selected.map((value) => {
+                  const option = optionsByValue.get(value);
+                  const label = option?.label ?? value;
+                  const pillColor = option?.color ?? undefined;
+                  const hasConflict = option?.hasConflict ?? false;
+                  return (
+                    <div key={value} className="flex items-center gap-1">
+                      <Pill
+                        color={pillColor || undefined}
+                        showX={hasConflict}
+                        className="text-xs px-2 py-0"
+                      >
+                        {label}
+                      </Pill>
+                      <span
+                        onClick={(e) => {
                           e.stopPropagation();
-                          handleRemove(selected[index]);
-                        }
-                      }}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Remove ${label}`}
-                      className="hover:bg-secondary-foreground/20 rounded-full w-4 h-4 flex items-center justify-center cursor-pointer"
-                    >
-                      <X className="w-3 h-3" />
-                    </span>
-                  </div>
-                ))
+                          handleRemove(value);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleRemove(value);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Remove ${label}`}
+                        className="hover:bg-secondary-foreground/20 rounded-full w-4 h-4 flex items-center justify-center cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </span>
+                    </div>
+                  );
+                })
               )}
             </div>
           </Button>
@@ -87,7 +108,13 @@ export function MultiSelect({ options, selected, onChange, placeholder = "Select
                     <Check className="h-3 w-3 text-primary" />
                   )}
                 </div>
-                <span className="text-sm">{option.label}</span>
+                <Pill
+                  color={option.color ?? undefined}
+                  showX={option.hasConflict ?? false}
+                  className="text-xs"
+                >
+                  {option.label}
+                </Pill>
               </div>
             ))}
           </div>

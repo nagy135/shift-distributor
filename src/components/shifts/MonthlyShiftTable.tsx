@@ -3,7 +3,7 @@
 import React from 'react'
 import { eachDayOfInterval, endOfMonth, format, startOfMonth } from 'date-fns'
 import type { Shift, Doctor } from '@/lib/api'
-import { SHIFT_LABELS, SHIFT_TYPES, isWeekendOnly } from '@/lib/shifts'
+import { SHIFT_LABELS, SHIFT_TYPES, isWeekendOnly, type ShiftType } from '@/lib/shifts'
 import { Pill } from '@/components/ui/pill'
 import { cn } from '@/lib/utils'
 
@@ -21,30 +21,32 @@ export function MonthlyShiftTable({ month, shifts, doctors, unavailableByDoctor 
   }, [month])
 
   const shiftIndex = React.useMemo(() => {
-    const map = new Map<string, { [key: string]: Shift | undefined }>()
+    const map = new Map<string, Partial<Record<ShiftType, Shift>>>()
     for (const s of shifts) {
       const byType = map.get(s.date) ?? {}
-      byType[s.shiftType] = s
+      byType[s.shiftType as ShiftType] = s
       map.set(s.date, byType)
     }
     return map
   }, [shifts])
 
   // Helper function to check if a shift assignment violates constraints
-  const hasShiftConflict = (shift: Shift, date: string): boolean => {
-    if (!shift.doctorId) return false
-    
-    // Check unavailable date conflict
-    const hasDateConflict = unavailableByDoctor[shift.doctorId]?.has(date) ?? false
-    
-    // Check unavailable shift type conflict
-    const doctor = doctors.find(d => d.id === shift.doctorId)
-    const hasShiftTypeConflict = doctor?.unavailableShiftTypes && Array.isArray(doctor.unavailableShiftTypes) 
-      ? doctor.unavailableShiftTypes.includes(shift.shiftType) 
+  const hasDoctorConflict = React.useCallback((doctorId: number, shift: Shift, date: string): boolean => {
+    const hasDateConflict = unavailableByDoctor[doctorId]?.has(date) ?? false
+
+    const doctor = doctors.find((d) => d.id === doctorId)
+    const hasShiftTypeConflict = doctor?.unavailableShiftTypes && Array.isArray(doctor.unavailableShiftTypes)
+      ? doctor.unavailableShiftTypes.includes(shift.shiftType as ShiftType)
       : false
-    
+
     return hasDateConflict || hasShiftTypeConflict
+  }, [doctors, unavailableByDoctor])
+
+  const hasShiftConflict = React.useCallback((shift: Shift, date: string): boolean => {
+    if (!Array.isArray(shift.doctorIds) || shift.doctorIds.length === 0) return false
+    return shift.doctorIds.some((doctorId) => hasDoctorConflict(doctorId, shift, date))
   }
+  , [hasDoctorConflict])
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -82,25 +84,30 @@ export function MonthlyShiftTable({ month, shifts, doctors, unavailableByDoctor 
                   <td className="px-2 py-1 text-xs min-w-[100px]">{format(d, 'd. EEEE')}</td>
                   {SHIFT_TYPES.map((t) => {
                     const s = byType[t]
-                    const conflict = s && hasShiftConflict(s, key)
                     const showDash = isWeekendOnly(t) && !isWeekend
                     return (
                       <td key={t} className="px-2 py-1 text-center">
                         {showDash ? (
                           <span className="text-muted-foreground text-xs text-center block w-full">—</span>
-                        ) : (
-                          s?.doctorName ? (
-                            <div className="flex items-center gap-1 justify-center min-w-[90px]">
-                              <Pill
-                                color={s.doctorColor || undefined}
-                                showX={conflict}
-                                className={cn('text-xs justify-center')}
-                              >
-                                {s.doctorName}
-                              </Pill>
+                        ) : s ? (
+                          s.doctorIds.length > 0 ? (
+                            <div className="flex flex-wrap items-center gap-1 justify-center min-w-[120px]">
+                              {s.doctors.map((assignedDoctor) => {
+                                const conflict = hasDoctorConflict(assignedDoctor.id, s, key)
+                                return (
+                                  <Pill
+                                    key={`${assignedDoctor.id}-${s.id}`}
+                                    color={assignedDoctor.color || undefined}
+                                    showX={conflict}
+                                    className={cn('text-xs justify-center')}
+                                  >
+                                    {assignedDoctor.name}
+                                  </Pill>
+                                )
+                              })}
                             </div>
                           ) : 'Unassigned'
-                        )}
+                        ) : 'Unassigned'}
                       </td>
                     )
                   })}

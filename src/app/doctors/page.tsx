@@ -191,12 +191,12 @@ export default function DoctorsPage() {
 
   // Helper functions
   const getDoctorShiftCount = (doctorId: number) => {
-    return allShifts.filter(shift => shift.doctorId === doctorId && isSameMonth(new Date(shift.date), selectedMonth)).length;
+    return allShifts.filter(shift => Array.isArray(shift.doctorIds) && shift.doctorIds.includes(doctorId) && isSameMonth(new Date(shift.date), selectedMonth)).length;
   };
 
   const getDoctorShifts = (doctorId: number) => {
     return allShifts
-      .filter(shift => shift.doctorId === doctorId)
+      .filter(shift => Array.isArray(shift.doctorIds) && shift.doctorIds.includes(doctorId))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   };
 
