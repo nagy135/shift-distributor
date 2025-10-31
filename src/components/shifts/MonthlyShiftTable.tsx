@@ -46,11 +46,11 @@ export function MonthlyShiftTable({ month, shifts, doctors, unavailableByDoctor 
     if (!Array.isArray(shift.doctorIds) || shift.doctorIds.length === 0) return false
     return shift.doctorIds.some((doctorId) => hasDoctorConflict(doctorId, shift, date))
   }
-  , [hasDoctorConflict])
+    , [hasDoctorConflict])
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="overflow-hidden rounded-md border">
+      <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
