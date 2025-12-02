@@ -142,9 +142,10 @@ export default function DoctorsPage() {
   };
 
   // Helper functions for selecting all/deselecting all dates in a month
-  const getAllDatesInMonth = (month: Date): Date[] => {
-    const year = month.getFullYear();
-    const monthIndex = month.getMonth();
+  const getAllDatesInMonth = (month: Date | string): Date[] => {
+    const monthDate = month instanceof Date ? month : new Date(month);
+    const year = monthDate.getFullYear();
+    const monthIndex = monthDate.getMonth();
     const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
     const dates: Date[] = [];
 
