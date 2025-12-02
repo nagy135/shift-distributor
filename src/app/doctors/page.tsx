@@ -114,15 +114,15 @@ export default function DoctorsPage() {
     setPendingColor(doctor.color ?? '#22c55e');
     setPendingName(doctor.name);
     setPendingUnavailableShiftTypes(
-      doctor.unavailableShiftTypes && Array.isArray(doctor.unavailableShiftTypes) 
-        ? doctor.unavailableShiftTypes 
+      doctor.unavailableShiftTypes && Array.isArray(doctor.unavailableShiftTypes)
+        ? doctor.unavailableShiftTypes
         : []
     );
     setIsColorDialogOpen(true);
   };
 
   const updateColorMutation = useMutation({
-    mutationFn: ({ id, color, name, unavailableShiftTypes }: { id: number; color: string | null; name: string; unavailableShiftTypes: string[] }) => 
+    mutationFn: ({ id, color, name, unavailableShiftTypes }: { id: number; color: string | null; name: string; unavailableShiftTypes: string[] }) =>
       doctorsApi.update(id, { color: color ?? null, name, unavailableShiftTypes }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['doctors'] });
@@ -133,9 +133,9 @@ export default function DoctorsPage() {
 
   const handleUpdateColor = async () => {
     if (!selectedDoctor) return;
-    await updateColorMutation.mutateAsync({ 
-      id: selectedDoctor.id, 
-      color: pendingColor ?? null, 
+    await updateColorMutation.mutateAsync({
+      id: selectedDoctor.id,
+      color: pendingColor ?? null,
       name: pendingName,
       unavailableShiftTypes: pendingUnavailableShiftTypes
     });
@@ -227,11 +227,36 @@ export default function DoctorsPage() {
   // Get current selected dates for the selected doctor
   const currentSelectedDates = selectedDoctor ? selectedDatesByDoctor[selectedDoctor.id] || [] : [];
 
-  // Compute selected dates from unavailable dates
+  // Compute selected dates from unavailable dates - only use if we haven't started editing
   const computedSelectedDates = React.useMemo(() => {
     if (!isUnavailableDialogOpen || !selectedDoctor) return [];
     return unavailableDates.map((ud: UnavailableDate) => new Date(ud.date));
   }, [unavailableDates, isUnavailableDialogOpen, selectedDoctor]);
+
+  // Initialize dates when dialog opens (only once per dialog session)
+  React.useEffect(() => {
+    if (isUnavailableDialogOpen && selectedDoctor) {
+      const currentDates = selectedDatesByDoctor[selectedDoctor.id];
+      // Only initialize if state hasn't been set yet for this doctor
+      if (currentDates === undefined) {
+        setSelectedDatesByDoctor(prev => ({
+          ...prev,
+          [selectedDoctor.id]: computedSelectedDates
+        }));
+      }
+    }
+  }, [isUnavailableDialogOpen, selectedDoctor]);
+
+  // Clear state when dialog closes to reset for next time
+  React.useEffect(() => {
+    if (!isUnavailableDialogOpen && selectedDoctor) {
+      setSelectedDatesByDoctor(prev => {
+        const newState = { ...prev };
+        delete newState[selectedDoctor.id];
+        return newState;
+      });
+    }
+  }, [isUnavailableDialogOpen, selectedDoctor]);
 
 
 
@@ -380,7 +405,7 @@ export default function DoctorsPage() {
               <Label>Select dates when this doctor cannot work:</Label>
               <Calendar
                 mode="multiple"
-                selected={currentSelectedDates.length > 0 ? currentSelectedDates : computedSelectedDates}
+                selected={currentSelectedDates}
                 onSelect={(dates) => {
                   if (selectedDoctor) {
                     setSelectedDatesByDoctor(prev => ({
@@ -395,22 +420,24 @@ export default function DoctorsPage() {
                 className="rounded-md border mt-2"
               />
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleSelectAllMonth}
+                title="Select all days in this month"
               >
-                <CheckSquare className="w-4 h-4 mr-2" />
-                Select All Month
+                <CheckSquare className="w-4 h-4" />
+                All
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleDeselectAllMonth}
+                title="Deselect all days in this month"
               >
-                <Square className="w-4 h-4 mr-2" />
-                Deselect All Month
+                <Square className="w-4 h-4" />
+                Nothing
               </Button>
             </div>
             <div className="flex gap-2">
