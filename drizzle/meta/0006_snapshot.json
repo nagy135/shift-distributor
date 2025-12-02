@@ -1,7 +1,7 @@
 {
-  "version": "7",
+  "version": "6",
   "dialect": "sqlite",
-  "id": "6d2a3e5f-3d42-4f63-8654-1f15a8d1cabc",
+  "id": "4530ae5c-0caa-4417-ac8c-e85149e66c76",
   "prevId": "7928070a-d0fb-4570-83ae-15fb0da32fa3",
   "tables": {
     "doctors": {
@@ -36,6 +36,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'[]'"
+        },
+        "disabled": {
+          "name": "disabled",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -80,8 +88,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'[]'"
+          "autoincrement": false
         },
         "created_at": {
           "name": "created_at",
@@ -201,10 +208,11 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {}
+    "columns": {
+      "\"shifts\".\"doctor_id\"": "\"shifts\".\"doctor_ids\""
+    }
   },
   "internal": {
     "indexes": {}
   }
 }
-

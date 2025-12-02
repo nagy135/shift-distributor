@@ -108,7 +108,7 @@ export function ShiftAssignmentModal({
             const shift = getShiftForType(t)
             const selectedDoctorIds = pendingAssignments[t] ?? []
 
-            const options = doctors.map((doctor) => {
+            const options = doctors.filter((doctor) => !doctor.disabled).map((doctor) => {
               return {
                 value: doctor.id.toString(),
                 label: doctor.name,

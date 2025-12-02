@@ -5,6 +5,7 @@ export interface Doctor {
   name: string;
   color?: string | null;
   unavailableShiftTypes: string[];
+  disabled: boolean;
   createdAt: string;
 }
 
@@ -62,7 +63,7 @@ export const doctorsApi = {
     }
     return response.json();
   },
-  update: async (id: number, payload: Partial<Pick<Doctor, 'name' | 'color' | 'unavailableShiftTypes'>>): Promise<Doctor> => {
+  update: async (id: number, payload: Partial<Pick<Doctor, 'name' | 'color' | 'unavailableShiftTypes' | 'disabled'>>): Promise<Doctor> => {
     const response = await fetch('/api/doctors', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

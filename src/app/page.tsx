@@ -20,7 +20,7 @@ import { MonthSelector } from "@/components/MonthSelector";
 import { useDistributeLockStore } from "@/lib/distribute-lock-store";
 
 function DoctorShiftCounts({ doctors, shifts, month }: { doctors: Doctor[], shifts: Shift[], month: Date }) {
-  const shiftCounts = doctors.map(doctor => {
+  const shiftCounts = doctors.filter(d => !d.disabled).map(doctor => {
     const doctorShifts = shifts.filter(shift => 
       Array.isArray(shift.doctorIds) &&
       shift.doctorIds.includes(doctor.id) && 

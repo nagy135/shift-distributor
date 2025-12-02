@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { id, color, name, unavailableShiftTypes } = await request.json();
+    const { id, color, name, unavailableShiftTypes, disabled } = await request.json();
     if (!id) {
       return NextResponse.json({ error: 'Doctor id is required' }, { status: 400 });
     }
@@ -68,6 +68,9 @@ export async function PATCH(request: NextRequest) {
       updateValues.unavailableShiftTypes = Array.isArray(unavailableShiftTypes) 
         ? JSON.stringify(unavailableShiftTypes) 
         : unavailableShiftTypes;
+    }
+    if (typeof disabled !== 'undefined') {
+      updateValues.disabled = disabled;
     }
     const [updated] = await db.update(doctors).set(updateValues).where(eq(doctors.id, id)).returning();
     // Parse the JSON field for unavailableShiftTypes in the response

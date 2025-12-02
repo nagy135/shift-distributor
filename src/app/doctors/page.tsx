@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MultiSelect } from "@/components/ui/multiselect";
+import { Switch } from "@/components/ui/switch";
 import { doctorsApi, unavailableDatesApi, shiftsApi, type Doctor, type UnavailableDate } from "@/lib/api";
 import { Download, CheckSquare, Square } from "lucide-react";
 import React from "react";
@@ -28,6 +29,7 @@ export default function DoctorsPage() {
   const [pendingColor, setPendingColor] = useState<string | null>(null);
   const [pendingName, setPendingName] = useState<string>("");
   const [pendingUnavailableShiftTypes, setPendingUnavailableShiftTypes] = useState<string[]>([]);
+  const [pendingDisabled, setPendingDisabled] = useState<boolean>(false);
   const { month: selectedMonth, setMonth } = useMonthStore();
   const queryClient = useQueryClient();
 
@@ -118,12 +120,13 @@ export default function DoctorsPage() {
         ? doctor.unavailableShiftTypes
         : []
     );
+    setPendingDisabled(doctor.disabled ?? false);
     setIsColorDialogOpen(true);
   };
 
   const updateColorMutation = useMutation({
-    mutationFn: ({ id, color, name, unavailableShiftTypes }: { id: number; color: string | null; name: string; unavailableShiftTypes: string[] }) =>
-      doctorsApi.update(id, { color: color ?? null, name, unavailableShiftTypes }),
+    mutationFn: ({ id, color, name, unavailableShiftTypes, disabled }: { id: number; color: string | null; name: string; unavailableShiftTypes: string[]; disabled: boolean }) =>
+      doctorsApi.update(id, { color: color ?? null, name, unavailableShiftTypes, disabled }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['doctors'] });
       queryClient.invalidateQueries({ queryKey: ['shifts'] });
@@ -137,7 +140,8 @@ export default function DoctorsPage() {
       id: selectedDoctor.id,
       color: pendingColor ?? null,
       name: pendingName,
-      unavailableShiftTypes: pendingUnavailableShiftTypes
+      unavailableShiftTypes: pendingUnavailableShiftTypes,
+      disabled: pendingDisabled
     });
   };
 
@@ -303,14 +307,24 @@ export default function DoctorsPage() {
 
 
       <div className="grid gap-4">
-        {doctors.map((doctor) => (
-          <div key={doctor.id} className="p-4 border rounded-lg">
+        {[...doctors].sort((a, b) => {
+          // Sort disabled doctors to the end
+          if (a.disabled && !b.disabled) return 1;
+          if (!a.disabled && b.disabled) return -1;
+          return 0;
+        }).map((doctor) => (
+          <div key={doctor.id} className={`p-4 border rounded-lg ${doctor.disabled ? "opacity-60" : ""}`}>
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2">
                   <Pill color={doctor.color || undefined} className="cursor-pointer" onClick={() => openColorDialog(doctor)}>
                     {doctor.name}
                   </Pill>
+                  {doctor.disabled && (
+                    <span className="text-sm bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded">
+                      Disabled
+                    </span>
+                  )}
                   <span className="text-sm text-muted-foreground">
                     ({getDoctorShiftCount(doctor.id)})
                   </span>
@@ -365,6 +379,14 @@ export default function DoctorsPage() {
                   selected={pendingUnavailableShiftTypes}
                   onChange={setPendingUnavailableShiftTypes}
                   placeholder="Select shift types this doctor cannot do..."
+                />
+              </div>
+              <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                <Label htmlFor="disabled-toggle" className="cursor-pointer">Disabled</Label>
+                <Switch
+                  id="disabled-toggle"
+                  checked={pendingDisabled}
+                  onCheckedChange={setPendingDisabled}
                 />
               </div>
               <div className="flex gap-2">

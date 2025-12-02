@@ -5,6 +5,7 @@ export const doctors = sqliteTable('doctors', {
   name: text('name').notNull(),
   color: text('color').default('black'),
   unavailableShiftTypes: text('unavailable_shift_types', { mode: 'json' }).default('[]').notNull(), // JSON array of shift types the doctor cannot do
+  disabled: integer('disabled', { mode: 'boolean' }).default(false).notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
 

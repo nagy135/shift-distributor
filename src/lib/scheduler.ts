@@ -30,20 +30,22 @@ export function generateAssignmentsForMonth(params: GenerateAssignmentsParams): 
   const { dates, doctors, shiftTypes = SHIFT_TYPES, unavailableDatesByDoctor } = params
 
   const assignments: GeneratedAssignment[] = []
-  if (doctors.length === 0 || dates.length === 0) return assignments
+  // Filter out disabled doctors
+  const enabledDoctors = doctors.filter(d => !d.disabled)
+  if (enabledDoctors.length === 0 || dates.length === 0) return assignments
 
   // Track how many shifts each doctor has been assigned
   const assignmentCount = new Map<number, number>()
   // Track last date assigned for consecutive-day avoidance
   const lastAssignedDate = new Map<number, Date>()
 
-  for (const doctor of doctors) {
+  for (const doctor of enabledDoctors) {
     assignmentCount.set(doctor.id, 0)
   }
 
   // Helper to sort doctors by current load, then random tiebreaker
   const getSortedDoctorIds = (seed: number): number[] => {
-    const ids = doctors.map((d) => d.id)
+    const ids = enabledDoctors.map((d) => d.id)
     // Shuffle a copy for random tie-breaking
     for (let i = ids.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1) + seed) % (i + 1)
@@ -68,7 +70,7 @@ export function generateAssignmentsForMonth(params: GenerateAssignmentsParams): 
       let chosen: number | null = null
 
       for (const candidateId of candidateIds) {
-        const doctor = doctors.find(d => d.id === candidateId)
+        const doctor = enabledDoctors.find(d => d.id === candidateId)
         
         // Check if doctor cannot do this shift type
         if (doctor && doctor.unavailableShiftTypes && Array.isArray(doctor.unavailableShiftTypes) && doctor.unavailableShiftTypes.includes(shiftType)) {
@@ -108,7 +110,7 @@ export function generateAssignmentsForMonth(params: GenerateAssignmentsParams): 
       // If no candidate fits the consecutive-day constraint, relax it but still avoid same day double assignment
       if (chosen == null) {
         for (const candidateId of candidateIds) {
-          const doctor = doctors.find(d => d.id === candidateId)
+          const doctor = enabledDoctors.find(d => d.id === candidateId)
           
           // Check if doctor cannot do this shift type
           if (doctor && doctor.unavailableShiftTypes && Array.isArray(doctor.unavailableShiftTypes) && doctor.unavailableShiftTypes.includes(shiftType)) {
