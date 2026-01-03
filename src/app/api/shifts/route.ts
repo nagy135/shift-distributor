@@ -147,4 +147,77 @@ export async function POST(request: NextRequest) {
     console.error('Error creating/updating shift:', error);
     return NextResponse.json({ error: 'Failed to create/update shift' }, { status: 500 });
   }
+}
+
+interface BulkShiftInput {
+  date: string;
+  shiftType: string;
+  doctorIds: unknown;
+}
+
+// PUT - Bulk upsert shifts (for distribute functionality)
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    
+    if (!Array.isArray(body.shifts)) {
+      return NextResponse.json({ error: 'shifts array is required' }, { status: 400 });
+    }
+
+    const inputShifts: BulkShiftInput[] = body.shifts;
+    
+    // Validate all inputs first
+    for (const shift of inputShifts) {
+      if (!shift.date || !shift.shiftType) {
+        return NextResponse.json({ error: 'Each shift must have date and shiftType' }, { status: 400 });
+      }
+    }
+
+    // Get all existing shifts for the dates we're updating
+    const uniqueDates = [...new Set(inputShifts.map(s => s.date))];
+    const existingShifts = await db
+      .select()
+      .from(shifts)
+      .where(inArray(shifts.date, uniqueDates));
+
+    // Build a lookup map: "date|shiftType" -> existing shift
+    const existingMap = new Map<string, ShiftRow>();
+    for (const shift of existingShifts) {
+      existingMap.set(`${shift.date}|${shift.shiftType}`, shift);
+    }
+
+    const results: ShiftRow[] = [];
+
+    // Process each shift - update existing or insert new
+    for (const input of inputShifts) {
+      const key = `${input.date}|${input.shiftType}`;
+      const normalizedDoctorIds = parseDoctorIds(input.doctorIds);
+      const existing = existingMap.get(key);
+
+      if (existing) {
+        const [updated] = await db
+          .update(shifts)
+          .set({ doctorIds: normalizedDoctorIds })
+          .where(eq(shifts.id, existing.id))
+          .returning();
+        results.push(updated);
+      } else {
+        const [inserted] = await db
+          .insert(shifts)
+          .values({ 
+            date: input.date, 
+            shiftType: input.shiftType, 
+            doctorIds: normalizedDoctorIds 
+          })
+          .returning();
+        results.push(inserted);
+      }
+    }
+
+    const hydrated = await hydrateShifts(results);
+    return NextResponse.json(hydrated);
+  } catch (error) {
+    console.error('Error bulk upserting shifts:', error);
+    return NextResponse.json({ error: 'Failed to bulk upsert shifts' }, { status: 500 });
+  }
 } 

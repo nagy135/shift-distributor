@@ -107,6 +107,20 @@ export const shiftsApi = {
     }
     return response.json();
   },
+
+  assignBatch: async (shifts: { date: string; shiftType: string; doctorIds: number[] }[]): Promise<Shift[]> => {
+    const response = await fetch('/api/shifts', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ shifts }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to batch assign shifts');
+    }
+    return response.json();
+  },
 };
 
 // Unavailable Dates API

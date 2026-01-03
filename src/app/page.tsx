@@ -145,15 +145,8 @@ export default function CalendarPage() {
         unavailableDatesByDoctor,
       });
 
-      await Promise.all(
-        assignments.map((a) =>
-          assignShiftMutation.mutateAsync({
-            date: a.date,
-            shiftType: a.shiftType,
-            doctorIds: a.doctorIds,
-          })
-        )
-      );
+      // Use batch endpoint for all assignments in a single request
+      await shiftsApi.assignBatch(assignments);
 
       // Ensure fresh data when done
       await queryClient.invalidateQueries({ queryKey: ['shifts'] });
@@ -343,16 +336,16 @@ export default function CalendarPage() {
         (s) => isSameMonth(new Date(s.date), month) && Array.isArray(s.doctorIds) && s.doctorIds.length > 0
       );
 
-      // Clear all assigned shifts for the selected month
-      await Promise.all(
-        targets.map((s) =>
-          assignShiftMutation.mutateAsync({
-            date: s.date,
-            shiftType: s.shiftType,
-            doctorIds: [],
-          })
-        )
-      );
+      // Clear all assigned shifts for the selected month using batch endpoint
+      const clearAssignments = targets.map((s) => ({
+        date: s.date,
+        shiftType: s.shiftType,
+        doctorIds: [] as number[],
+      }));
+
+      if (clearAssignments.length > 0) {
+        await shiftsApi.assignBatch(clearAssignments);
+      }
 
       await queryClient.invalidateQueries({ queryKey: ['shifts'] });
     } catch (error) {
