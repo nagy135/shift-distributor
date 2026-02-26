@@ -2,6 +2,7 @@
 
 import React from "react";
 import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
+import { de } from "date-fns/locale";
 import type { Shift, Doctor } from "@/lib/api";
 import {
   SHIFT_LABELS,
@@ -73,14 +74,20 @@ export function MonthlyShiftTable({
   );
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-xl mx-auto">
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
-              <th className="text-left px-2 py-1 w-40">Date</th>
-              {SHIFT_TYPES.map((t) => (
-                <th key={t} className="text-center px-2 py-1">
+              <th className="text-left px-1 py-1 w-[50px]" aria-label="Date" />
+              {SHIFT_TYPES.map((t, index) => (
+                <th
+                  key={t}
+                  className={cn(
+                    "text-center py-1",
+                    index === 0 ? "pl-1 pr-1" : "px-2",
+                  )}
+                >
                   {SHIFT_LABELS[t]}
                 </th>
               ))}
@@ -109,21 +116,27 @@ export function MonthlyShiftTable({
                   )}
                   onClick={() => onRowClick(d)}
                 >
-                  <td className="px-2 py-1 text-xs min-w-[100px]">
-                    {format(d, "d. EEEE")}
+                  <td className="px-1 py-1 text-xs min-w-[50px]">
+                    {format(d, "d. EEEEEE", { locale: de })}
                   </td>
-                  {SHIFT_TYPES.map((t) => {
+                  {SHIFT_TYPES.map((t, index) => {
                     const s = byType[t];
                     const showDash = isWeekendOnly(t) && !isWeekend;
                     return (
-                      <td key={t} className="px-2 py-1 text-center">
+                      <td
+                        key={t}
+                        className={cn(
+                          "py-1 text-center",
+                          index === 0 ? "pl-1 pr-1" : "px-2",
+                        )}
+                      >
                         {showDash ? (
                           <span className="text-muted-foreground text-xs text-center block w-full">
                             —
                           </span>
                         ) : s ? (
                           s.doctorIds.length > 0 ? (
-                            <div className="flex flex-wrap items-center gap-1 justify-center min-w-[120px]">
+                            <div className="flex flex-wrap items-center gap-1 justify-center">
                               {s.doctors.map((assignedDoctor) => {
                                 const conflict = hasDoctorConflict(
                                   assignedDoctor.id,
