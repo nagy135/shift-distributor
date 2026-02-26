@@ -80,11 +80,12 @@ export function UnavailableDatesDialog({
 
   const handleDeselectAllMonth = () => {
     if (!doctor) return;
+    const monthDate = month instanceof Date ? month : new Date(month);
     const datesToKeep = selectedDates.filter(
       (date) =>
         !(
-          date.getMonth() === month.getMonth() &&
-          date.getFullYear() === month.getFullYear()
+          date.getMonth() === monthDate.getMonth() &&
+          date.getFullYear() === monthDate.getFullYear()
         ),
     );
 
