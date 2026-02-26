@@ -30,7 +30,7 @@ export function ConfirmClearDialog({
 }: ConfirmClearDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>{"Reset this month's assignments"}</DialogTitle>
           <DialogDescription>

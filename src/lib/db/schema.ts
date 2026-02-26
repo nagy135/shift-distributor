@@ -1,4 +1,5 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 
 export const doctors = sqliteTable("doctors", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -8,6 +9,9 @@ export const doctors = sqliteTable("doctors", {
     .default("[]")
     .notNull(), // JSON array of shift types the doctor cannot do
   disabled: integer("disabled", { mode: "boolean" }).default(false).notNull(),
+  oa: integer("oa", { mode: "boolean" })
+    .default(sql`0`)
+    .notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
     () => new Date(),
   ),

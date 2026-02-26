@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { id, color, name, unavailableShiftTypes, disabled } =
+    const { id, color, name, unavailableShiftTypes, disabled, oa } =
       await request.json();
     if (!id) {
       return NextResponse.json(
@@ -89,6 +89,9 @@ export async function PATCH(request: NextRequest) {
     }
     if (typeof disabled !== "undefined") {
       updateValues.disabled = disabled;
+    }
+    if (typeof oa !== "undefined") {
+      updateValues.oa = oa;
     }
     const [updated] = await db
       .update(doctors)

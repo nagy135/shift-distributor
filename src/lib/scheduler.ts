@@ -79,9 +79,16 @@ export function generateAssignmentsForMonth(
       for (const candidateId of candidateIds) {
         const doctor = enabledDoctors.find((d) => d.id === candidateId);
 
+        if (!doctor) {
+          continue;
+        }
+
+        if (shiftType === "oa" ? !doctor.oa : doctor.oa) {
+          continue;
+        }
+
         // Check if doctor cannot do this shift type
         if (
-          doctor &&
           doctor.unavailableShiftTypes &&
           Array.isArray(doctor.unavailableShiftTypes) &&
           doctor.unavailableShiftTypes.includes(shiftType)
@@ -127,10 +134,16 @@ export function generateAssignmentsForMonth(
       if (chosen == null) {
         for (const candidateId of candidateIds) {
           const doctor = enabledDoctors.find((d) => d.id === candidateId);
+          if (!doctor) {
+            continue;
+          }
+
+          if (shiftType === "oa" ? !doctor.oa : doctor.oa) {
+            continue;
+          }
 
           // Check if doctor cannot do this shift type
           if (
-            doctor &&
             doctor.unavailableShiftTypes &&
             Array.isArray(doctor.unavailableShiftTypes) &&
             doctor.unavailableShiftTypes.includes(shiftType)

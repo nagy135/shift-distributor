@@ -6,6 +6,7 @@ export interface Doctor {
   color?: string | null;
   unavailableShiftTypes: string[];
   disabled: boolean;
+  oa: boolean;
   createdAt: string;
 }
 
@@ -69,7 +70,10 @@ export const doctorsApi = {
   update: async (
     id: number,
     payload: Partial<
-      Pick<Doctor, "name" | "color" | "unavailableShiftTypes" | "disabled">
+      Pick<
+        Doctor,
+        "name" | "color" | "unavailableShiftTypes" | "disabled" | "oa"
+      >
     >,
   ): Promise<Doctor> => {
     const response = await fetch("/api/doctors", {

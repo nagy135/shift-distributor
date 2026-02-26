@@ -73,18 +73,21 @@ export function useDoctorsQueries({
       name,
       unavailableShiftTypes,
       disabled,
+      oa,
     }: {
       id: number;
       color: string | null;
       name: string;
       unavailableShiftTypes: string[];
       disabled: boolean;
+      oa: boolean;
     }) =>
       doctorsApi.update(id, {
         color: color ?? null,
         name,
         unavailableShiftTypes,
         disabled,
+        oa,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["doctors"] });

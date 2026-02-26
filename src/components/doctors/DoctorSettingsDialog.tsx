@@ -26,6 +26,7 @@ type DoctorSettingsDialogProps = {
     name: string;
     unavailableShiftTypes: string[];
     disabled: boolean;
+    oa: boolean;
   }) => Promise<void>;
   isSaving: boolean;
 };
@@ -42,6 +43,7 @@ export function DoctorSettingsDialog({
   const [pendingUnavailableShiftTypes, setPendingUnavailableShiftTypes] =
     useState<string[]>([]);
   const [pendingDisabled, setPendingDisabled] = useState<boolean>(false);
+  const [pendingOa, setPendingOa] = useState<boolean>(false);
 
   useEffect(() => {
     if (!open || !doctor) return;
@@ -54,6 +56,7 @@ export function DoctorSettingsDialog({
         : [],
     );
     setPendingDisabled(doctor.disabled ?? false);
+    setPendingOa(doctor.oa ?? false);
   }, [open, doctor]);
 
   const handleSave = async () => {
@@ -64,6 +67,7 @@ export function DoctorSettingsDialog({
       name: pendingName,
       unavailableShiftTypes: pendingUnavailableShiftTypes,
       disabled: pendingDisabled,
+      oa: pendingOa,
     });
   };
 
@@ -111,6 +115,16 @@ export function DoctorSettingsDialog({
               id="disabled-toggle"
               checked={pendingDisabled}
               onCheckedChange={setPendingDisabled}
+            />
+          </div>
+          <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+            <Label htmlFor="oa-toggle" className="cursor-pointer">
+              Oberarzt
+            </Label>
+            <Switch
+              id="oa-toggle"
+              checked={pendingOa}
+              onCheckedChange={setPendingOa}
             />
           </div>
           <div className="flex gap-2">

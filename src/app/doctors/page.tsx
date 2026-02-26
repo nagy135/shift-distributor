@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { MonthSelector } from "@/components/MonthSelector";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useMonthStore } from "@/lib/month-store";
 import type { Doctor } from "@/lib/api";
 import { useDoctorsQueries } from "@/components/doctors/useDoctorsQueries";
@@ -20,6 +22,7 @@ export default function DoctorsPage() {
   const [isShiftDetailsDialogOpen, setIsShiftDetailsDialogOpen] =
     useState(false);
   const [isColorDialogOpen, setIsColorDialogOpen] = useState(false);
+  const [oaOnly, setOaOnly] = useState(false);
   const { month: selectedMonth, setMonth } = useMonthStore();
   const {
     doctors,
@@ -77,6 +80,7 @@ export default function DoctorsPage() {
     name: string;
     unavailableShiftTypes: string[];
     disabled: boolean;
+    oa: boolean;
   }) => {
     try {
       await updateDoctorMutation.mutateAsync(payload);
@@ -94,11 +98,27 @@ export default function DoctorsPage() {
     });
   };
 
+  const filteredDoctors = doctors.filter((doctor) =>
+    oaOnly ? doctor.oa : !doctor.oa,
+  );
+
   return (
     <div className="space-y-6">
       <MonthSelector
         rightActions={
-          <Button onClick={() => setIsAddDialogOpen(true)}>Add Doctor</Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="oa-toggle" className="cursor-pointer">
+                OA
+              </Label>
+              <Switch
+                id="oa-toggle"
+                checked={oaOnly}
+                onCheckedChange={setOaOnly}
+              />
+            </div>
+            <Button onClick={() => setIsAddDialogOpen(true)}>Add Doctor</Button>
+          </div>
         }
       />
       <AddDoctorDialog
@@ -109,7 +129,7 @@ export default function DoctorsPage() {
       />
 
       <DoctorList
-        doctors={doctors}
+        doctors={filteredDoctors}
         shifts={allShifts}
         month={selectedMonth}
         onOpenShiftDetails={openShiftDetailsDialog}

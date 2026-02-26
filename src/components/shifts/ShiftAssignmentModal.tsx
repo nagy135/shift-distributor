@@ -10,11 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { Doctor, Shift } from "@/lib/api";
-import {
-  SHIFT_LABELS,
-  SHIFT_TYPES,
-  type ShiftType,
-} from "@/lib/shifts";
+import { SHIFT_LABELS, SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
 import { Pill } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
 import { MultiSelect } from "@/components/ui/multiselect";
@@ -42,6 +38,12 @@ export function ShiftAssignmentModal({
     Record<string, number[]>
   >({});
 
+  const isDoctorAllowed = React.useCallback(
+    (doctor: Doctor, shiftType: ShiftType) =>
+      shiftType === "oa" ? doctor.oa : !doctor.oa,
+    [],
+  );
+
   const dateKey = React.useMemo(
     () => (date ? format(date, "yyyy-MM-dd") : null),
     [date],
@@ -56,12 +58,16 @@ export function ShiftAssignmentModal({
     SHIFT_TYPES.forEach((shiftType) => {
       const shift = getShiftForType(shiftType);
       initial[shiftType] = Array.isArray(shift?.doctorIds)
-        ? [...shift.doctorIds]
+        ? shift.doctorIds.filter((doctorId) => {
+            const doctor = doctors.find((d) => d.id === doctorId);
+            if (!doctor) return false;
+            return isDoctorAllowed(doctor, shiftType);
+          })
         : [];
     });
     setPendingAssignments(initial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, dateKey]);
+  }, [open, dateKey, doctors, getShiftForType, isDoctorAllowed]);
 
   const updatePending = React.useCallback(
     (shiftType: ShiftType, doctorIds: number[]) => {
@@ -121,7 +127,7 @@ export function ShiftAssignmentModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
             Assign Shifts {date ? `- ${format(date, "MMM d, yyyy")}` : ""}
@@ -134,6 +140,7 @@ export function ShiftAssignmentModal({
 
             const options = doctors
               .filter((doctor) => !doctor.disabled)
+              .filter((doctor) => isDoctorAllowed(doctor, t))
               .map((doctor) => {
                 return {
                   value: doctor.id.toString(),
@@ -143,21 +150,31 @@ export function ShiftAssignmentModal({
                 };
               });
 
+            const allowedSelectedDoctorIds = selectedDoctorIds.filter(
+              (doctorId) => {
+                const doctor = doctors.find((d) => d.id === doctorId);
+                if (!doctor) return false;
+                return isDoctorAllowed(doctor, t);
+              },
+            );
+
             return (
               <div key={t} className="p-3 border rounded-lg space-y-2">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <h3 className="font-medium text-sm">{SHIFT_LABELS[t]}</h3>
                   <MultiSelect
                     options={options}
-                    selected={selectedDoctorIds.map((id) => id.toString())}
+                    selected={allowedSelectedDoctorIds.map((id) =>
+                      id.toString(),
+                    )}
                     onChange={(values) => handleSelectionChange(t, values)}
                     placeholder="Select doctors..."
                     className="w-full sm:w-60"
                   />
                 </div>
-                {selectedDoctorIds.length > 0 && (
+                {allowedSelectedDoctorIds.length > 0 && (
                   <div className="flex flex-wrap gap-1">
-                    {selectedDoctorIds.map((doctorId) => {
+                    {allowedSelectedDoctorIds.map((doctorId) => {
                       const assignedDoctor =
                         shift?.doctors.find((doc) => doc.id === doctorId) ??
                         doctors.find((doc) => doc.id === doctorId);
