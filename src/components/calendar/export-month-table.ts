@@ -6,7 +6,7 @@ import {
   isSameMonth,
 } from "date-fns";
 import { de } from "date-fns/locale";
-import { SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
+import { SHIFT_LABELS, SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
 import type { Shift } from "@/lib/api";
 
 type ExportMonthTableParams = {
@@ -34,6 +34,12 @@ type ExcelWorksheet = {
   columns: { width: number }[];
   addRow: (values: Array<string | number | null | undefined>) => ExcelRow;
   getCell: (row: number, col: number) => ExcelCell;
+  mergeCells: (
+    startRow: number,
+    startCol: number,
+    endRow: number,
+    endCol: number,
+  ) => void;
   lastRow?: { number: number };
 };
 type ExcelWorkbook = {
@@ -70,11 +76,14 @@ export async function exportMonthTable({
   const header = [
     "",
     "",
-    "Nachtdienst",
-    "20:00 Dienst",
-    "15:00/17:00 Uhr Dienst",
-    "Hintergrund",
+    ...SHIFT_TYPES.map((type) => {
+      if (type === "oa") return "Hintergrund";
+      if (type === "20shift") return "20:00 Dienst";
+      return SHIFT_LABELS[type];
+    }),
   ];
+  const title = "Ärztlicher Dienstplan Medizinische Klinik KKH Schlüchtern";
+  const monthLabel = format(month, "yyyy MMMM", { locale: de });
 
   const rowsAoa = days.map((day) => {
     const key = format(day, "yyyy-MM-dd");
@@ -83,21 +92,18 @@ export async function exportMonthTable({
     const dayNumber = format(day, "d", { locale: de });
     const dayNameShort = format(day, "EEE", { locale: de }).replace(".", "");
 
-    const row: string[] = [dayNumber, dayNameShort, "", "", "", ""];
-
-    SHIFT_TYPES.forEach((type) => {
-      const shift = byType[type];
-      const value = shift
-        ? shift.doctors.length > 0
-          ? shift.doctors.map((doctor) => doctor.name).join(", ")
-          : "-"
-        : "-";
-
-      if (type === "night") row[2] = value;
-      if (type === "20shift") row[3] = value;
-      if (type === "17shift") row[4] = value;
-      if (type === "oa") row[5] = value;
-    });
+    const row: string[] = [
+      dayNumber,
+      dayNameShort,
+      ...SHIFT_TYPES.map((type) => {
+        const shift = byType[type];
+        return shift
+          ? shift.doctors.length > 0
+            ? shift.doctors.map((doctor) => doctor.name).join(", ")
+            : "-"
+          : "-";
+      }),
+    ];
 
     return row;
   });
@@ -112,10 +118,7 @@ export async function exportMonthTable({
   worksheet.columns = [
     { width: 4 },
     { width: 6 },
-    { width: 16 },
-    { width: 16 },
-    { width: 22 },
-    { width: 16 },
+    ...SHIFT_TYPES.map(() => ({ width: 16 })),
   ];
 
   const applyBorder = (cell: ExcelCell) => {
@@ -127,7 +130,19 @@ export async function exportMonthTable({
     };
   };
 
+  worksheet.addRow([title]);
+  const titleRowNumber = worksheet.lastRow?.number ?? 1;
+  worksheet.addRow([]);
+  worksheet.addRow([monthLabel]);
+  const monthRowNumber = worksheet.lastRow?.number ?? titleRowNumber + 2;
+  worksheet.addRow([]);
+
   const headerRow = worksheet.addRow(header);
+  const headerRowNumber = worksheet.lastRow?.number ?? monthRowNumber + 2;
+  if (header.length > 0) {
+    worksheet.mergeCells(titleRowNumber, 1, titleRowNumber, header.length);
+    worksheet.mergeCells(monthRowNumber, 1, monthRowNumber, header.length);
+  }
   headerRow.eachCell((cell) => {
     cell.font = { bold: true };
     cell.alignment = { vertical: "middle", horizontal: "center" };
@@ -154,8 +169,24 @@ export async function exportMonthTable({
     });
   });
 
-  const lastRow = worksheet.lastRow?.number ?? 1;
-  for (let r = 1; r <= lastRow; r++) {
+  const footerRow = (left: string, right: string) => {
+    if (header.length <= 1) return [left];
+    return [left, ...Array(header.length - 2).fill(""), right];
+  };
+
+  worksheet.addRow([]);
+  worksheet.addRow(footerRow("AVD (tags und nachts)", "tel. 2228"));
+  worksheet.addRow([]);
+  worksheet.addRow(
+    footerRow(
+      "Dienstarzt für Stationen (Samstags bis 17:00h; Sonntags bis 15:00h)",
+      "tel 2329",
+    ),
+  );
+
+  const tableStartRow = headerRowNumber;
+  const tableEndRow = tableStartRow + rowsAoa.length;
+  for (let r = tableStartRow; r <= tableEndRow; r++) {
     for (let c = 1; c <= header.length; c++) {
       const cell = worksheet.getCell(r, c);
       applyBorder(cell);
