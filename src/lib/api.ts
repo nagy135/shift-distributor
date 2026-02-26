@@ -32,45 +32,53 @@ export interface UnavailableDate {
 // Doctors API
 export const doctorsApi = {
   getAll: async (): Promise<Doctor[]> => {
-    const response = await fetch('/api/doctors');
+    const response = await fetch("/api/doctors");
     if (!response.ok) {
-      throw new Error('Failed to fetch doctors');
+      throw new Error("Failed to fetch doctors");
     }
     return response.json();
   },
 
-  create: async (data: { name: string; unavailableDates?: string[] }): Promise<Doctor> => {
-    const response = await fetch('/api/doctors', {
-      method: 'POST',
+  create: async (data: {
+    name: string;
+    unavailableDates?: string[];
+  }): Promise<Doctor> => {
+    const response = await fetch("/api/doctors", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-      throw new Error('Failed to create doctor');
+      throw new Error("Failed to create doctor");
     }
     return response.json();
   },
   updateColor: async (id: number, color: string | null): Promise<Doctor> => {
-    const response = await fetch('/api/doctors', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch("/api/doctors", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, color }),
     });
     if (!response.ok) {
-      throw new Error('Failed to update doctor color');
+      throw new Error("Failed to update doctor color");
     }
     return response.json();
   },
-  update: async (id: number, payload: Partial<Pick<Doctor, 'name' | 'color' | 'unavailableShiftTypes' | 'disabled'>>): Promise<Doctor> => {
-    const response = await fetch('/api/doctors', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+  update: async (
+    id: number,
+    payload: Partial<
+      Pick<Doctor, "name" | "color" | "unavailableShiftTypes" | "disabled">
+    >,
+  ): Promise<Doctor> => {
+    const response = await fetch("/api/doctors", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, ...payload }),
     });
     if (!response.ok) {
-      throw new Error('Failed to update doctor');
+      throw new Error("Failed to update doctor");
     }
     return response.json();
   },
@@ -79,9 +87,9 @@ export const doctorsApi = {
 // Shifts API
 export const shiftsApi = {
   getAll: async (): Promise<Shift[]> => {
-    const response = await fetch('/api/shifts');
+    const response = await fetch("/api/shifts");
     if (!response.ok) {
-      throw new Error('Failed to fetch shifts');
+      throw new Error("Failed to fetch shifts");
     }
     return response.json();
   },
@@ -89,35 +97,41 @@ export const shiftsApi = {
   getByDate: async (date: string): Promise<Shift[]> => {
     const response = await fetch(`/api/shifts?date=${date}`);
     if (!response.ok) {
-      throw new Error('Failed to fetch shifts for date');
+      throw new Error("Failed to fetch shifts for date");
     }
     return response.json();
   },
 
-  assign: async (data: { date: string; shiftType: string; doctorIds: number[] }): Promise<Shift> => {
-    const response = await fetch('/api/shifts', {
-      method: 'POST',
+  assign: async (data: {
+    date: string;
+    shiftType: string;
+    doctorIds: number[];
+  }): Promise<Shift> => {
+    const response = await fetch("/api/shifts", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(data),
     });
     if (!response.ok) {
-      throw new Error('Failed to assign shift');
+      throw new Error("Failed to assign shift");
     }
     return response.json();
   },
 
-  assignBatch: async (shifts: { date: string; shiftType: string; doctorIds: number[] }[]): Promise<Shift[]> => {
-    const response = await fetch('/api/shifts', {
-      method: 'PUT',
+  assignBatch: async (
+    shifts: { date: string; shiftType: string; doctorIds: number[] }[],
+  ): Promise<Shift[]> => {
+    const response = await fetch("/api/shifts", {
+      method: "PUT",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ shifts }),
     });
     if (!response.ok) {
-      throw new Error('Failed to batch assign shifts');
+      throw new Error("Failed to batch assign shifts");
     }
     return response.json();
   },
@@ -128,22 +142,25 @@ export const unavailableDatesApi = {
   getByDoctor: async (doctorId: number): Promise<UnavailableDate[]> => {
     const response = await fetch(`/api/doctors/${doctorId}/unavailable-dates`);
     if (!response.ok) {
-      throw new Error('Failed to fetch unavailable dates');
+      throw new Error("Failed to fetch unavailable dates");
     }
     return response.json();
   },
 
-  update: async (doctorId: number, dates: string[]): Promise<{ success: boolean }> => {
+  update: async (
+    doctorId: number,
+    dates: string[],
+  ): Promise<{ success: boolean }> => {
     const response = await fetch(`/api/doctors/${doctorId}/unavailable-dates`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ dates }),
     });
     if (!response.ok) {
-      throw new Error('Failed to update unavailable dates');
+      throw new Error("Failed to update unavailable dates");
     }
     return response.json();
   },
-}; 
+};

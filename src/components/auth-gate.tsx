@@ -22,5 +22,3 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   if (!user) return null;
   return <>{children}</>;
 }
-
-

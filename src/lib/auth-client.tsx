@@ -1,6 +1,13 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 type User = { id: number; email: string } | null;
 
@@ -15,7 +22,10 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+async function fetchJson<T>(
+  input: RequestInfo,
+  init?: RequestInit,
+): Promise<T> {
   const res = await fetch(input, init);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
@@ -35,7 +45,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshAccessToken = useCallback(async () => {
     try {
-      const { accessToken: newToken } = await fetchJson<{ accessToken: string }>("/api/auth/refresh", {
+      const { accessToken: newToken } = await fetchJson<{
+        accessToken: string;
+      }>("/api/auth/refresh", {
         method: "POST",
       });
       setAccessToken(newToken);
@@ -59,30 +71,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Token refresh loop (optional)
   useEffect(() => {
     if (!accessToken) return;
-    const interval = setInterval(() => {
-      refreshAccessToken().catch(() => { });
-    }, 1000 * 60 * 10); // every 10 minutes
+    const interval = setInterval(
+      () => {
+        refreshAccessToken().catch(() => {});
+      },
+      1000 * 60 * 10,
+    ); // every 10 minutes
     return () => clearInterval(interval);
   }, [accessToken, refreshAccessToken]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const { accessToken: token } = await fetchJson<{ accessToken: string }>("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    setAccessToken(token);
-    await loadMe(token);
-  }, [loadMe]);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const { accessToken: token } = await fetchJson<{ accessToken: string }>(
+        "/api/auth/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        },
+      );
+      setAccessToken(token);
+      await loadMe(token);
+    },
+    [loadMe],
+  );
 
-  const register = useCallback(async (email: string, password: string) => {
-    await fetchJson("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    await login(email, password);
-  }, [login]);
+  const register = useCallback(
+    async (email: string, password: string) => {
+      await fetchJson("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      await login(email, password);
+    },
+    [login],
+  );
 
   const logout = useCallback(async () => {
     await fetchJson("/api/auth/logout", { method: "POST" });
@@ -90,7 +114,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAccessToken(null);
   }, []);
 
-  const value = useMemo<AuthContextValue>(() => ({ user, accessToken, isLoading, login, register, logout }), [user, accessToken, isLoading, login, register, logout]);
+  const value = useMemo<AuthContextValue>(
+    () => ({ user, accessToken, isLoading, login, register, logout }),
+    [user, accessToken, isLoading, login, register, logout],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
@@ -99,5 +126,3 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
-
-

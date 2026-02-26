@@ -26,8 +26,6 @@ export const useMonthStore = create<MonthState & MonthActions>()(
       name: "month-state",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ month: state.month }),
-    }
-  )
+    },
+  ),
 );
-
-

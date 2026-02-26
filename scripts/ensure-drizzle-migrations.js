@@ -1,9 +1,9 @@
-const { existsSync, readFileSync } = require('fs');
-const path = require('path');
-const Database = require('better-sqlite3');
+const { existsSync, readFileSync } = require("fs");
+const path = require("path");
+const Database = require("better-sqlite3");
 
 const rootDir = process.cwd();
-const dbPath = path.resolve(rootDir, 'data', 'sqlite.db');
+const dbPath = path.resolve(rootDir, "data", "sqlite.db");
 
 if (!existsSync(dbPath)) {
   process.exit(0);
@@ -13,7 +13,9 @@ const db = new Database(dbPath);
 
 try {
   const doctorsTable = db
-    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'doctors'")
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'doctors'",
+    )
     .get();
 
   if (!doctorsTable) {
@@ -22,7 +24,7 @@ try {
   }
 
   db.exec(
-    'CREATE TABLE IF NOT EXISTS "__drizzle_migrations" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "hash" text NOT NULL, "created_at" numeric)'
+    'CREATE TABLE IF NOT EXISTS "__drizzle_migrations" ("id" integer PRIMARY KEY AUTOINCREMENT NOT NULL, "hash" text NOT NULL, "created_at" numeric)',
   );
 
   const migrationCount = db
@@ -34,19 +36,19 @@ try {
     process.exit(0);
   }
 
-  const journalPath = path.resolve(rootDir, 'drizzle', 'meta', '_journal.json');
+  const journalPath = path.resolve(rootDir, "drizzle", "meta", "_journal.json");
   if (!existsSync(journalPath)) {
     db.close();
     process.exit(0);
   }
 
-  const journal = JSON.parse(readFileSync(journalPath, 'utf8'));
+  const journal = JSON.parse(readFileSync(journalPath, "utf8"));
   const baselineTags = new Set([
-    '0000_lovely_genesis',
-    '0001_fearless_otto_octavius',
-    '0002_lowly_guardsmen',
-    '0003_outstanding_ken_ellis',
-    '0004_clever_radioactive_man',
+    "0000_lovely_genesis",
+    "0001_fearless_otto_octavius",
+    "0002_lowly_guardsmen",
+    "0003_outstanding_ken_ellis",
+    "0004_clever_radioactive_man",
   ]);
 
   const entries = Array.isArray(journal.entries)
@@ -58,7 +60,9 @@ try {
     process.exit(0);
   }
 
-  const insert = db.prepare('INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES (?, ?)');
+  const insert = db.prepare(
+    'INSERT INTO "__drizzle_migrations" ("hash", "created_at") VALUES (?, ?)',
+  );
   const insertBaseline = db.transaction((records) => {
     records
       .sort((a, b) => Number(a.when) - Number(b.when))
@@ -71,5 +75,3 @@ try {
 } finally {
   db.close();
 }
-
-

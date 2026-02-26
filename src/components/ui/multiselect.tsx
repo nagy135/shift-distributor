@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { Check, X } from 'lucide-react';
-import { Button } from './button';
-import { Popover, PopoverContent, PopoverTrigger } from './popover';
-import { Pill } from './pill';
+import React, { useMemo, useState } from "react";
+import { Check, X } from "lucide-react";
+import { Button } from "./button";
+import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { Pill } from "./pill";
 
 export interface MultiSelectOption {
   value: string;
@@ -19,7 +19,13 @@ interface MultiSelectProps {
   className?: string;
 }
 
-export function MultiSelect({ options, selected, onChange, placeholder = "Select items...", className }: MultiSelectProps) {
+export function MultiSelect({
+  options,
+  selected,
+  onChange,
+  placeholder = "Select items...",
+  className,
+}: MultiSelectProps) {
   const [open, setOpen] = useState(false);
 
   const optionsByValue = useMemo(() => {
@@ -32,13 +38,13 @@ export function MultiSelect({ options, selected, onChange, placeholder = "Select
 
   const handleSelect = (value: string) => {
     const newSelected = selected.includes(value)
-      ? selected.filter(item => item !== value)
+      ? selected.filter((item) => item !== value)
       : [...selected, value];
     onChange(newSelected);
   };
 
   const handleRemove = (value: string) => {
-    onChange(selected.filter(item => item !== value));
+    onChange(selected.filter((item) => item !== value));
   };
 
   return (
@@ -75,7 +81,7 @@ export function MultiSelect({ options, selected, onChange, placeholder = "Select
                           handleRemove(value);
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
+                          if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
                             e.stopPropagation();
                             handleRemove(value);

@@ -16,12 +16,20 @@ export function MonthSelector({ rightActions }: Props) {
   return (
     <div className="flex flex-col lg:flex-row lg:items-center gap-2">
       <div className="flex items-center gap-2">
-        <Button variant="outline" onClick={prevMonth}>{"<"}</Button>
+        <Button variant="outline" onClick={prevMonth}>
+          {"<"}
+        </Button>
         <div className="text-sm font-medium w-30 text-center">
           {format(month, "MMMM yyyy")}
         </div>
-        <Button variant="outline" onClick={nextMonth}>{">"}</Button>
-        <Button disabled={isTodayMonth} variant={isTodayMonth ? "secondary" : "outline"} onClick={() => setMonth(new Date())}>
+        <Button variant="outline" onClick={nextMonth}>
+          {">"}
+        </Button>
+        <Button
+          disabled={isTodayMonth}
+          variant={isTodayMonth ? "secondary" : "outline"}
+          onClick={() => setMonth(new Date())}
+        >
           Today
         </Button>
       </div>
@@ -29,5 +37,3 @@ export function MonthSelector({ rightActions }: Props) {
     </div>
   );
 }
-
-

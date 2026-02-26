@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { shifts, doctors } from '@/lib/db/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { shifts, doctors } from "@/lib/db/schema";
+import { eq, and, inArray } from "drizzle-orm";
 
 type ShiftRow = typeof shifts.$inferSelect;
 
@@ -17,13 +17,16 @@ const hydrateShifts = async (rows: ShiftRow[]): Promise<ApiShift[]> => {
   const doctorIdSet = new Set<number>();
   for (const row of rows) {
     for (const doctorId of row.doctorIds ?? []) {
-      if (typeof doctorId === 'number') {
+      if (typeof doctorId === "number") {
         doctorIdSet.add(doctorId);
       }
     }
   }
 
-  const doctorMap = new Map<number, { id: number; name: string; color: string | null }>();
+  const doctorMap = new Map<
+    number,
+    { id: number; name: string; color: string | null }
+  >();
   if (doctorIdSet.size > 0) {
     const ids = Array.from(doctorIdSet);
     const doctorRows = await db
@@ -36,19 +39,27 @@ const hydrateShifts = async (rows: ShiftRow[]): Promise<ApiShift[]> => {
       .where(inArray(doctors.id, ids));
 
     for (const doctor of doctorRows) {
-      doctorMap.set(doctor.id, { id: doctor.id, name: doctor.name, color: doctor.color ?? null });
+      doctorMap.set(doctor.id, {
+        id: doctor.id,
+        name: doctor.name,
+        color: doctor.color ?? null,
+      });
     }
   }
 
   return rows.map((row) => {
     const doctorIds = Array.isArray(row.doctorIds)
-      ? row.doctorIds.filter((value): value is number => typeof value === 'number')
+      ? row.doctorIds.filter(
+          (value): value is number => typeof value === "number",
+        )
       : [];
 
     const doctorsForShift = doctorIds.map((doctorId) => {
-      const doctor = doctorMap.get(doctorId)
-      return doctor ?? { id: doctorId, name: `Doctor #${doctorId}`, color: null }
-    })
+      const doctor = doctorMap.get(doctorId);
+      return (
+        doctor ?? { id: doctorId, name: `Doctor #${doctorId}`, color: null }
+      );
+    });
 
     return {
       id: row.id,
@@ -67,16 +78,18 @@ const parseDoctorIds = (input: unknown): number[] => {
 
   const ids = input
     .map((value) => {
-      if (typeof value === 'number') {
+      if (typeof value === "number") {
         return value;
       }
-      if (typeof value === 'string' && value.trim() !== '') {
+      if (typeof value === "string" && value.trim() !== "") {
         const numeric = Number(value);
         return Number.isNaN(numeric) ? null : numeric;
       }
       return null;
     })
-    .filter((value): value is number => value != null && Number.isInteger(value));
+    .filter(
+      (value): value is number => value != null && Number.isInteger(value),
+    );
 
   return Array.from(new Set(ids));
 };
@@ -84,13 +97,10 @@ const parseDoctorIds = (input: unknown): number[] => {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const date = searchParams.get('date');
-    
+    const date = searchParams.get("date");
+
     if (date) {
-      const rows = await db
-        .select()
-        .from(shifts)
-        .where(eq(shifts.date, date));
+      const rows = await db.select().from(shifts).where(eq(shifts.date, date));
 
       const result = await hydrateShifts(rows);
 
@@ -102,17 +112,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(result);
     }
   } catch (error) {
-    console.error('Error fetching shifts:', error);
-    return NextResponse.json({ error: 'Failed to fetch shifts' }, { status: 500 });
+    console.error("Error fetching shifts:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch shifts" },
+      { status: 500 },
+    );
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const { date, shiftType, doctorIds } = await request.json();
-    
+
     if (!date || !shiftType) {
-      return NextResponse.json({ error: 'Date and shiftType are required' }, { status: 400 });
+      return NextResponse.json(
+        { error: "Date and shiftType are required" },
+        { status: 400 },
+      );
     }
 
     const normalizedDoctorIds = parseDoctorIds(doctorIds);
@@ -144,8 +160,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(hydrated, { status: 201 });
     }
   } catch (error) {
-    console.error('Error creating/updating shift:', error);
-    return NextResponse.json({ error: 'Failed to create/update shift' }, { status: 500 });
+    console.error("Error creating/updating shift:", error);
+    return NextResponse.json(
+      { error: "Failed to create/update shift" },
+      { status: 500 },
+    );
   }
 }
 
@@ -159,22 +178,28 @@ interface BulkShiftInput {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    
+
     if (!Array.isArray(body.shifts)) {
-      return NextResponse.json({ error: 'shifts array is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: "shifts array is required" },
+        { status: 400 },
+      );
     }
 
     const inputShifts: BulkShiftInput[] = body.shifts;
-    
+
     // Validate all inputs first
     for (const shift of inputShifts) {
       if (!shift.date || !shift.shiftType) {
-        return NextResponse.json({ error: 'Each shift must have date and shiftType' }, { status: 400 });
+        return NextResponse.json(
+          { error: "Each shift must have date and shiftType" },
+          { status: 400 },
+        );
       }
     }
 
     // Get all existing shifts for the dates we're updating
-    const uniqueDates = [...new Set(inputShifts.map(s => s.date))];
+    const uniqueDates = [...new Set(inputShifts.map((s) => s.date))];
     const existingShifts = await db
       .select()
       .from(shifts)
@@ -204,10 +229,10 @@ export async function PUT(request: NextRequest) {
       } else {
         const [inserted] = await db
           .insert(shifts)
-          .values({ 
-            date: input.date, 
-            shiftType: input.shiftType, 
-            doctorIds: normalizedDoctorIds 
+          .values({
+            date: input.date,
+            shiftType: input.shiftType,
+            doctorIds: normalizedDoctorIds,
           })
           .returning();
         results.push(inserted);
@@ -217,7 +242,10 @@ export async function PUT(request: NextRequest) {
     const hydrated = await hydrateShifts(results);
     return NextResponse.json(hydrated);
   } catch (error) {
-    console.error('Error bulk upserting shifts:', error);
-    return NextResponse.json({ error: 'Failed to bulk upsert shifts' }, { status: 500 });
+    console.error("Error bulk upserting shifts:", error);
+    return NextResponse.json(
+      { error: "Failed to bulk upsert shifts" },
+      { status: 500 },
+    );
   }
-} 
+}

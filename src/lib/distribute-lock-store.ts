@@ -20,8 +20,6 @@ export const useDistributeLockStore = create<DistributeLockState>()(
       name: "distribute-lock-state",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ isLocked: state.isLocked }),
-    }
-  )
+    },
+  ),
 );
-
-

@@ -1,22 +1,22 @@
-import { format, isSameDay, subDays } from 'date-fns'
-import type { Doctor } from '@/lib/api'
-import { SHIFT_TYPES, type ShiftType, isWeekendOnly } from '@/lib/shifts'
-import { getDay } from 'date-fns'
+import { format, isSameDay, subDays } from "date-fns";
+import type { Doctor } from "@/lib/api";
+import { SHIFT_TYPES, type ShiftType, isWeekendOnly } from "@/lib/shifts";
+import { getDay } from "date-fns";
 
 // ShiftType now comes from shared shifts constants
 
 export interface GeneratedAssignment {
-  date: string // yyyy-MM-dd
-  shiftType: ShiftType
-  doctorIds: number[]
+  date: string; // yyyy-MM-dd
+  shiftType: ShiftType;
+  doctorIds: number[];
 }
 
 interface GenerateAssignmentsParams {
-  dates: Date[]
-  doctors: Doctor[]
-  shiftTypes?: ReadonlyArray<ShiftType>
+  dates: Date[];
+  doctors: Doctor[];
+  shiftTypes?: ReadonlyArray<ShiftType>;
   /** Map of doctorId -> set of yyyy-MM-dd strings the doctor is UNAVAILABLE */
-  unavailableDatesByDoctor?: Record<number, Set<string>>
+  unavailableDatesByDoctor?: Record<number, Set<string>>;
 }
 
 /**
@@ -26,132 +26,151 @@ interface GenerateAssignmentsParams {
  * - Do not assign the same doctor to multiple shifts on the same day
  * - Avoid assigning a doctor on consecutive days when possible
  */
-export function generateAssignmentsForMonth(params: GenerateAssignmentsParams): GeneratedAssignment[] {
-  const { dates, doctors, shiftTypes = SHIFT_TYPES, unavailableDatesByDoctor } = params
+export function generateAssignmentsForMonth(
+  params: GenerateAssignmentsParams,
+): GeneratedAssignment[] {
+  const {
+    dates,
+    doctors,
+    shiftTypes = SHIFT_TYPES,
+    unavailableDatesByDoctor,
+  } = params;
 
-  const assignments: GeneratedAssignment[] = []
+  const assignments: GeneratedAssignment[] = [];
   // Filter out disabled doctors
-  const enabledDoctors = doctors.filter(d => !d.disabled)
-  if (enabledDoctors.length === 0 || dates.length === 0) return assignments
+  const enabledDoctors = doctors.filter((d) => !d.disabled);
+  if (enabledDoctors.length === 0 || dates.length === 0) return assignments;
 
   // Track how many shifts each doctor has been assigned
-  const assignmentCount = new Map<number, number>()
+  const assignmentCount = new Map<number, number>();
   // Track last date assigned for consecutive-day avoidance
-  const lastAssignedDate = new Map<number, Date>()
+  const lastAssignedDate = new Map<number, Date>();
 
   for (const doctor of enabledDoctors) {
-    assignmentCount.set(doctor.id, 0)
+    assignmentCount.set(doctor.id, 0);
   }
 
   // Helper to sort doctors by current load, then random tiebreaker
   const getSortedDoctorIds = (seed: number): number[] => {
-    const ids = enabledDoctors.map((d) => d.id)
+    const ids = enabledDoctors.map((d) => d.id);
     // Shuffle a copy for random tie-breaking
     for (let i = ids.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1) + seed) % (i + 1)
-      ;[ids[i], ids[j]] = [ids[j], ids[i]]
+      const j = Math.floor(Math.random() * (i + 1) + seed) % (i + 1);
+      [ids[i], ids[j]] = [ids[j], ids[i]];
     }
     return ids.sort((a, b) => {
-      const ca = assignmentCount.get(a) ?? 0
-      const cb = assignmentCount.get(b) ?? 0
-      if (ca !== cb) return ca - cb
+      const ca = assignmentCount.get(a) ?? 0;
+      const cb = assignmentCount.get(b) ?? 0;
+      if (ca !== cb) return ca - cb;
       // Stable-ish due to prior shuffle
-      return 0
-    })
-  }
+      return 0;
+    });
+  };
 
   for (const date of dates) {
-    const dayAssignments: number[] = []
+    const dayAssignments: number[] = [];
 
     for (let sIdx = 0; sIdx < shiftTypes.length; sIdx++) {
-      const shiftType = shiftTypes[sIdx]
+      const shiftType = shiftTypes[sIdx];
 
-      const candidateIds = getSortedDoctorIds(date.getDate() + sIdx)
-      let chosen: number | null = null
+      const candidateIds = getSortedDoctorIds(date.getDate() + sIdx);
+      let chosen: number | null = null;
 
       for (const candidateId of candidateIds) {
-        const doctor = enabledDoctors.find(d => d.id === candidateId)
-        
+        const doctor = enabledDoctors.find((d) => d.id === candidateId);
+
         // Check if doctor cannot do this shift type
-        if (doctor && doctor.unavailableShiftTypes && Array.isArray(doctor.unavailableShiftTypes) && doctor.unavailableShiftTypes.includes(shiftType)) {
-          continue
+        if (
+          doctor &&
+          doctor.unavailableShiftTypes &&
+          Array.isArray(doctor.unavailableShiftTypes) &&
+          doctor.unavailableShiftTypes.includes(shiftType)
+        ) {
+          continue;
         }
-        
+
         // Enforce weekend-only constraint
         if (isWeekendOnly(shiftType)) {
-          const day = getDay(date) // 0 Sunday .. 6 Saturday
-          const isWeekend = day === 0 || day === 6
+          const day = getDay(date); // 0 Sunday .. 6 Saturday
+          const isWeekend = day === 0 || day === 6;
           if (!isWeekend) {
-            continue
+            continue;
           }
         }
         // Cannot assign same doctor twice on same day
-        if (dayAssignments.includes(candidateId)) continue
+        if (dayAssignments.includes(candidateId)) continue;
 
         // Respect unavailable dates
         if (unavailableDatesByDoctor) {
-          const set = unavailableDatesByDoctor[candidateId]
-          if (set && set.has(format(date, 'yyyy-MM-dd'))) {
-            continue
+          const set = unavailableDatesByDoctor[candidateId];
+          if (set && set.has(format(date, "yyyy-MM-dd"))) {
+            continue;
           }
         }
 
         // Avoid consecutive days when possible
-        const lastDate = lastAssignedDate.get(candidateId)
-        if (lastDate && (isSameDay(subDays(date, 1), lastDate) || isSameDay(subDays(date, -1), lastDate))) {
+        const lastDate = lastAssignedDate.get(candidateId);
+        if (
+          lastDate &&
+          (isSameDay(subDays(date, 1), lastDate) ||
+            isSameDay(subDays(date, -1), lastDate))
+        ) {
           // skip candidate if they worked the day before or after (after shouldn't happen yet, but kept symmetric)
-          continue
+          continue;
         }
 
-        chosen = candidateId
-        break
+        chosen = candidateId;
+        break;
       }
 
       // If no candidate fits the consecutive-day constraint, relax it but still avoid same day double assignment
       if (chosen == null) {
         for (const candidateId of candidateIds) {
-          const doctor = enabledDoctors.find(d => d.id === candidateId)
-          
+          const doctor = enabledDoctors.find((d) => d.id === candidateId);
+
           // Check if doctor cannot do this shift type
-          if (doctor && doctor.unavailableShiftTypes && Array.isArray(doctor.unavailableShiftTypes) && doctor.unavailableShiftTypes.includes(shiftType)) {
-            continue
+          if (
+            doctor &&
+            doctor.unavailableShiftTypes &&
+            Array.isArray(doctor.unavailableShiftTypes) &&
+            doctor.unavailableShiftTypes.includes(shiftType)
+          ) {
+            continue;
           }
-          
+
           if (isWeekendOnly(shiftType)) {
-            const day = getDay(date)
-            const isWeekend = day === 0 || day === 6
+            const day = getDay(date);
+            const isWeekend = day === 0 || day === 6;
             if (!isWeekend) {
-              continue
+              continue;
             }
           }
-          if (dayAssignments.includes(candidateId)) continue
+          if (dayAssignments.includes(candidateId)) continue;
           // Still respect unavailable dates when relaxing
           if (unavailableDatesByDoctor) {
-            const set = unavailableDatesByDoctor[candidateId]
-            if (set && set.has(format(date, 'yyyy-MM-dd'))) {
-              continue
+            const set = unavailableDatesByDoctor[candidateId];
+            if (set && set.has(format(date, "yyyy-MM-dd"))) {
+              continue;
             }
           }
-          chosen = candidateId
-          break
+          chosen = candidateId;
+          break;
         }
       }
 
       assignments.push({
-        date: format(date, 'yyyy-MM-dd'),
+        date: format(date, "yyyy-MM-dd"),
         shiftType,
         doctorIds: chosen != null ? [chosen] : [],
-      })
+      });
 
       if (chosen != null) {
-        dayAssignments.push(chosen)
-        assignmentCount.set(chosen, (assignmentCount.get(chosen) ?? 0) + 1)
-        lastAssignedDate.set(chosen, date)
+        dayAssignments.push(chosen);
+        assignmentCount.set(chosen, (assignmentCount.get(chosen) ?? 0) + 1);
+        lastAssignedDate.set(chosen, date);
       }
     }
   }
 
-  return assignments
+  return assignments;
 }
-
-

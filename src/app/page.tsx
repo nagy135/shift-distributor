@@ -1,16 +1,45 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth } from "date-fns";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  getDay,
+  isSameMonth,
+} from "date-fns";
 import { enUS, de } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar } from "@/components/ui/calendar";
-import { Calendar as CalendarIcon, Table as TableIcon, Download as DownloadIcon, Lock as LockIcon, Unlock as UnlockIcon, Loader2 as LoaderIcon, Trash as TrashIcon } from "lucide-react";
+import {
+  Calendar as CalendarIcon,
+  Table as TableIcon,
+  Download as DownloadIcon,
+  Lock as LockIcon,
+  Unlock as UnlockIcon,
+  Loader2 as LoaderIcon,
+  Trash as TrashIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Pill } from "@/components/ui/pill";
 import { ClientOnly } from "@/components/client-only";
-import { doctorsApi, shiftsApi, unavailableDatesApi, type UnavailableDate, type Shift, type Doctor } from "@/lib/api";
+import {
+  doctorsApi,
+  shiftsApi,
+  unavailableDatesApi,
+  type UnavailableDate,
+  type Shift,
+  type Doctor,
+} from "@/lib/api";
 import { generateAssignmentsForMonth } from "@/lib/scheduler";
 import { SHIFT_TYPES, isWeekendOnly, type ShiftType } from "@/lib/shifts";
 import { MonthlyShiftTable } from "@/components/shifts/MonthlyShiftTable";
@@ -19,18 +48,29 @@ import { useMonthStore } from "@/lib/month-store";
 import { MonthSelector } from "@/components/MonthSelector";
 import { useDistributeLockStore } from "@/lib/distribute-lock-store";
 
-function DoctorShiftCounts({ doctors, shifts, month }: { doctors: Doctor[], shifts: Shift[], month: Date }) {
-  const shiftCounts = doctors.filter(d => !d.disabled).map(doctor => {
-    const doctorShifts = shifts.filter(shift => 
-      Array.isArray(shift.doctorIds) &&
-      shift.doctorIds.includes(doctor.id) && 
-      isSameMonth(new Date(shift.date), month)
-    );
-    return {
-      doctor,
-      count: doctorShifts.length
-    };
-  });
+function DoctorShiftCounts({
+  doctors,
+  shifts,
+  month,
+}: {
+  doctors: Doctor[];
+  shifts: Shift[];
+  month: Date;
+}) {
+  const shiftCounts = doctors
+    .filter((d) => !d.disabled)
+    .map((doctor) => {
+      const doctorShifts = shifts.filter(
+        (shift) =>
+          Array.isArray(shift.doctorIds) &&
+          shift.doctorIds.includes(doctor.id) &&
+          isSameMonth(new Date(shift.date), month),
+      );
+      return {
+        doctor,
+        count: doctorShifts.length,
+      };
+    });
 
   return (
     <div className="flex flex-wrap gap-2 justify-center">
@@ -60,29 +100,36 @@ export default function CalendarPage() {
 
   // Queries
   const { data: doctors = [] } = useQuery({
-    queryKey: ['doctors'],
+    queryKey: ["doctors"],
     queryFn: doctorsApi.getAll,
   });
 
   const { data: allShifts = [], isLoading: shiftsLoading } = useQuery({
-    queryKey: ['shifts', doctors?.map(d => `${d.id}:${d.color ?? ''}`).join('|')],
+    queryKey: [
+      "shifts",
+      doctors?.map((d) => `${d.id}:${d.color ?? ""}`).join("|"),
+    ],
     queryFn: shiftsApi.getAll,
   });
 
   // Unavailable dates map for all doctors (used for conflict highlighting in table view)
   const { data: unavailableByDoctor = {} } = useQuery({
-    queryKey: ['unavailable-by-doctor', doctors?.map(d => `${d.id}:${d.color ?? ''}`).join('|')],
+    queryKey: [
+      "unavailable-by-doctor",
+      doctors?.map((d) => `${d.id}:${d.color ?? ""}`).join("|"),
+    ],
     queryFn: async () => {
       const entries = await Promise.all(
         (doctors ?? []).map(async (d) => {
-          const records: UnavailableDate[] = await unavailableDatesApi.getByDoctor(d.id)
-          return [d.id, new Set(records.map((r) => r.date))] as const
-        })
-      )
-      return Object.fromEntries(entries) as Record<number, Set<string>>
+          const records: UnavailableDate[] =
+            await unavailableDatesApi.getByDoctor(d.id);
+          return [d.id, new Set(records.map((r) => r.date))] as const;
+        }),
+      );
+      return Object.fromEntries(entries) as Record<number, Set<string>>;
     },
     enabled: (doctors ?? []).length > 0,
-  })
+  });
 
   // Remove the individual date query - we'll filter from allShifts instead
 
@@ -91,7 +138,7 @@ export default function CalendarPage() {
     mutationFn: shiftsApi.assign,
     onSuccess: () => {
       // Only invalidate the main shifts query since we're not using individual date queries anymore
-      queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      queryClient.invalidateQueries({ queryKey: ["shifts"] });
     },
   });
 
@@ -105,17 +152,20 @@ export default function CalendarPage() {
     setIsAssignModalOpen(true);
   };
 
-  const handleShiftAssignment = async (shiftType: string, doctorIds: number[]) => {
+  const handleShiftAssignment = async (
+    shiftType: string,
+    doctorIds: number[],
+  ) => {
     if (!selectedDate) return;
 
     try {
       await assignShiftMutation.mutateAsync({
-        date: format(selectedDate, 'yyyy-MM-dd'),
+        date: format(selectedDate, "yyyy-MM-dd"),
         shiftType,
         doctorIds,
       });
     } catch (error) {
-      console.error('Error assigning shift:', error);
+      console.error("Error assigning shift:", error);
     }
   };
 
@@ -134,9 +184,11 @@ export default function CalendarPage() {
           const records = await unavailableDatesApi.getByDoctor(d.id);
           const set = new Set(records.map((r) => r.date));
           return [d.id, set] as const;
-        })
+        }),
       );
-      const unavailableDatesByDoctor = Object.fromEntries(unavailableDatesByDoctorEntries);
+      const unavailableDatesByDoctor = Object.fromEntries(
+        unavailableDatesByDoctorEntries,
+      );
 
       const assignments = generateAssignmentsForMonth({
         dates,
@@ -149,9 +201,9 @@ export default function CalendarPage() {
       await shiftsApi.assignBatch(assignments);
 
       // Ensure fresh data when done
-      await queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      await queryClient.invalidateQueries({ queryKey: ["shifts"] });
     } catch (err) {
-      console.error('Distribution failed', err);
+      console.error("Distribution failed", err);
     } finally {
       setIsDistributing(false);
     }
@@ -160,7 +212,10 @@ export default function CalendarPage() {
   const handleExportMonthTable = async () => {
     try {
       // Build rows mirroring the table view for the selected month
-      const days = eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) });
+      const days = eachDayOfInterval({
+        start: startOfMonth(month),
+        end: endOfMonth(month),
+      });
 
       // Index shifts for the month by date and type
       const shiftIndex = new Map<string, Partial<Record<ShiftType, Shift>>>();
@@ -177,26 +232,26 @@ export default function CalendarPage() {
       // [ TagNum | TagKurz | Nachtdienst | 20:00 Dienst | 15:00/17:00 Uhr Dienst | Hintergrund ]
       // Note: We only fill our known shift columns; others remain blank for structure.
       const header = [
-        '',
-        '',
-        'Nachtdienst',
-        '20:00 Dienst',
-        '15:00/17:00 Uhr Dienst',
-        'Hintergrund'
+        "",
+        "",
+        "Nachtdienst",
+        "20:00 Dienst",
+        "15:00/17:00 Uhr Dienst",
+        "Hintergrund",
       ];
 
       const rowsAoa = days.map((d) => {
-        const key = format(d, 'yyyy-MM-dd');
+        const key = format(d, "yyyy-MM-dd");
         const byType: Partial<Record<ShiftType, Shift>> =
           shiftIndex.get(key) ?? ({} as Partial<Record<ShiftType, Shift>>);
         const isWeekend = [0, 6].includes(d.getDay());
 
         // Example cell like "1 Di" in German
-        const dayNumber = format(d, 'd', { locale: de });
-        const dayNameShort = format(d, 'EEE', { locale: de }).replace('.', '');
+        const dayNumber = format(d, "d", { locale: de });
+        const dayNameShort = format(d, "EEE", { locale: de }).replace(".", "");
 
         // Prepare row with fixed number of columns (6)
-        const row: string[] = [dayNumber, dayNameShort, '', '', '', ''];
+        const row: string[] = [dayNumber, dayNameShort, "", "", "", ""];
 
         // Map our known shifts to the desired columns
         // 20shift -> column index 4, 17shift -> column index 5
@@ -204,31 +259,38 @@ export default function CalendarPage() {
           const showDash = isWeekendOnly(t) && !isWeekend;
           const shift = byType[t];
           const value = showDash
-            ? '—'
+            ? "—"
             : shift
-              ? (shift.doctors.length > 0
-                  ? shift.doctors.map((doctor) => doctor.name).join(', ')
-                  : 'Unassigned')
-              : 'Unassigned';
+              ? shift.doctors.length > 0
+                ? shift.doctors.map((doctor) => doctor.name).join(", ")
+                : "Unassigned"
+              : "Unassigned";
 
-          if (t === '20shift') row[3] = value;
-          if (t === '17shift') row[4] = value;
+          if (t === "20shift") row[3] = value;
+          if (t === "17shift") row[4] = value;
         });
 
         return row;
       });
 
       // Use exceljs for styling (borders, column widths, fills)
-      type BorderStyle = { style: 'thin'; color: { argb: string } };
+      type BorderStyle = { style: "thin"; color: { argb: string } };
       type ExcelCell = {
-        border?: { top: BorderStyle; left: BorderStyle; bottom: BorderStyle; right: BorderStyle };
+        border?: {
+          top: BorderStyle;
+          left: BorderStyle;
+          bottom: BorderStyle;
+          right: BorderStyle;
+        };
         alignment?: { vertical?: string; horizontal?: string };
         font?: { bold?: boolean };
-        fill?: { type: 'pattern'; pattern: 'solid'; fgColor: { argb: string } };
+        fill?: { type: "pattern"; pattern: "solid"; fgColor: { argb: string } };
       };
       type ExcelRow = {
         height?: number;
-        eachCell: (callback: (cell: ExcelCell, colNumber: number) => void) => void;
+        eachCell: (
+          callback: (cell: ExcelCell, colNumber: number) => void,
+        ) => void;
       };
       type ExcelWorksheet = {
         columns: { width: number }[];
@@ -239,36 +301,39 @@ export default function CalendarPage() {
       type ExcelWorkbook = {
         addWorksheet: (
           name: string,
-          opts?: { properties?: { defaultRowHeight?: number }; views?: Array<{ state?: string; ySplit?: number }> }
+          opts?: {
+            properties?: { defaultRowHeight?: number };
+            views?: Array<{ state?: string; ySplit?: number }>;
+          },
         ) => ExcelWorksheet;
         xlsx: { writeBuffer: () => Promise<ArrayBuffer> };
       };
       type ExcelJSPackage = { Workbook: new () => ExcelWorkbook };
 
-      const ExcelJS = (await import('exceljs')) as unknown as ExcelJSPackage;
+      const ExcelJS = (await import("exceljs")) as unknown as ExcelJSPackage;
       const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('Month', {
+      const worksheet = workbook.addWorksheet("Month", {
         properties: { defaultRowHeight: 18 },
-        views: [{ state: 'frozen', ySplit: 1 }],
+        views: [{ state: "frozen", ySplit: 1 }],
       });
 
       // Column widths: first two small
       worksheet.columns = [
-        { width: 4 },   // day number
-        { width: 6 },   // day short name
-        { width: 16 },  // Nachtdienst
-        { width: 16 },  // 20:00 Dienst
-        { width: 22 },  // 15:00/17:00 Uhr Dienst
-        { width: 16 },  // Hintergrund
+        { width: 4 }, // day number
+        { width: 6 }, // day short name
+        { width: 16 }, // Nachtdienst
+        { width: 16 }, // 20:00 Dienst
+        { width: 22 }, // 15:00/17:00 Uhr Dienst
+        { width: 16 }, // Hintergrund
       ];
 
       // Helper to apply thin border to all sides
       const applyBorder = (cell: ExcelCell) => {
         cell.border = {
-          top: { style: 'thin', color: { argb: 'FFBFBFBF' } },
-          left: { style: 'thin', color: { argb: 'FFBFBFBF' } },
-          bottom: { style: 'thin', color: { argb: 'FFBFBFBF' } },
-          right: { style: 'thin', color: { argb: 'FFBFBFBF' } },
+          top: { style: "thin", color: { argb: "FFBFBFBF" } },
+          left: { style: "thin", color: { argb: "FFBFBFBF" } },
+          bottom: { style: "thin", color: { argb: "FFBFBFBF" } },
+          right: { style: "thin", color: { argb: "FFBFBFBF" } },
         };
       };
 
@@ -276,7 +341,7 @@ export default function CalendarPage() {
       const headerRow = worksheet.addRow(header);
       headerRow.eachCell((cell) => {
         cell.font = { bold: true };
-        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
         applyBorder(cell);
       });
 
@@ -289,14 +354,14 @@ export default function CalendarPage() {
         row.eachCell((cell, colNumber: number) => {
           // Center small columns
           if (colNumber === 1 || colNumber === 2) {
-            cell.alignment = { horizontal: 'center' };
+            cell.alignment = { horizontal: "center" };
           }
           applyBorder(cell);
           if (isWeekend) {
             cell.fill = {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: 'FFEDEDED' },
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "FFEDEDED" },
             };
           }
         });
@@ -311,19 +376,19 @@ export default function CalendarPage() {
         }
       }
 
-      const fileName = `Shifts-${format(month, 'yyyy-MM')}.xlsx`;
+      const fileName = `Shifts-${format(month, "yyyy-MM")}.xlsx`;
       const buffer: ArrayBuffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = fileName;
       a.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Export failed', error);
+      console.error("Export failed", error);
     }
   };
 
@@ -333,7 +398,10 @@ export default function CalendarPage() {
       setIsClearing(true);
 
       const targets = allShifts.filter(
-        (s) => isSameMonth(new Date(s.date), month) && Array.isArray(s.doctorIds) && s.doctorIds.length > 0
+        (s) =>
+          isSameMonth(new Date(s.date), month) &&
+          Array.isArray(s.doctorIds) &&
+          s.doctorIds.length > 0,
       );
 
       // Clear all assigned shifts for the selected month using batch endpoint
@@ -347,9 +415,9 @@ export default function CalendarPage() {
         await shiftsApi.assignBatch(clearAssignments);
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['shifts'] });
+      await queryClient.invalidateQueries({ queryKey: ["shifts"] });
     } catch (error) {
-      console.error('Failed to clear assignments', error);
+      console.error("Failed to clear assignments", error);
     } finally {
       setIsClearing(false);
       setIsConfirmClearOpen(false);
@@ -358,28 +426,40 @@ export default function CalendarPage() {
 
   const getShiftForType = (shiftType: string) => {
     if (!selectedDate) return undefined;
-    const dateStr = format(selectedDate, 'yyyy-MM-dd');
-    return allShifts.find(shift => shift.date === dateStr && shift.shiftType === shiftType);
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    return allShifts.find(
+      (shift) => shift.date === dateStr && shift.shiftType === shiftType,
+    );
   };
 
   // Remove unused memoized calculation
 
-  const isUnassignedDay = useCallback((date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const dayShifts = allShifts.filter(shift => shift.date === dateStr);
-    const isWeekend = [0, 6].includes(getDay(date));
+  const isUnassignedDay = useCallback(
+    (date: Date) => {
+      const dateStr = format(date, "yyyy-MM-dd");
+      const dayShifts = allShifts.filter((shift) => shift.date === dateStr);
+      const isWeekend = [0, 6].includes(getDay(date));
 
-    // Required shift types for this day (exclude weekend-only if weekday)
-    const requiredTypes = SHIFT_TYPES.filter(t => isWeekend || !isWeekendOnly(t));
+      // Required shift types for this day (exclude weekend-only if weekday)
+      const requiredTypes = SHIFT_TYPES.filter(
+        (t) => isWeekend || !isWeekendOnly(t),
+      );
 
-    // For each required type, we must have one shift with a doctor assigned
-    for (const type of requiredTypes) {
-      const shift = dayShifts.find(s => s.shiftType === type);
-      if (!shift || !Array.isArray(shift.doctorIds) || shift.doctorIds.length === 0) return true; // unassigned
-    }
+      // For each required type, we must have one shift with a doctor assigned
+      for (const type of requiredTypes) {
+        const shift = dayShifts.find((s) => s.shiftType === type);
+        if (
+          !shift ||
+          !Array.isArray(shift.doctorIds) ||
+          shift.doctorIds.length === 0
+        )
+          return true; // unassigned
+      }
 
-    return false;
-  }, [allShifts]);
+      return false;
+    },
+    [allShifts],
+  );
 
   return (
     <div className="space-y-6">
@@ -392,7 +472,11 @@ export default function CalendarPage() {
               size="icon"
               onClick={() => setUseTableView((v) => !v)}
               className="lg:hidden"
-              aria-label={useTableView ? 'Switch to Calendar View' : 'Switch to Table View'}
+              aria-label={
+                useTableView
+                  ? "Switch to Calendar View"
+                  : "Switch to Table View"
+              }
             >
               {useTableView ? (
                 <CalendarIcon className="size-4" />
@@ -412,18 +496,27 @@ export default function CalendarPage() {
               ) : (
                 <TableIcon className="size-4" />
               )}
-              <span className="ml-2">{useTableView ? 'Calendar View' : 'Table View'}</span>
+              <span className="ml-2">
+                {useTableView ? "Calendar View" : "Table View"}
+              </span>
             </Button>
 
             <Button
               variant="outline"
               onClick={handleDistributeMonth}
-              disabled={isLocked || isDistributing || shiftsLoading || doctors.length === 0}
-              title={isLocked ? 'Unlock to enable distribution' : undefined}
+              disabled={
+                isLocked ||
+                isDistributing ||
+                shiftsLoading ||
+                doctors.length === 0
+              }
+              title={isLocked ? "Unlock to enable distribution" : undefined}
               className="relative"
               aria-busy={isDistributing}
             >
-              <span className={isDistributing ? 'opacity-0' : 'opacity-100'}>Distribute</span>
+              <span className={isDistributing ? "opacity-0" : "opacity-100"}>
+                Distribute
+              </span>
               {isDistributing && (
                 <span className="absolute inset-0 flex items-center justify-center">
                   <LoaderIcon className="size-4 animate-spin" />
@@ -435,10 +528,16 @@ export default function CalendarPage() {
               size="icon"
               onClick={toggleLocked}
               aria-pressed={!isLocked}
-              aria-label={isLocked ? 'Locked. Click to unlock' : 'Unlocked. Click to lock'}
-              title={isLocked ? 'Locked' : 'Unlocked'}
+              aria-label={
+                isLocked ? "Locked. Click to unlock" : "Unlocked. Click to lock"
+              }
+              title={isLocked ? "Locked" : "Unlocked"}
             >
-              {isLocked ? <LockIcon className="size-4" /> : <UnlockIcon className="size-4" />}
+              {isLocked ? (
+                <LockIcon className="size-4" />
+              ) : (
+                <UnlockIcon className="size-4" />
+              )}
             </Button>
 
             <Button
@@ -467,10 +566,10 @@ export default function CalendarPage() {
               Loading shifts...
             </div>
           ) : (
-            <DoctorShiftCounts 
-              doctors={doctors} 
-              shifts={allShifts} 
-              month={month} 
+            <DoctorShiftCounts
+              doctors={doctors}
+              shifts={allShifts}
+              month={month}
             />
           )}
         </ClientOnly>
@@ -508,11 +607,12 @@ export default function CalendarPage() {
                 unassigned: (date) => isUnassignedDay(date),
               }}
               modifiersClassNames={{
-                unassigned: "bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/20 dark:text-orange-400",
+                unassigned:
+                  "bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-900/20 dark:text-orange-400",
               }}
               locale={enUS}
               formatters={{
-                formatDay: (date) => format(date, 'd'),
+                formatDay: (date) => format(date, "d"),
               }}
             />
           )}
@@ -528,14 +628,30 @@ export default function CalendarPage() {
             size="icon"
             onClick={() => setIsConfirmClearOpen(true)}
             disabled={
-              isLocked || isDistributing || isClearing || shiftsLoading ||
-              !allShifts.some((s) => isSameMonth(new Date(s.date), month) && Array.isArray(s.doctorIds) && s.doctorIds.length > 0)
+              isLocked ||
+              isDistributing ||
+              isClearing ||
+              shiftsLoading ||
+              !allShifts.some(
+                (s) =>
+                  isSameMonth(new Date(s.date), month) &&
+                  Array.isArray(s.doctorIds) &&
+                  s.doctorIds.length > 0,
+              )
             }
-            title={isLocked ? 'Unlock to enable clearing' : 'Clear all assignments in this month'}
+            title={
+              isLocked
+                ? "Unlock to enable clearing"
+                : "Clear all assignments in this month"
+            }
             aria-busy={isClearing}
             aria-label="Clear all assignments in this month"
           >
-            {isClearing ? <LoaderIcon className="size-4 animate-spin" /> : <TrashIcon className="size-4" />}
+            {isClearing ? (
+              <LoaderIcon className="size-4 animate-spin" />
+            ) : (
+              <TrashIcon className="size-4" />
+            )}
           </Button>
         </div>
       )}
@@ -546,7 +662,8 @@ export default function CalendarPage() {
           <DialogHeader>
             <DialogTitle>{"Reset this month's assignments"}</DialogTitle>
             <DialogDescription>
-              This will set all shifts in the selected month to Unassigned. This action cannot be undone.
+              This will set all shifts in the selected month to Unassigned. This
+              action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -557,9 +674,16 @@ export default function CalendarPage() {
                 disabled={isLocked || isClearing}
                 aria-busy={isClearing}
               >
-                {isClearing ? <LoaderIcon className="size-4 animate-spin" /> : 'Reset'}
+                {isClearing ? (
+                  <LoaderIcon className="size-4 animate-spin" />
+                ) : (
+                  "Reset"
+                )}
               </Button>
-              <Button variant="outline" onClick={() => setIsConfirmClearOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setIsConfirmClearOpen(false)}
+              >
                 Cancel
               </Button>
             </div>
@@ -575,8 +699,8 @@ export default function CalendarPage() {
         doctors={doctors}
         getShiftForType={getShiftForType}
         onAssign={async (type, ids) => {
-          if (!selectedDate) return
-          await handleShiftAssignment(type, ids)
+          if (!selectedDate) return;
+          await handleShiftAssignment(type, ids);
         }}
         unavailableByDoctor={unavailableByDoctor}
       />

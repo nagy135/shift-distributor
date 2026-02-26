@@ -12,11 +12,5 @@ export function ThemeScript() {
     } catch (_) {}
   })();`;
 
-  return (
-    <script
-      dangerouslySetInnerHTML={{ __html: code }}
-    />
-  );
+  return <script dangerouslySetInnerHTML={{ __html: code }} />;
 }
-
-

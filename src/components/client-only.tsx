@@ -19,4 +19,4 @@ export function ClientOnly({ children, fallback = null }: ClientOnlyProps) {
   }
 
   return <>{children}</>;
-} 
+}

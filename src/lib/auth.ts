@@ -19,21 +19,31 @@ function getJwtSecret(): string {
 
 export function signAccessToken(user: JwtUserPayload): string {
   const secret = getJwtSecret();
-  return jwt.sign({ sub: String(user.id), email: user.email, type: "access" }, secret, {
-    expiresIn: ACCESS_TOKEN_TTL_SEC,
-  });
+  return jwt.sign(
+    { sub: String(user.id), email: user.email, type: "access" },
+    secret,
+    {
+      expiresIn: ACCESS_TOKEN_TTL_SEC,
+    },
+  );
 }
 
 export function signRefreshToken(user: JwtUserPayload): string {
   const secret = getJwtSecret();
-  return jwt.sign({ sub: String(user.id), email: user.email, type: "refresh" }, secret, {
-    expiresIn: REFRESH_TOKEN_TTL_SEC,
-  });
+  return jwt.sign(
+    { sub: String(user.id), email: user.email, type: "refresh" },
+    secret,
+    {
+      expiresIn: REFRESH_TOKEN_TTL_SEC,
+    },
+  );
 }
 
 export function verifyAccessToken(token: string): JwtUserPayload | null {
   try {
-    const decoded = jwt.verify(token, getJwtSecret()) as JwtPayload & { type?: string };
+    const decoded = jwt.verify(token, getJwtSecret()) as JwtPayload & {
+      type?: string;
+    };
     if (decoded.type !== "access") return null;
     return { id: Number(decoded.sub), email: String(decoded.email) };
   } catch {
@@ -43,7 +53,9 @@ export function verifyAccessToken(token: string): JwtUserPayload | null {
 
 export function verifyRefreshToken(token: string): JwtUserPayload | null {
   try {
-    const decoded = jwt.verify(token, getJwtSecret()) as JwtPayload & { type?: string };
+    const decoded = jwt.verify(token, getJwtSecret()) as JwtPayload & {
+      type?: string;
+    };
     if (decoded.type !== "refresh") return null;
     return { id: Number(decoded.sub), email: String(decoded.email) };
   } catch {
@@ -53,4 +65,3 @@ export function verifyRefreshToken(token: string): JwtUserPayload | null {
 
 export const ACCESS_TOKEN_TTL_SECONDS = ACCESS_TOKEN_TTL_SEC;
 export const REFRESH_TOKEN_TTL_SECONDS = REFRESH_TOKEN_TTL_SEC;
-

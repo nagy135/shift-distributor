@@ -14,10 +14,17 @@ export function ThemeToggle() {
   useEffect(() => {
     setMounted(true);
 
-    const storedPreference = typeof window !== "undefined" ? localStorage.getItem(THEME_STORAGE_KEY) : null;
-    const prefersDark = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const storedPreference =
+      typeof window !== "undefined"
+        ? localStorage.getItem(THEME_STORAGE_KEY)
+        : null;
+    const prefersDark =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-    const shouldUseDark = storedPreference === "dark" || (storedPreference === null && prefersDark);
+    const shouldUseDark =
+      storedPreference === "dark" || (storedPreference === null && prefersDark);
 
     setIsDark(shouldUseDark);
     document.documentElement.classList.toggle("dark", shouldUseDark);
@@ -44,5 +51,3 @@ export function ThemeToggle() {
     </Button>
   );
 }
-
-

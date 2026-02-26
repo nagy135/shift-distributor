@@ -33,18 +33,35 @@ export default function LoginPage() {
     <div className="max-w-sm mx-auto">
       <h1 className="text-2xl font-semibold mb-4 text-center">Login</h1>
       <form onSubmit={onSubmit} className="space-y-4 flex flex-col items-end">
-        <Input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
-        <Input placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
+        <Input
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          type="email"
+          required
+        />
+        <Input
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          type="password"
+          required
+        />
         {error && <p className="text-red-500 text-sm">{error}</p>}
-        <Button type="submit" disabled={loading} className="w-full cursor-pointer">
+        <Button
+          type="submit"
+          disabled={loading}
+          className="w-full cursor-pointer"
+        >
           {loading ? "Signing in..." : "Sign in"}
         </Button>
       </form>
       <p className="mt-4 text-sm">
-        No account? <Link className="underline" href="/register">Register</Link>
+        No account?{" "}
+        <Link className="underline" href="/register">
+          Register
+        </Link>
       </p>
     </div>
   );
 }
-
-

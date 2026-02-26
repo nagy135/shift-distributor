@@ -80,12 +80,8 @@
           "name": "shifts_doctor_id_doctors_id_fk",
           "tableFrom": "shifts",
           "tableTo": "doctors",
-          "columnsFrom": [
-            "doctor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["doctor_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -132,12 +128,8 @@
           "name": "unavailable_dates_doctor_id_doctors_id_fk",
           "tableFrom": "unavailable_dates",
           "tableTo": "doctors",
-          "columnsFrom": [
-            "doctor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["doctor_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
