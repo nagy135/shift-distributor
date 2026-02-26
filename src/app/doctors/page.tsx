@@ -24,7 +24,13 @@ import {
   type Doctor,
   type UnavailableDate,
 } from "@/lib/api";
-import { Download, CheckSquare, Square } from "lucide-react";
+import {
+  Download,
+  CheckSquare,
+  Square,
+  CalendarDays,
+  CalendarOff,
+} from "lucide-react";
 import React from "react";
 import { MonthSelector } from "@/components/MonthSelector";
 import { useMonthStore } from "@/lib/month-store";
@@ -412,15 +418,37 @@ export default function DoctorsPage() {
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
+                    size="icon"
+                    onClick={() => openShiftDetailsDialog(doctor)}
+                    className="sm:hidden"
+                    aria-label="Shifts"
+                    title="Shifts"
+                  >
+                    <CalendarDays className="size-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => openShiftDetailsDialog(doctor)}
+                    className="hidden sm:inline-flex"
                   >
                     Shifts
                   </Button>
                   <Button
                     variant="outline"
+                    size="icon"
+                    onClick={() => openUnavailableDialog(doctor)}
+                    className="sm:hidden"
+                    aria-label="Unavailable"
+                    title="Unavailable"
+                  >
+                    <CalendarOff className="size-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => openUnavailableDialog(doctor)}
+                    className="hidden sm:inline-flex"
                   >
                     Unavailable
                   </Button>
