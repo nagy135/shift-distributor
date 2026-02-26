@@ -41,6 +41,7 @@ export function MultiSelect({
       ? selected.filter((item) => item !== value)
       : [...selected, value];
     onChange(newSelected);
+    setOpen(false);
   };
 
   const handleRemove = (value: string) => {

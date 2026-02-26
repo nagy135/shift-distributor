@@ -39,7 +39,7 @@ export function AddDoctorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Add New Doctor</DialogTitle>
         </DialogHeader>

@@ -13,10 +13,8 @@ import type { Doctor, Shift } from "@/lib/api";
 import {
   SHIFT_LABELS,
   SHIFT_TYPES,
-  isWeekendOnly,
   type ShiftType,
 } from "@/lib/shifts";
-import { getDay } from "date-fns";
 import { Pill } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
 import { MultiSelect } from "@/components/ui/multiselect";
@@ -112,11 +110,6 @@ export function ShiftAssignmentModal({
 
     try {
       for (const shiftType of SHIFT_TYPES) {
-        const isWeekendDisabled =
-          isWeekendOnly(shiftType) && ![0, 6].includes(getDay(date));
-        if (isWeekendDisabled) {
-          continue;
-        }
         const doctorIds = pendingAssignments[shiftType] ?? [];
         await onAssign(shiftType, doctorIds);
       }
@@ -136,11 +129,6 @@ export function ShiftAssignmentModal({
         </DialogHeader>
         <div className="space-y-4">
           {SHIFT_TYPES.map((t) => {
-            const disabledByWeekend = date
-              ? isWeekendOnly(t) && ![0, 6].includes(getDay(date))
-              : false;
-            if (disabledByWeekend) return null;
-
             const shift = getShiftForType(t);
             const selectedDoctorIds = pendingAssignments[t] ?? [];
 
@@ -157,14 +145,14 @@ export function ShiftAssignmentModal({
 
             return (
               <div key={t} className="p-3 border rounded-lg space-y-2">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <h3 className="font-medium text-sm">{SHIFT_LABELS[t]}</h3>
                   <MultiSelect
                     options={options}
                     selected={selectedDoctorIds.map((id) => id.toString())}
                     onChange={(values) => handleSelectionChange(t, values)}
                     placeholder="Select doctors..."
-                    className="w-60"
+                    className="w-full sm:w-60"
                   />
                 </div>
                 {selectedDoctorIds.length > 0 && (

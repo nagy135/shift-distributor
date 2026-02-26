@@ -4,12 +4,7 @@ import React from "react";
 import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
 import { de } from "date-fns/locale";
 import type { Shift, Doctor } from "@/lib/api";
-import {
-  SHIFT_LABELS,
-  SHIFT_TYPES,
-  isWeekendOnly,
-  type ShiftType,
-} from "@/lib/shifts";
+import { SHIFT_LABELS, SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
 import { Pill } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
 
@@ -121,7 +116,6 @@ export function MonthlyShiftTable({
                   </td>
                   {SHIFT_TYPES.map((t, index) => {
                     const s = byType[t];
-                    const showDash = isWeekendOnly(t) && !isWeekend;
                     return (
                       <td
                         key={t}
@@ -130,11 +124,7 @@ export function MonthlyShiftTable({
                           index === 0 ? "pl-1 pr-1" : "px-2",
                         )}
                       >
-                        {showDash ? (
-                          <span className="text-muted-foreground text-xs text-center block w-full">
-                            —
-                          </span>
-                        ) : s ? (
+                        {s ? (
                           s.doctorIds.length > 0 ? (
                             <div className="flex flex-wrap items-center gap-1 justify-center">
                               {s.doctors.map((assignedDoctor) => {
@@ -156,10 +146,10 @@ export function MonthlyShiftTable({
                               })}
                             </div>
                           ) : (
-                            "Unassigned"
+                            "-"
                           )
                         ) : (
-                          "Unassigned"
+                          "-"
                         )}
                       </td>
                     );

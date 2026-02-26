@@ -1,12 +1,18 @@
-export const SHIFT_TYPES = ["17shift", "20shift"] as const;
+export const SHIFT_TYPES = ["night", "20shift", "17shift", "oa"] as const;
 export type ShiftType = (typeof SHIFT_TYPES)[number];
+
+export const AUTO_DISTRIBUTE_SHIFT_TYPES = ["20shift", "17shift"] as const;
+export type AutoDistributeShiftType =
+  (typeof AUTO_DISTRIBUTE_SHIFT_TYPES)[number];
 
 export const SHIFT_DEFS: Record<
   ShiftType,
   { label: string; weekendOnly: boolean }
 > = {
-  "17shift": { label: "17 Shift", weekendOnly: true },
-  "20shift": { label: "20 Shift", weekendOnly: false },
+  "17shift": { label: "Stationsdienst", weekendOnly: true },
+  "20shift": { label: "Spätdienst", weekendOnly: false },
+  night: { label: "Nachtdient", weekendOnly: true },
+  oa: { label: "OA", weekendOnly: false },
 };
 
 export const SHIFT_LABELS: Record<ShiftType, string> = Object.fromEntries(

@@ -6,7 +6,7 @@ import {
   isSameMonth,
 } from "date-fns";
 import { de } from "date-fns/locale";
-import { SHIFT_TYPES, isWeekendOnly, type ShiftType } from "@/lib/shifts";
+import { SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
 import type { Shift } from "@/lib/api";
 
 type ExportMonthTableParams = {
@@ -80,26 +80,23 @@ export async function exportMonthTable({
     const key = format(day, "yyyy-MM-dd");
     const byType: Partial<Record<ShiftType, Shift>> =
       shiftIndex.get(key) ?? ({} as Partial<Record<ShiftType, Shift>>);
-    const isWeekend = [0, 6].includes(day.getDay());
-
     const dayNumber = format(day, "d", { locale: de });
     const dayNameShort = format(day, "EEE", { locale: de }).replace(".", "");
 
     const row: string[] = [dayNumber, dayNameShort, "", "", "", ""];
 
     SHIFT_TYPES.forEach((type) => {
-      const showDash = isWeekendOnly(type) && !isWeekend;
       const shift = byType[type];
-      const value = showDash
-        ? "-"
-        : shift
-          ? shift.doctors.length > 0
-            ? shift.doctors.map((doctor) => doctor.name).join(", ")
-            : "Unassigned"
-          : "Unassigned";
+      const value = shift
+        ? shift.doctors.length > 0
+          ? shift.doctors.map((doctor) => doctor.name).join(", ")
+          : "-"
+        : "-";
 
+      if (type === "night") row[2] = value;
       if (type === "20shift") row[3] = value;
       if (type === "17shift") row[4] = value;
+      if (type === "oa") row[5] = value;
     });
 
     return row;

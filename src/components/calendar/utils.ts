@@ -1,5 +1,5 @@
 import { format, getDay } from "date-fns";
-import { SHIFT_TYPES, isWeekendOnly } from "@/lib/shifts";
+import { AUTO_DISTRIBUTE_SHIFT_TYPES, isWeekendOnly } from "@/lib/shifts";
 import type { Shift } from "@/lib/api";
 
 type ShiftLookupParams = {
@@ -30,7 +30,7 @@ export function isDayUnassigned({ date, allShifts }: UnassignedCheckParams) {
   const dayShifts = allShifts.filter((shift) => shift.date === dateStr);
   const isWeekend = [0, 6].includes(getDay(date));
 
-  const requiredTypes = SHIFT_TYPES.filter(
+  const requiredTypes = AUTO_DISTRIBUTE_SHIFT_TYPES.filter(
     (type) => isWeekend || !isWeekendOnly(type),
   );
 

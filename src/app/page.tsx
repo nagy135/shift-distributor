@@ -21,7 +21,7 @@ import { useCalendarQueries } from "@/components/calendar/useCalendarQueries";
 import { useMonthStore } from "@/lib/month-store";
 import { useDistributeLockStore } from "@/lib/distribute-lock-store";
 import { generateAssignmentsForMonth } from "@/lib/scheduler";
-import { SHIFT_TYPES } from "@/lib/shifts";
+import { AUTO_DISTRIBUTE_SHIFT_TYPES } from "@/lib/shifts";
 import { shiftsApi, unavailableDatesApi } from "@/lib/api";
 
 export default function CalendarPage() {
@@ -93,7 +93,7 @@ export default function CalendarPage() {
       const assignments = generateAssignmentsForMonth({
         dates,
         doctors,
-        shiftTypes: SHIFT_TYPES,
+        shiftTypes: AUTO_DISTRIBUTE_SHIFT_TYPES,
         unavailableDatesByDoctor,
       });
 
