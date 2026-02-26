@@ -7,6 +7,7 @@ import type { Shift, Doctor } from "@/lib/api";
 import { SHIFT_LABELS, SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
 import { Pill } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
+import { HOLIDAY_DATE_SET_2026 } from "@/lib/holidays";
 
 interface MonthlyShiftTableProps {
   month: Date;
@@ -91,6 +92,9 @@ export function MonthlyShiftTable({
           <tbody>
             {days.map((d) => {
               const key = format(d, "yyyy-MM-dd");
+              const isHoliday = HOLIDAY_DATE_SET_2026.has(key);
+              const dayName = format(d, "EEEE", { locale: de });
+              const dayPrefix = dayName.slice(0, 2);
               const byType = shiftIndex.get(key) || {};
               const rowConflict = SHIFT_TYPES.some((t) => {
                 const s = byType[t];
@@ -112,7 +116,16 @@ export function MonthlyShiftTable({
                   onClick={() => onRowClick(d)}
                 >
                   <td className="px-1 py-1 text-xs min-w-[50px]">
-                    {format(d, "d. EEEEEE", { locale: de })}
+                    <span className="inline-flex items-baseline gap-1">
+                      <span>{format(d, "d.", { locale: de })}</span>
+                      <span>
+                        {isHoliday ? (
+                          <span className="text-red-600">{dayPrefix}</span>
+                        ) : (
+                          dayPrefix
+                        )}
+                      </span>
+                    </span>
                   </td>
                   {SHIFT_TYPES.map((t, index) => {
                     const s = byType[t];
