@@ -39,7 +39,7 @@ export default function DoctorsPage() {
     queryFn: doctorsApi.getAll,
   });
 
-  const { data: unavailableDates = [] } = useQuery({
+  const { data: unavailableDates, isFetching: isUnavailableDatesFetching } = useQuery({
     queryKey: ['unavailable-dates', selectedDoctor?.id],
     queryFn: () => selectedDoctor ? unavailableDatesApi.getByDoctor(selectedDoctor.id) : Promise.resolve([]),
     enabled: !!selectedDoctor,
@@ -235,12 +235,12 @@ export default function DoctorsPage() {
   // Compute selected dates from unavailable dates - only use if we haven't started editing
   const computedSelectedDates = React.useMemo(() => {
     if (!isUnavailableDialogOpen || !selectedDoctor) return [];
-    return unavailableDates.map((ud: UnavailableDate) => new Date(ud.date));
+    return (unavailableDates ?? []).map((ud: UnavailableDate) => new Date(ud.date));
   }, [unavailableDates, isUnavailableDialogOpen, selectedDoctor]);
 
   // Initialize dates when dialog opens (only once per dialog session)
   React.useEffect(() => {
-    if (isUnavailableDialogOpen && selectedDoctor) {
+    if (isUnavailableDialogOpen && selectedDoctor && !isUnavailableDatesFetching) {
       const currentDates = selectedDatesByDoctor[selectedDoctor.id];
       // Only initialize if state hasn't been set yet for this doctor
       if (currentDates === undefined) {
@@ -250,7 +250,7 @@ export default function DoctorsPage() {
         }));
       }
     }
-  }, [isUnavailableDialogOpen, selectedDoctor]);
+  }, [computedSelectedDates, isUnavailableDatesFetching, isUnavailableDialogOpen, selectedDoctor, selectedDatesByDoctor]);
 
   // Clear state when dialog closes to reset for next time
   React.useEffect(() => {
