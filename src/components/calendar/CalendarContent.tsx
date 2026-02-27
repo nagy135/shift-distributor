@@ -7,6 +7,7 @@ import { ClientOnly } from "@/components/client-only";
 import { MonthlyShiftTable } from "@/components/shifts/MonthlyShiftTable";
 import { DoctorShiftCounts } from "@/components/calendar/DoctorShiftCounts";
 import type { Doctor, Shift } from "@/lib/api";
+import type { ShiftType } from "@/lib/shifts";
 
 type CalendarContentProps = {
   month: Date;
@@ -19,6 +20,7 @@ type CalendarContentProps = {
   allShifts: Shift[];
   unavailableByDoctor: Record<number, Set<string>>;
   onRowClick: (date: Date) => void;
+  onCellClick?: (date: Date, shiftType: ShiftType) => void;
   isUnassignedDay: (date: Date) => boolean;
 };
 
@@ -33,6 +35,7 @@ export function CalendarContent({
   allShifts,
   unavailableByDoctor,
   onRowClick,
+  onCellClick,
   isUnassignedDay,
 }: CalendarContentProps) {
   return (
@@ -75,6 +78,7 @@ export function CalendarContent({
             doctors={doctors}
             unavailableByDoctor={unavailableByDoctor}
             onRowClick={onRowClick}
+            onCellClick={onCellClick}
           />
         ) : (
           <Calendar

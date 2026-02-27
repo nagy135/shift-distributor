@@ -23,6 +23,7 @@ interface ShiftAssignmentModalProps {
   getShiftForType: (shiftType: string) => Shift | undefined;
   onAssign: (shiftType: string, doctorIds: number[]) => Promise<void>;
   unavailableByDoctor?: Record<number, Set<string>>;
+  focusShiftType?: ShiftType | null;
 }
 
 export function ShiftAssignmentModal({
@@ -33,10 +34,16 @@ export function ShiftAssignmentModal({
   getShiftForType,
   onAssign,
   unavailableByDoctor = {},
+  focusShiftType = null,
 }: ShiftAssignmentModalProps) {
   const [pendingAssignments, setPendingAssignments] = React.useState<
     Record<string, number[]>
   >({});
+
+  const activeShiftTypes = React.useMemo(
+    () => (focusShiftType ? [focusShiftType] : SHIFT_TYPES),
+    [focusShiftType],
+  );
 
   const isDoctorAllowed = React.useCallback(
     (doctor: Doctor, shiftType: ShiftType) =>
@@ -55,7 +62,7 @@ export function ShiftAssignmentModal({
     }
 
     const initial: Record<string, number[]> = {};
-    SHIFT_TYPES.forEach((shiftType) => {
+    activeShiftTypes.forEach((shiftType) => {
       const shift = getShiftForType(shiftType);
       initial[shiftType] = Array.isArray(shift?.doctorIds)
         ? shift.doctorIds.filter((doctorId) => {
@@ -67,7 +74,14 @@ export function ShiftAssignmentModal({
     });
     setPendingAssignments(initial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, dateKey, doctors, getShiftForType, isDoctorAllowed]);
+  }, [
+    open,
+    dateKey,
+    doctors,
+    getShiftForType,
+    isDoctorAllowed,
+    activeShiftTypes,
+  ]);
 
   const updatePending = React.useCallback(
     (shiftType: ShiftType, doctorIds: number[]) => {
@@ -89,9 +103,16 @@ export function ShiftAssignmentModal({
         Array.isArray(doctor.unavailableShiftTypes)
           ? doctor.unavailableShiftTypes.includes(shiftType)
           : false;
-      return dateConflict || shiftTypeConflict;
+
+      const nightOverlapConflict =
+        shiftType === "night" &&
+        (["17shift", "20shift"] as ShiftType[]).some((type) =>
+          (pendingAssignments[type] ?? []).includes(doctorId),
+        );
+
+      return dateConflict || shiftTypeConflict || nightOverlapConflict;
     },
-    [dateKey, doctors, unavailableByDoctor],
+    [dateKey, doctors, unavailableByDoctor, pendingAssignments],
   );
 
   const handleSelectionChange = React.useCallback(
@@ -115,7 +136,7 @@ export function ShiftAssignmentModal({
     }
 
     try {
-      for (const shiftType of SHIFT_TYPES) {
+      for (const shiftType of activeShiftTypes) {
         const doctorIds = pendingAssignments[shiftType] ?? [];
         await onAssign(shiftType, doctorIds);
       }
@@ -134,7 +155,7 @@ export function ShiftAssignmentModal({
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {SHIFT_TYPES.map((t) => {
+          {activeShiftTypes.map((t) => {
             const shift = getShiftForType(t);
             const selectedDoctorIds = pendingAssignments[t] ?? [];
 

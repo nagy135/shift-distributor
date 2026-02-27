@@ -15,6 +15,7 @@ interface MonthlyShiftTableProps {
   doctors: Doctor[];
   unavailableByDoctor?: Record<number, Set<string>>;
   onRowClick: (date: Date) => void;
+  onCellClick?: (date: Date, shiftType: ShiftType) => void;
 }
 
 export function MonthlyShiftTable({
@@ -23,6 +24,7 @@ export function MonthlyShiftTable({
   doctors,
   unavailableByDoctor = {},
   onRowClick,
+  onCellClick,
 }: MonthlyShiftTableProps) {
   const days = React.useMemo(() => {
     return eachDayOfInterval({
@@ -43,7 +45,12 @@ export function MonthlyShiftTable({
 
   // Helper function to check if a shift assignment violates constraints
   const hasDoctorConflict = React.useCallback(
-    (doctorId: number, shift: Shift, date: string): boolean => {
+    (
+      doctorId: number,
+      shift: Shift,
+      date: string,
+      byType: Partial<Record<ShiftType, Shift>>,
+    ): boolean => {
       const hasDateConflict = unavailableByDoctor[doctorId]?.has(date) ?? false;
 
       const doctor = doctors.find((d) => d.id === doctorId);
@@ -53,17 +60,30 @@ export function MonthlyShiftTable({
           ? doctor.unavailableShiftTypes.includes(shift.shiftType as ShiftType)
           : false;
 
-      return hasDateConflict || hasShiftTypeConflict;
+      const hasNightOverlap =
+        shift.shiftType === "night" &&
+        (["17shift", "20shift"] as ShiftType[]).some((type) => {
+          const other = byType[type];
+          return Array.isArray(other?.doctorIds)
+            ? other?.doctorIds.includes(doctorId)
+            : false;
+        });
+
+      return hasDateConflict || hasShiftTypeConflict || hasNightOverlap;
     },
     [doctors, unavailableByDoctor],
   );
 
   const hasShiftConflict = React.useCallback(
-    (shift: Shift, date: string): boolean => {
+    (
+      shift: Shift,
+      date: string,
+      byType: Partial<Record<ShiftType, Shift>>,
+    ): boolean => {
       if (!Array.isArray(shift.doctorIds) || shift.doctorIds.length === 0)
         return false;
       return shift.doctorIds.some((doctorId) =>
-        hasDoctorConflict(doctorId, shift, date),
+        hasDoctorConflict(doctorId, shift, date, byType),
       );
     },
     [hasDoctorConflict],
@@ -98,7 +118,7 @@ export function MonthlyShiftTable({
               const byType = shiftIndex.get(key) || {};
               const rowConflict = SHIFT_TYPES.some((t) => {
                 const s = byType[t];
-                return s && hasShiftConflict(s, key);
+                return s && hasShiftConflict(s, key, byType);
               });
               // Hide weekend-only shift content on weekdays
               const day = d.getDay();
@@ -135,7 +155,13 @@ export function MonthlyShiftTable({
                         className={cn(
                           "py-1 text-center",
                           index === 0 ? "pl-1 pr-1" : "px-2",
+                          onCellClick && "cursor-pointer",
                         )}
+                        onClick={(event) => {
+                          if (!onCellClick) return;
+                          event.stopPropagation();
+                          onCellClick(d, t);
+                        }}
                       >
                         {s ? (
                           s.doctorIds.length > 0 ? (
@@ -145,6 +171,7 @@ export function MonthlyShiftTable({
                                   assignedDoctor.id,
                                   s,
                                   key,
+                                  byType,
                                 );
                                 return (
                                   <Pill

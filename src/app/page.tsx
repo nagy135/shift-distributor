@@ -21,7 +21,7 @@ import { useCalendarQueries } from "@/components/calendar/useCalendarQueries";
 import { useMonthStore } from "@/lib/month-store";
 import { useDistributeLockStore } from "@/lib/distribute-lock-store";
 import { generateAssignmentsForMonth } from "@/lib/scheduler";
-import { AUTO_DISTRIBUTE_SHIFT_TYPES } from "@/lib/shifts";
+import { AUTO_DISTRIBUTE_SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
 import { shiftsApi, unavailableDatesApi } from "@/lib/api";
 
 export default function CalendarPage() {
@@ -30,6 +30,9 @@ export default function CalendarPage() {
   const [isDistributing, setIsDistributing] = useState(false);
   const [useTableView, setUseTableView] = useState(true);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [selectedShiftType, setSelectedShiftType] = useState<ShiftType | null>(
+    null,
+  );
   const [isClearing, setIsClearing] = useState(false);
   const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
   const { isLocked, toggleLocked } = useDistributeLockStore();
@@ -44,11 +47,19 @@ export default function CalendarPage() {
 
   const handleDateSelect = useCallback((date: Date | undefined) => {
     setSelectedDate(date);
+    setSelectedShiftType(null);
     if (date) setIsAssignModalOpen(true);
   }, []);
 
   const openAssignModalForDate = (date: Date) => {
     setSelectedDate(date);
+    setSelectedShiftType(null);
+    setIsAssignModalOpen(true);
+  };
+
+  const openAssignModalForCell = (date: Date, shiftType: ShiftType) => {
+    setSelectedDate(date);
+    setSelectedShiftType(shiftType);
     setIsAssignModalOpen(true);
   };
 
@@ -89,6 +100,20 @@ export default function CalendarPage() {
       const unavailableDatesByDoctor = Object.fromEntries(
         unavailableDatesByDoctorEntries,
       );
+
+      for (const shift of allShifts) {
+        if (shift.shiftType !== "night") continue;
+        if (!Array.isArray(shift.doctorIds) || shift.doctorIds.length === 0) {
+          continue;
+        }
+        if (!isSameMonth(new Date(shift.date), month)) continue;
+        for (const doctorId of shift.doctorIds) {
+          if (!unavailableDatesByDoctor[doctorId]) {
+            unavailableDatesByDoctor[doctorId] = new Set();
+          }
+          unavailableDatesByDoctor[doctorId].add(shift.date);
+        }
+      }
 
       const assignments = generateAssignmentsForMonth({
         dates,
@@ -185,6 +210,7 @@ export default function CalendarPage() {
         allShifts={allShifts}
         unavailableByDoctor={unavailableByDoctor}
         onRowClick={openAssignModalForDate}
+        onCellClick={openAssignModalForCell}
         isUnassignedDay={isUnassignedDay}
       />
 
@@ -242,6 +268,7 @@ export default function CalendarPage() {
         getShiftForType={(type) =>
           getShiftForType({ selectedDate, shiftType: type, allShifts })
         }
+        focusShiftType={selectedShiftType}
         onAssign={async (type, ids) => {
           if (!selectedDate) return;
           await handleShiftAssignment(type, ids);
