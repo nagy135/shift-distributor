@@ -13,7 +13,7 @@ function parseUserId(value: string): number | null {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const admin = await getUserFromAuthHeader(
     request.headers.get("authorization"),
@@ -25,7 +25,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const userId = parseUserId(params.id);
+  const { id } = await params;
+  const userId = parseUserId(id);
   if (!userId) {
     return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
   }
@@ -103,7 +104,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const admin = await getUserFromAuthHeader(
     request.headers.get("authorization"),
@@ -115,7 +116,8 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const userId = parseUserId(params.id);
+  const { id } = await params;
+  const userId = parseUserId(id);
   if (!userId) {
     return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
   }

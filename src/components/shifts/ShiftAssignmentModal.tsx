@@ -73,7 +73,6 @@ export function ShiftAssignmentModal({
         : [];
     });
     setPendingAssignments(initial);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     open,
     dateKey,
