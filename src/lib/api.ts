@@ -106,15 +106,19 @@ export const shiftsApi = {
     return response.json();
   },
 
-  assign: async (data: {
-    date: string;
-    shiftType: string;
-    doctorIds: number[];
-  }): Promise<Shift> => {
+  assign: async (
+    data: {
+      date: string;
+      shiftType: string;
+      doctorIds: number[];
+    },
+    accessToken?: string | null,
+  ): Promise<Shift> => {
     const response = await fetch("/api/shifts", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       body: JSON.stringify(data),
     });
@@ -126,11 +130,13 @@ export const shiftsApi = {
 
   assignBatch: async (
     shifts: { date: string; shiftType: string; doctorIds: number[] }[],
+    accessToken?: string | null,
   ): Promise<Shift[]> => {
     const response = await fetch("/api/shifts", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       body: JSON.stringify({ shifts }),
     });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import {
   format,
   startOfMonth,
@@ -16,19 +16,21 @@ import { CalendarHeaderActions } from "@/components/calendar/CalendarHeaderActio
 import { CalendarContent } from "@/components/calendar/CalendarContent";
 import { ConfirmClearDialog } from "@/components/calendar/ConfirmClearDialog";
 import { exportMonthTable } from "@/components/calendar/export-month-table";
-import { getShiftForType, isDayUnassigned } from "@/components/calendar/utils";
+import { getShiftForType } from "@/components/calendar/utils";
 import { useCalendarQueries } from "@/components/calendar/useCalendarQueries";
 import { useMonthStore } from "@/lib/month-store";
 import { useDistributeLockStore } from "@/lib/distribute-lock-store";
 import { generateAssignmentsForMonth } from "@/lib/scheduler";
 import { AUTO_DISTRIBUTE_SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
 import { shiftsApi, unavailableDatesApi } from "@/lib/api";
+import { useAuth } from "@/lib/auth-client";
 
 export default function CalendarPage() {
+  const { user, accessToken } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const { month, setMonth } = useMonthStore();
+  const { month } = useMonthStore();
   const [isDistributing, setIsDistributing] = useState(false);
-  const [useTableView, setUseTableView] = useState(true);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedShiftType, setSelectedShiftType] = useState<ShiftType | null>(
     null,
@@ -43,21 +45,17 @@ export default function CalendarPage() {
     unavailableByDoctor,
     assignShiftMutation,
     invalidateShifts,
-  } = useCalendarQueries();
-
-  const handleDateSelect = useCallback((date: Date | undefined) => {
-    setSelectedDate(date);
-    setSelectedShiftType(null);
-    if (date) setIsAssignModalOpen(true);
-  }, []);
+  } = useCalendarQueries(accessToken);
 
   const openAssignModalForDate = (date: Date) => {
+    if (!isAdmin) return;
     setSelectedDate(date);
     setSelectedShiftType(null);
     setIsAssignModalOpen(true);
   };
 
   const openAssignModalForCell = (date: Date, shiftType: ShiftType) => {
+    if (!isAdmin) return;
     setSelectedDate(date);
     setSelectedShiftType(shiftType);
     setIsAssignModalOpen(true);
@@ -67,6 +65,7 @@ export default function CalendarPage() {
     shiftType: string,
     doctorIds: number[],
   ) => {
+    if (!isAdmin) return;
     if (!selectedDate) return;
 
     try {
@@ -81,6 +80,7 @@ export default function CalendarPage() {
   };
 
   const handleDistributeMonth = async () => {
+    if (!isAdmin) return;
     try {
       setIsDistributing(true);
       const range = {
@@ -123,7 +123,7 @@ export default function CalendarPage() {
       });
 
       // Use batch endpoint for all assignments in a single request
-      await shiftsApi.assignBatch(assignments);
+      await shiftsApi.assignBatch(assignments, accessToken);
 
       // Ensure fresh data when done
       await invalidateShifts();
@@ -144,6 +144,7 @@ export default function CalendarPage() {
 
   const handleClearMonthAssignments = async () => {
     try {
+      if (!isAdmin) return;
       if (isLocked) return;
       setIsClearing(true);
 
@@ -162,7 +163,7 @@ export default function CalendarPage() {
       }));
 
       if (clearAssignments.length > 0) {
-        await shiftsApi.assignBatch(clearAssignments);
+        await shiftsApi.assignBatch(clearAssignments, accessToken);
       }
 
       await invalidateShifts();
@@ -174,20 +175,11 @@ export default function CalendarPage() {
     }
   };
 
-  const isUnassignedDay = useCallback(
-    (date: Date) => {
-      return isDayUnassigned({ date, allShifts });
-    },
-    [allShifts],
-  );
-
   return (
     <div className="space-y-6">
       <MonthSelector
         rightActions={
           <CalendarHeaderActions
-            useTableView={useTableView}
-            onToggleView={() => setUseTableView((v) => !v)}
             onDistribute={handleDistributeMonth}
             onToggleLocked={toggleLocked}
             onExport={handleExportMonthTable}
@@ -195,26 +187,23 @@ export default function CalendarPage() {
             isDistributing={isDistributing}
             shiftsLoading={shiftsLoading}
             doctorsCount={doctors.length}
+            showDistribute={isAdmin}
+            showLockToggle={isAdmin}
           />
         }
       />
 
       <CalendarContent
         month={month}
-        setMonth={setMonth}
-        selectedDate={selectedDate}
-        onSelectDate={handleDateSelect}
-        useTableView={useTableView}
         shiftsLoading={shiftsLoading}
         doctors={doctors}
         allShifts={allShifts}
         unavailableByDoctor={unavailableByDoctor}
-        onRowClick={openAssignModalForDate}
-        onCellClick={openAssignModalForCell}
-        isUnassignedDay={isUnassignedDay}
+        onRowClick={isAdmin ? openAssignModalForDate : undefined}
+        onCellClick={isAdmin ? openAssignModalForCell : undefined}
       />
 
-      {useTableView && (
+      {isAdmin && (
         <div className="max-w-2xl mx-auto flex justify-center mt-2">
           <Button
             variant="destructive"
@@ -249,19 +238,20 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* Confirm Clear Modal */}
-      <ConfirmClearDialog
-        open={isConfirmClearOpen}
-        onOpenChange={setIsConfirmClearOpen}
-        onConfirm={handleClearMonthAssignments}
-        onCancel={() => setIsConfirmClearOpen(false)}
-        isLocked={isLocked}
-        isClearing={isClearing}
-      />
+      {isAdmin && (
+        <ConfirmClearDialog
+          open={isConfirmClearOpen}
+          onOpenChange={setIsConfirmClearOpen}
+          onConfirm={handleClearMonthAssignments}
+          onCancel={() => setIsConfirmClearOpen(false)}
+          isLocked={isLocked}
+          isClearing={isClearing}
+        />
+      )}
 
       {/* Reusable shift assignment modal for table rows */}
       <ShiftAssignmentModal
-        open={isAssignModalOpen}
+        open={isAssignModalOpen && isAdmin}
         onOpenChange={setIsAssignModalOpen}
         date={selectedDate}
         doctors={doctors}

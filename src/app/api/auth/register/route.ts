@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { DEFAULT_USER_ROLE } from "@/lib/roles";
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
     const passwordHash = await bcrypt.hash(password, 10);
     const inserted = await db
       .insert(users)
-      .values({ email, passwordHash })
+      .values({ email, passwordHash, role: DEFAULT_USER_ROLE })
       .returning()
       .get();
 
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
       JSON.stringify({
         id: inserted.id,
         email: inserted.email,
+        role: inserted.role,
         createdAt: inserted.createdAt,
       }),
       { status: 201 },

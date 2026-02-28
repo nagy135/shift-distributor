@@ -1,5 +1,6 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import { DEFAULT_USER_ROLE, type UserRole } from "@/lib/roles";
 
 export const doctors = sqliteTable("doctors", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -45,6 +46,8 @@ export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  role: text("role").$type<UserRole>().notNull().default(DEFAULT_USER_ROLE),
+  doctorId: integer("doctor_id").references(() => doctors.id),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
     () => new Date(),
   ),

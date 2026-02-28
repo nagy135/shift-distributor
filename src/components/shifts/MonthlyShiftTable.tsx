@@ -14,7 +14,7 @@ interface MonthlyShiftTableProps {
   shifts: Shift[];
   doctors: Doctor[];
   unavailableByDoctor?: Record<number, Set<string>>;
-  onRowClick: (date: Date) => void;
+  onRowClick?: (date: Date) => void;
   onCellClick?: (date: Date, shiftType: ShiftType) => void;
 }
 
@@ -89,8 +89,11 @@ export function MonthlyShiftTable({
     [hasDoctorConflict],
   );
 
+  const canRowClick = typeof onRowClick === "function";
+  const canCellClick = typeof onCellClick === "function";
+
   return (
-    <div className="max-w-xl mx-auto">
+    <div className="w-full max-w-xl mx-auto">
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
@@ -127,13 +130,17 @@ export function MonthlyShiftTable({
                 <tr
                   key={key}
                   className={cn(
-                    "hover:bg-muted/30 cursor-pointer",
+                    canRowClick && "hover:bg-muted/30 cursor-pointer",
+                    !canRowClick && "cursor-default",
                     isWeekend && "bg-gray-100 dark:bg-gray-800",
                     rowConflict
                       ? "bg-red-100 dark:bg-red-900 hover:bg-red-200 border rounded border-red-400"
                       : undefined,
                   )}
-                  onClick={() => onRowClick(d)}
+                  onClick={() => {
+                    if (!canRowClick) return;
+                    onRowClick(d);
+                  }}
                 >
                   <td className="px-1 py-1 text-xs min-w-[50px]">
                     <span className="inline-flex items-baseline gap-1">
@@ -155,10 +162,10 @@ export function MonthlyShiftTable({
                         className={cn(
                           "py-1 text-center",
                           index === 0 ? "pl-1 pr-1" : "px-2",
-                          onCellClick && "cursor-pointer",
+                          canCellClick && "cursor-pointer",
                         )}
                         onClick={(event) => {
-                          if (!onCellClick) return;
+                          if (!canCellClick) return;
                           event.stopPropagation();
                           onCellClick(d, t);
                         }}

@@ -9,32 +9,75 @@ import {
   Popover,
   PopoverTrigger,
   PopoverContent,
+  PopoverClose,
 } from "@/components/ui/popover";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export function Navigation() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const navItems = [
+    { href: "/", label: "Calendar", active: pathname === "/" },
+    { href: "/doctors", label: "Doctors", active: pathname === "/doctors" },
+  ];
+
+  if (user?.role === "admin") {
+    navItems.push({
+      href: "/admin/users",
+      label: "Users",
+      active: pathname === "/admin/users",
+    });
+  }
 
   return (
     <nav className="flex flex-col">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Shift</h1>
         <div className="flex items-center gap-1">
-          <Button
-            asChild
-            size="sm"
-            variant={pathname === "/" ? "default" : "ghost"}
-          >
-            <Link href="/">Calendar</Link>
-          </Button>
-          <Button
-            asChild
-            size="sm"
-            variant={pathname === "/doctors" ? "default" : "ghost"}
-          >
-            <Link href="/doctors">Doctors</Link>
-          </Button>
+          <div className="hidden items-center gap-1 md:flex">
+            {navItems.map((item) => (
+              <Button
+                key={item.href}
+                asChild
+                size="sm"
+                variant={item.active ? "default" : "ghost"}
+              >
+                <Link href={item.href}>{item.label}</Link>
+              </Button>
+            ))}
+          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="md:hidden"
+                aria-label="Open navigation menu"
+              >
+                <span className="flex flex-col gap-1">
+                  <span className="h-0.5 w-4 rounded-full bg-current" />
+                  <span className="h-0.5 w-4 rounded-full bg-current" />
+                  <span className="h-0.5 w-4 rounded-full bg-current" />
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-48 p-1">
+              <div className="flex flex-col">
+                {navItems.map((item) => (
+                  <PopoverClose key={item.href} asChild>
+                    <Button
+                    asChild
+                    size="sm"
+                    variant={item.active ? "secondary" : "ghost"}
+                    className="w-full justify-start"
+                  >
+                      <Link href={item.href}>{item.label}</Link>
+                    </Button>
+                  </PopoverClose>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
           <div className=" ml-2 border-l">
             <ThemeToggle />
           </div>

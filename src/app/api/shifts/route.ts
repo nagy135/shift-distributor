@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { shifts, doctors } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
+import { getUserFromAuthHeader } from "@/lib/authz";
 
 type ShiftRow = typeof shifts.$inferSelect;
 
@@ -122,6 +123,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getUserFromAuthHeader(
+      request.headers.get("authorization"),
+    );
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (user.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { date, shiftType, doctorIds } = await request.json();
 
     if (!date || !shiftType) {
@@ -177,6 +188,16 @@ interface BulkShiftInput {
 // PUT - Bulk upsert shifts (for distribute functionality)
 export async function PUT(request: NextRequest) {
   try {
+    const user = await getUserFromAuthHeader(
+      request.headers.get("authorization"),
+    );
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (user.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await request.json();
 
     if (!Array.isArray(body.shifts)) {

@@ -9,7 +9,7 @@ import {
   type UnavailableDate,
 } from "@/lib/api";
 
-export function useCalendarQueries() {
+export function useCalendarQueries(accessToken?: string | null) {
   const queryClient = useQueryClient();
 
   const { data: doctors = [] } = useQuery({
@@ -47,7 +47,11 @@ export function useCalendarQueries() {
   });
 
   const assignShiftMutation = useMutation({
-    mutationFn: shiftsApi.assign,
+    mutationFn: (data: {
+      date: string;
+      shiftType: string;
+      doctorIds: number[];
+    }) => shiftsApi.assign(data, accessToken),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
     },
