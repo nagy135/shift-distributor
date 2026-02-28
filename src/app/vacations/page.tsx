@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { getDefaultClassNames, DayButton as RdpDayButton } from "react-day-picker";
 
 const QUOTA_TOTAL = 5;
+const EMPTY_VACATION_DAYS: VacationDay[] = [];
 
 const COLOR_STYLES: Record<
   VacationColor,
@@ -70,11 +71,12 @@ export default function VacationsPage() {
   const isApprover = user?.role === "secretary";
   const year = new Date().getFullYear();
 
-  const { data: vacationDays = [], isLoading: isVacationsLoading } = useQuery({
+  const { data, isLoading: isVacationsLoading } = useQuery({
     queryKey: ["vacations", isApprover ? "all" : doctorId, year],
     queryFn: () => vacationsApi.getByYear(year, accessToken),
     enabled: !!accessToken && (isApprover || !!doctorId),
   });
+  const vacationDays = data ?? EMPTY_VACATION_DAYS;
 
   const [dayColors, setDayColors] = useState<Record<string, VacationColor>>({});
   const [activeColor, setActiveColor] = useState<VacationColor | null>(null);
