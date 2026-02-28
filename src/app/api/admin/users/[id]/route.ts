@@ -21,7 +21,7 @@ export async function PATCH(
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (admin.role !== "admin") {
+  if (admin.role !== "shift_assigner") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -111,7 +111,7 @@ export async function DELETE(
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (admin.role !== "admin") {
+  if (admin.role !== "shift_assigner") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

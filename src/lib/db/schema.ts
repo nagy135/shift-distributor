@@ -42,6 +42,21 @@ export const unavailableDates = sqliteTable("unavailable_dates", {
   ),
 });
 
+export const vacationDays = sqliteTable("vacation_days", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  doctorId: integer("doctor_id")
+    .references(() => doctors.id)
+    .notNull(),
+  date: text("date").notNull(), // YYYY-MM-DD format
+  color: text("color").notNull(),
+  approved: integer("approved", { mode: "boolean" })
+    .default(sql`0`)
+    .notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+});
+
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   email: text("email").notNull().unique(),
@@ -53,11 +68,29 @@ export const users = sqliteTable("users", {
   ),
 });
 
+export const notifications = sqliteTable("notifications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .references(() => users.id)
+    .notNull(),
+  message: text("message").notNull(),
+  isRead: integer("is_read", { mode: "boolean" })
+    .default(sql`0`)
+    .notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+});
+
 export type Doctor = typeof doctors.$inferSelect;
 export type NewDoctor = typeof doctors.$inferInsert;
 export type Shift = typeof shifts.$inferSelect;
 export type NewShift = typeof shifts.$inferInsert;
 export type UnavailableDate = typeof unavailableDates.$inferSelect;
 export type NewUnavailableDate = typeof unavailableDates.$inferInsert;
+export type VacationDay = typeof vacationDays.$inferSelect;
+export type NewVacationDay = typeof vacationDays.$inferInsert;
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;

@@ -8,6 +8,7 @@ export type AuthUser = {
   id: number;
   email: string;
   role: UserRole;
+  doctorId: number | null;
 };
 
 export async function getUserFromAuthHeader(
@@ -20,7 +21,12 @@ export async function getUserFromAuthHeader(
   if (!payload) return null;
 
   const user = await db
-    .select({ id: users.id, email: users.email, role: users.role })
+    .select({
+      id: users.id,
+      email: users.email,
+      role: users.role,
+      doctorId: users.doctorId,
+    })
     .from(users)
     .where(eq(users.id, payload.id))
     .get();

@@ -10,7 +10,12 @@ export async function GET() {
     });
   }
   return new Response(
-    JSON.stringify({ id: user.id, email: user.email, role: user.role }),
+    JSON.stringify({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      doctorId: user.doctorId,
+    }),
     { status: 200 },
   );
 }

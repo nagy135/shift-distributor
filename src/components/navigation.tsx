@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bell } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import { notificationsApi } from "@/lib/api";
 import {
   Popover,
   PopoverTrigger,
@@ -15,13 +18,31 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export function Navigation() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, logout, accessToken } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications", "unread"],
+    queryFn: () => notificationsApi.getUnread(accessToken),
+    enabled: !!accessToken && !!user,
+  });
+  const unreadCount = notifications.length;
+  const markNotificationsMutation = useMutation({
+    mutationFn: () => notificationsApi.markAllRead(accessToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
+    },
+  });
   const navItems = [
     { href: "/", label: "Calendar", active: pathname === "/" },
+    {
+      href: "/vacations",
+      label: "Vacations",
+      active: pathname === "/vacations",
+    },
     { href: "/doctors", label: "Doctors", active: pathname === "/doctors" },
   ];
 
-  if (user?.role === "admin") {
+  if (user?.role === "shift_assigner") {
     navItems.push({
       href: "/admin/users",
       label: "Users",
@@ -84,6 +105,68 @@ export function Navigation() {
 
           {user && (
             <div className="flex items-center gap-1">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    aria-label="Vacation notifications"
+                    className="relative"
+                  >
+                    <Bell className="h-4 w-4" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 p-2">
+                  <div className="px-2 py-1 text-xs font-semibold uppercase text-muted-foreground">
+                    Notifications
+                  </div>
+                  <div className="my-2 h-px bg-border" />
+                  {notifications.length === 0 ? (
+                    <div className="px-2 py-3 text-sm text-muted-foreground">
+                      No new notifications.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {notifications.map((item) => (
+                        <PopoverClose key={item.id} asChild>
+                          <Link
+                            href="/vacations"
+                            className="block rounded-md border px-3 py-2 text-sm hover:bg-accent"
+                            onClick={() => {
+                              if (unreadCount > 0) {
+                                markNotificationsMutation.mutate();
+                              }
+                            }}
+                          >
+                            {item.message}
+                          </Link>
+                        </PopoverClose>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-3">
+                    <PopoverClose asChild>
+                      <Link
+                        href="/vacations"
+                        className="block w-full rounded-md border px-3 py-2 text-center text-sm font-medium hover:bg-accent"
+                        onClick={() => {
+                          if (unreadCount > 0) {
+                            markNotificationsMutation.mutate();
+                          }
+                        }}
+                      >
+                        Open vacations
+                      </Link>
+                    </PopoverClose>
+                  </div>
+                </PopoverContent>
+              </Popover>
               <Popover>
                 <PopoverTrigger asChild>
                   <button

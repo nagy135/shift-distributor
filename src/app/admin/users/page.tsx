@@ -53,7 +53,7 @@ export default function AdminUsersPage() {
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
 
-  const canManage = user?.role === "admin";
+  const canManage = user?.role === "shift_assigner";
 
   const loadUsers = useCallback(async () => {
     if (!accessToken) return;

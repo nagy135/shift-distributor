@@ -10,7 +10,12 @@ import React, {
 } from "react";
 import type { UserRole } from "@/lib/roles";
 
-type User = { id: number; email: string; role: UserRole } | null;
+type User = {
+  id: number;
+  email: string;
+  role: UserRole;
+  doctorId: number | null;
+} | null;
 
 type AuthContextValue = {
   user: User;
@@ -38,7 +43,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const loadMe = useCallback(async (token: string) => {
-    const me = await fetchJson<{ id: number; email: string; role: UserRole }>(
+    const me = await fetchJson<{
+      id: number;
+      email: string;
+      role: UserRole;
+      doctorId: number | null;
+    }>(
       "/api/auth/me",
       {
         headers: { Authorization: `Bearer ${token}` },

@@ -27,7 +27,7 @@ import { useAuth } from "@/lib/auth-client";
 
 export default function CalendarPage() {
   const { user, accessToken } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isShiftAssigner = user?.role === "shift_assigner";
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const { month } = useMonthStore();
   const [isDistributing, setIsDistributing] = useState(false);
@@ -48,14 +48,14 @@ export default function CalendarPage() {
   } = useCalendarQueries(accessToken);
 
   const openAssignModalForDate = (date: Date) => {
-    if (!isAdmin) return;
+    if (!isShiftAssigner) return;
     setSelectedDate(date);
     setSelectedShiftType(null);
     setIsAssignModalOpen(true);
   };
 
   const openAssignModalForCell = (date: Date, shiftType: ShiftType) => {
-    if (!isAdmin) return;
+    if (!isShiftAssigner) return;
     setSelectedDate(date);
     setSelectedShiftType(shiftType);
     setIsAssignModalOpen(true);
@@ -65,7 +65,7 @@ export default function CalendarPage() {
     shiftType: string,
     doctorIds: number[],
   ) => {
-    if (!isAdmin) return;
+    if (!isShiftAssigner) return;
     if (!selectedDate) return;
 
     try {
@@ -80,7 +80,7 @@ export default function CalendarPage() {
   };
 
   const handleDistributeMonth = async () => {
-    if (!isAdmin) return;
+    if (!isShiftAssigner) return;
     try {
       setIsDistributing(true);
       const range = {
@@ -144,7 +144,7 @@ export default function CalendarPage() {
 
   const handleClearMonthAssignments = async () => {
     try {
-      if (!isAdmin) return;
+        if (!isShiftAssigner) return;
       if (isLocked) return;
       setIsClearing(true);
 
@@ -187,8 +187,8 @@ export default function CalendarPage() {
             isDistributing={isDistributing}
             shiftsLoading={shiftsLoading}
             doctorsCount={doctors.length}
-            showDistribute={isAdmin}
-            showLockToggle={isAdmin}
+            showDistribute={isShiftAssigner}
+            showLockToggle={isShiftAssigner}
           />
         }
       />
@@ -199,11 +199,11 @@ export default function CalendarPage() {
         doctors={doctors}
         allShifts={allShifts}
         unavailableByDoctor={unavailableByDoctor}
-        onRowClick={isAdmin ? openAssignModalForDate : undefined}
-        onCellClick={isAdmin ? openAssignModalForCell : undefined}
+        onRowClick={isShiftAssigner ? openAssignModalForDate : undefined}
+        onCellClick={isShiftAssigner ? openAssignModalForCell : undefined}
       />
 
-      {isAdmin && (
+      {isShiftAssigner && (
         <div className="max-w-2xl mx-auto flex justify-center mt-2">
           <Button
             variant="destructive"
@@ -238,7 +238,7 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {isAdmin && (
+      {isShiftAssigner && (
         <ConfirmClearDialog
           open={isConfirmClearOpen}
           onOpenChange={setIsConfirmClearOpen}
@@ -251,7 +251,7 @@ export default function CalendarPage() {
 
       {/* Reusable shift assignment modal for table rows */}
       <ShiftAssignmentModal
-        open={isAssignModalOpen && isAdmin}
+        open={isAssignModalOpen && isShiftAssigner}
         onOpenChange={setIsAssignModalOpen}
         date={selectedDate}
         doctors={doctors}
