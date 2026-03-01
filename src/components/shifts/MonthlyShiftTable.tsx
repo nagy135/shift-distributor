@@ -4,7 +4,13 @@ import React from "react";
 import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
 import { de } from "date-fns/locale";
 import type { Shift, Doctor } from "@/lib/api";
-import { SHIFT_LABELS, SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
+import {
+  SHIFT_LABELS,
+  SHIFT_TYPES,
+  type ShiftType,
+  doesUnavailableDateClash,
+  isShiftType,
+} from "@/lib/shifts";
 import { cn } from "@/lib/utils";
 import { HOLIDAY_DATE_SET_2026 } from "@/lib/holidays";
 
@@ -35,8 +41,11 @@ export function MonthlyShiftTable({
   const shiftIndex = React.useMemo(() => {
     const map = new Map<string, Partial<Record<ShiftType, Shift>>>();
     for (const s of shifts) {
+      if (!isShiftType(s.shiftType)) {
+        continue;
+      }
       const byType = map.get(s.date) ?? {};
-      byType[s.shiftType as ShiftType] = s;
+      byType[s.shiftType] = s;
       map.set(s.date, byType);
     }
     return map;
@@ -50,18 +59,25 @@ export function MonthlyShiftTable({
       date: string,
       byType: Partial<Record<ShiftType, Shift>>,
     ): boolean => {
-      const hasDateConflict = unavailableByDoctor[doctorId]?.has(date) ?? false;
+      if (!isShiftType(shift.shiftType)) {
+        return false;
+      }
+
+      const hasDateConflict = doesUnavailableDateClash(shift.shiftType)
+        ? (unavailableByDoctor[doctorId]?.has(date) ?? false)
+        : false;
 
       const doctor = doctors.find((d) => d.id === doctorId);
       const hasShiftTypeConflict =
         doctor?.unavailableShiftTypes &&
         Array.isArray(doctor.unavailableShiftTypes)
-          ? doctor.unavailableShiftTypes.includes(shift.shiftType as ShiftType)
+          ? doctor.unavailableShiftTypes.includes(shift.shiftType)
           : false;
 
+      const dayShiftTypes: readonly ShiftType[] = ["17shift", "20shift"];
       const hasNightOverlap =
         shift.shiftType === "night" &&
-        (["17shift", "20shift"] as ShiftType[]).some((type) => {
+        dayShiftTypes.some((type) => {
           const other = byType[type];
           return Array.isArray(other?.doctorIds)
             ? other?.doctorIds.includes(doctorId)

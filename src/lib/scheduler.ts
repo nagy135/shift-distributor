@@ -1,6 +1,11 @@
 import { format, isSameDay, subDays } from "date-fns";
 import type { Doctor } from "@/lib/api";
-import { SHIFT_TYPES, type ShiftType, isWeekendOnly } from "@/lib/shifts";
+import {
+  SHIFT_TYPES,
+  type ShiftType,
+  doesUnavailableDateClash,
+  isWeekendOnly,
+} from "@/lib/shifts";
 import { getDay } from "date-fns";
 
 // ShiftType now comes from shared shifts constants
@@ -108,7 +113,7 @@ export function generateAssignmentsForMonth(
         if (dayAssignments.includes(candidateId)) continue;
 
         // Respect unavailable dates
-        if (unavailableDatesByDoctor) {
+        if (unavailableDatesByDoctor && doesUnavailableDateClash(shiftType)) {
           const set = unavailableDatesByDoctor[candidateId];
           if (set && set.has(format(date, "yyyy-MM-dd"))) {
             continue;
@@ -160,7 +165,10 @@ export function generateAssignmentsForMonth(
           }
           if (dayAssignments.includes(candidateId)) continue;
           // Still respect unavailable dates when relaxing
-          if (unavailableDatesByDoctor) {
+          if (
+            unavailableDatesByDoctor &&
+            doesUnavailableDateClash(shiftType)
+          ) {
             const set = unavailableDatesByDoctor[candidateId];
             if (set && set.has(format(date, "yyyy-MM-dd"))) {
               continue;

@@ -10,7 +10,12 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { Doctor, Shift } from "@/lib/api";
-import { SHIFT_LABELS, SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
+import {
+  SHIFT_LABELS,
+  SHIFT_TYPES,
+  type ShiftType,
+  doesUnavailableDateClash,
+} from "@/lib/shifts";
 import { Pill } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
 import { MultiSelect } from "@/components/ui/multiselect";
@@ -95,7 +100,9 @@ export function ShiftAssignmentModal({
   const hasDoctorConflict = React.useCallback(
     (doctorId: number, shiftType: ShiftType) => {
       if (!dateKey) return false;
-      const dateConflict = unavailableByDoctor[doctorId]?.has(dateKey) ?? false;
+      const dateConflict = doesUnavailableDateClash(shiftType)
+        ? (unavailableByDoctor[doctorId]?.has(dateKey) ?? false)
+        : false;
       const doctor = doctors.find((d) => d.id === doctorId);
       const shiftTypeConflict =
         doctor?.unavailableShiftTypes &&
@@ -103,9 +110,10 @@ export function ShiftAssignmentModal({
           ? doctor.unavailableShiftTypes.includes(shiftType)
           : false;
 
+      const dayShiftTypes: readonly ShiftType[] = ["17shift", "20shift"];
       const nightOverlapConflict =
         shiftType === "night" &&
-        (["17shift", "20shift"] as ShiftType[]).some((type) =>
+        dayShiftTypes.some((type) =>
           (pendingAssignments[type] ?? []).includes(doctorId),
         );
 
