@@ -34,7 +34,7 @@ export function DoctorList({
         .map((doctor) => (
           <div
             key={doctor.id}
-            className={`p-4 border rounded-lg ${doctor.disabled ? "opacity-60" : ""}`}
+            className={`max-w-sm p-4 border rounded-lg ${doctor.disabled ? "opacity-60" : ""}`}
           >
             <div className="flex items-center justify-between">
               <div>

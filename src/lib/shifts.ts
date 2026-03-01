@@ -7,11 +7,11 @@ export type AutoDistributeShiftType =
 
 export const SHIFT_DEFS: Record<
   ShiftType,
-  { label: string; weekendOnly: boolean }
+  { label: string; weekendOnly: boolean; acronym?: string }
 > = {
-  "17shift": { label: "Stationsdienst", weekendOnly: true },
-  "20shift": { label: "Spätdienst", weekendOnly: false },
-  night: { label: "Nachtdient", weekendOnly: true },
+  "17shift": { label: "Stationsdienst", acronym: "KD", weekendOnly: true },
+  "20shift": { label: "Spätdienst", acronym: "LD", weekendOnly: false },
+  night: { label: "Nachtdient", acronym: "ND", weekendOnly: true },
   oa: { label: "OA", weekendOnly: false },
 };
 

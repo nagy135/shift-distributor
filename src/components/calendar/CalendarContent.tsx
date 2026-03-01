@@ -27,7 +27,7 @@ export function CalendarContent({
 }: CalendarContentProps) {
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-start">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
         <ClientOnly
           fallback={
             <div className="rounded-md border mx-auto max-w-md p-4 text-center text-muted-foreground">
@@ -71,8 +71,6 @@ export function CalendarContent({
             />
           )}
         </ClientOnly>
-
-        <div className="hidden lg:block" aria-hidden="true" />
       </div>
     </div>
   );

@@ -16,21 +16,20 @@ export function Pill({
   children,
   ...props
 }: PillProps) {
-  const borderColor = color || "#e5e7eb";
+  const markerColor = color || "#e5e7eb";
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-sm",
+        "inline-flex items-center gap-1 text-xs",
         className,
       )}
-      style={{
-        borderColor,
-        borderWidth: 3,
-        borderStyle: "solid",
-        borderRadius: 9999,
-      }}
       {...props}
     >
+      <span
+        aria-hidden="true"
+        className="inline-block h-2.5 w-2.5 rounded-sm"
+        style={{ backgroundColor: markerColor }}
+      />
       {children}
       {showX && <X className="h-4 w-4 text-red-600" aria-hidden="true" />}
     </span>

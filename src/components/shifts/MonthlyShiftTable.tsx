@@ -5,7 +5,6 @@ import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
 import { de } from "date-fns/locale";
 import type { Shift, Doctor } from "@/lib/api";
 import { SHIFT_LABELS, SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
-import { Pill } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
 import { HOLIDAY_DATE_SET_2026 } from "@/lib/holidays";
 
@@ -96,15 +95,20 @@ export function MonthlyShiftTable({
     <div className="w-full max-w-xl mx-auto">
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
-          <thead className="bg-muted/50">
+          <thead className="bg-muted/50 border-b border-gray-400">
             <tr>
-              <th className="text-left px-1 py-1 w-[50px]" aria-label="Date" />
+              <th
+                className="text-left px-1 py-1 w-[50px] border-r border-gray-400"
+                aria-label="Date"
+              />
               {SHIFT_TYPES.map((t, index) => (
                 <th
                   key={t}
                   className={cn(
                     "text-center py-1",
-                    index === 0 ? "pl-1 pr-1" : "px-2",
+                    index === 0
+                      ? "pl-1 pr-1"
+                      : "px-2 min-w-[120px] border-l border-gray-400",
                   )}
                 >
                   {SHIFT_LABELS[t]}
@@ -112,7 +116,7 @@ export function MonthlyShiftTable({
               ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-gray-400">
             {days.map((d) => {
               const key = format(d, "yyyy-MM-dd");
               const isHoliday = HOLIDAY_DATE_SET_2026.has(key);
@@ -130,9 +134,9 @@ export function MonthlyShiftTable({
                 <tr
                   key={key}
                   className={cn(
-                    canRowClick && "hover:bg-muted/30 cursor-pointer",
+                    canRowClick && "cursor-pointer",
                     !canRowClick && "cursor-default",
-                    isWeekend && "bg-gray-100 dark:bg-gray-800",
+                    (isWeekend || isHoliday) && "bg-gray-200 dark:bg-gray-700",
                     rowConflict
                       ? "bg-red-100 dark:bg-red-900 hover:bg-red-200 border rounded border-red-400"
                       : undefined,
@@ -142,7 +146,12 @@ export function MonthlyShiftTable({
                     onRowClick(d);
                   }}
                 >
-                  <td className="px-1 py-1 text-xs min-w-[50px]">
+                  <td
+                    className={cn(
+                      "px-1 py-1 text-xs min-w-[50px] border-r border-gray-400",
+                      (canRowClick || canCellClick) && "hover:bg-muted/30",
+                    )}
+                  >
                     <span className="inline-flex items-baseline gap-1">
                       <span>{format(d, "d.", { locale: de })}</span>
                       <span>
@@ -161,8 +170,11 @@ export function MonthlyShiftTable({
                         key={t}
                         className={cn(
                           "py-1 text-center",
-                          index === 0 ? "pl-1 pr-1" : "px-2",
+                          index === 0
+                            ? "pl-1 pr-1"
+                            : "px-2 min-w-[120px] border-l border-gray-400",
                           canCellClick && "cursor-pointer",
+                          (canRowClick || canCellClick) && "hover:bg-muted/30",
                         )}
                         onClick={(event) => {
                           if (!canCellClick) return;
@@ -172,26 +184,11 @@ export function MonthlyShiftTable({
                       >
                         {s ? (
                           s.doctorIds.length > 0 ? (
-                            <div className="flex flex-wrap items-center gap-1 justify-center">
-                              {s.doctors.map((assignedDoctor) => {
-                                const conflict = hasDoctorConflict(
-                                  assignedDoctor.id,
-                                  s,
-                                  key,
-                                  byType,
-                                );
-                                return (
-                                  <Pill
-                                    key={`${assignedDoctor.id}-${s.id}`}
-                                    color={assignedDoctor.color || undefined}
-                                    showX={conflict}
-                                    className={cn("text-xs justify-center")}
-                                  >
-                                    {assignedDoctor.name}
-                                  </Pill>
-                                );
-                              })}
-                            </div>
+                            <span>
+                              {s.doctors
+                                .map((assignedDoctor) => assignedDoctor.name)
+                                .join("/")}
+                            </span>
                           ) : (
                             "-"
                           )
