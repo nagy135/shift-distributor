@@ -24,7 +24,7 @@ export function DoctorList({
   onOpenSettings,
 }: DoctorListProps) {
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-4 justify-items-center">
       {[...doctors]
         .sort((a, b) => {
           if (a.disabled && !b.disabled) return 1;
@@ -34,7 +34,7 @@ export function DoctorList({
         .map((doctor) => (
           <div
             key={doctor.id}
-            className={`max-w-sm p-4 border rounded-lg ${doctor.disabled ? "opacity-60" : ""}`}
+            className={`w-full max-w-sm p-4 border rounded-lg ${doctor.disabled ? "opacity-60" : ""}`}
           >
             <div className="flex items-center justify-between">
               <div>
