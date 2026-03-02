@@ -21,10 +21,7 @@ export async function GET(request: NextRequest) {
       })
       .from(notifications)
       .where(
-        and(
-          eq(notifications.userId, user.id),
-          eq(notifications.isRead, false),
-        ),
+        and(eq(notifications.userId, user.id), eq(notifications.isRead, false)),
       )
       .orderBy(desc(notifications.createdAt));
 
@@ -50,7 +47,9 @@ export async function PATCH(request: NextRequest) {
     await db
       .update(notifications)
       .set({ isRead: true })
-      .where(and(eq(notifications.userId, user.id), eq(notifications.isRead, false)));
+      .where(
+        and(eq(notifications.userId, user.id), eq(notifications.isRead, false)),
+      );
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

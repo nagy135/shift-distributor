@@ -87,11 +87,11 @@ export function Navigation() {
                 {navItems.map((item) => (
                   <PopoverClose key={item.href} asChild>
                     <Button
-                    asChild
-                    size="sm"
-                    variant={item.active ? "secondary" : "ghost"}
-                    className="w-full justify-start"
-                  >
+                      asChild
+                      size="sm"
+                      variant={item.active ? "secondary" : "ghost"}
+                      className="w-full justify-start"
+                    >
                       <Link href={item.href}>{item.label}</Link>
                     </Button>
                   </PopoverClose>

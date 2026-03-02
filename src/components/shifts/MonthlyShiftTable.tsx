@@ -19,6 +19,7 @@ interface MonthlyShiftTableProps {
   shifts: Shift[];
   doctors: Doctor[];
   unavailableByDoctor?: Record<number, Set<string>>;
+  approvedVacationsByDate?: Record<string, string[]>;
   onRowClick?: (date: Date) => void;
   onCellClick?: (date: Date, shiftType: ShiftType) => void;
 }
@@ -28,6 +29,7 @@ export function MonthlyShiftTable({
   shifts,
   doctors,
   unavailableByDoctor = {},
+  approvedVacationsByDate = {},
   onRowClick,
   onCellClick,
 }: MonthlyShiftTableProps) {
@@ -50,6 +52,10 @@ export function MonthlyShiftTable({
     }
     return map;
   }, [shifts]);
+
+  const doctorIdByName = React.useMemo(() => {
+    return new Map(doctors.map((doctor) => [doctor.name, doctor.id]));
+  }, [doctors]);
 
   // Helper function to check if a shift assignment violates constraints
   const hasDoctorConflict = React.useCallback(
@@ -108,7 +114,7 @@ export function MonthlyShiftTable({
   const canCellClick = typeof onCellClick === "function";
 
   return (
-    <div className="w-full max-w-xl mx-auto">
+    <div className="w-full max-w-2xl mx-auto">
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 border-b border-gray-400">
@@ -130,6 +136,9 @@ export function MonthlyShiftTable({
                   {SHIFT_LABELS[t]}
                 </th>
               ))}
+              <th className="text-center py-1 px-2 min-w-[140px] border-l border-gray-400">
+                Vacation
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-400">
@@ -139,10 +148,33 @@ export function MonthlyShiftTable({
               const dayName = format(d, "EEEE", { locale: de });
               const dayPrefix = dayName.slice(0, 2);
               const byType = shiftIndex.get(key) || {};
-              const rowConflict = SHIFT_TYPES.some((t) => {
+              const vacationDoctors = approvedVacationsByDate[key] ?? [];
+              const vacationDoctorIds = new Set<number>(
+                vacationDoctors
+                  .map((doctorName) => doctorIdByName.get(doctorName))
+                  .filter(
+                    (doctorId): doctorId is number =>
+                      typeof doctorId === "number",
+                  ),
+              );
+              const hasShiftConflictInRow = SHIFT_TYPES.some((t) => {
                 const s = byType[t];
                 return s && hasShiftConflict(s, key, byType);
               });
+              const assignedDoctorIds = new Set<number>();
+              SHIFT_TYPES.forEach((t) => {
+                const s = byType[t];
+                if (!s || !Array.isArray(s.doctorIds)) {
+                  return;
+                }
+                s.doctorIds.forEach((doctorId) => {
+                  assignedDoctorIds.add(doctorId);
+                });
+              });
+              const hasVacationConflict = Array.from(vacationDoctorIds).some(
+                (doctorId) => assignedDoctorIds.has(doctorId),
+              );
+              const rowConflict = hasShiftConflictInRow || hasVacationConflict;
               // Hide weekend-only shift content on weekdays
               const day = d.getDay();
               const isWeekend = day === 0 || day === 6;
@@ -154,7 +186,7 @@ export function MonthlyShiftTable({
                     !canRowClick && "cursor-default",
                     (isWeekend || isHoliday) && "bg-gray-200 dark:bg-gray-700",
                     rowConflict
-                      ? "bg-red-100 dark:bg-red-900 hover:bg-red-200 border rounded border-red-400"
+                      ? "bg-red-100 dark:bg-red-800/40 hover:bg-red-200 dark:hover:bg-red-700/50 border rounded border-red-400 dark:border-red-500/70"
                       : undefined,
                   )}
                   onClick={() => {
@@ -181,6 +213,17 @@ export function MonthlyShiftTable({
                   </td>
                   {SHIFT_TYPES.map((t, index) => {
                     const s = byType[t];
+                    const hasShiftCellConflict = s
+                      ? hasShiftConflict(s, key, byType)
+                      : false;
+                    const hasVacationCellConflict =
+                      !!s &&
+                      Array.isArray(s.doctorIds) &&
+                      s.doctorIds.some((doctorId) =>
+                        vacationDoctorIds.has(doctorId),
+                      );
+                    const cellConflict =
+                      hasShiftCellConflict || hasVacationCellConflict;
                     return (
                       <td
                         key={t}
@@ -190,7 +233,11 @@ export function MonthlyShiftTable({
                             ? "pl-1 pr-1"
                             : "px-2 min-w-[120px] border-l border-gray-400",
                           canCellClick && "cursor-pointer",
-                          (canRowClick || canCellClick) && "hover:bg-muted/30",
+                          cellConflict &&
+                            "bg-red-300 dark:bg-red-700/80 hover:bg-red-300 dark:hover:bg-red-700/80",
+                          !cellConflict &&
+                            (canRowClick || canCellClick) &&
+                            "hover:bg-muted/30",
                         )}
                         onClick={(event) => {
                           if (!canCellClick) return;
@@ -214,6 +261,20 @@ export function MonthlyShiftTable({
                       </td>
                     );
                   })}
+                  <td
+                    className={cn(
+                      "py-1 text-center px-2 min-w-[140px] border-l border-gray-400",
+                      hasVacationConflict &&
+                        "bg-red-300 dark:bg-red-700/80 hover:bg-red-300 dark:hover:bg-red-700/80",
+                      !hasVacationConflict &&
+                        (canRowClick || canCellClick) &&
+                        "hover:bg-muted/30",
+                    )}
+                  >
+                    {vacationDoctors.length > 0
+                      ? vacationDoctors.join("/")
+                      : "-"}
+                  </td>
                 </tr>
               );
             })}

@@ -71,7 +71,9 @@ export async function GET(request: NextRequest) {
           })
           .from(vacationDays)
           .leftJoin(doctors, eq(vacationDays.doctorId, doctors.id))
-          .where(and(gte(vacationDays.date, start), lte(vacationDays.date, end)))
+          .where(
+            and(gte(vacationDays.date, start), lte(vacationDays.date, end)),
+          )
       : await db
           .select({
             id: vacationDays.id,
@@ -121,7 +123,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid year" }, { status: 400 });
     }
     if (!Array.isArray(body?.days)) {
-      return NextResponse.json({ error: "Days array is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Days array is required" },
+        { status: 400 },
+      );
     }
 
     const { start, end } = toYearRange(year);
@@ -136,9 +141,7 @@ export async function POST(request: NextRequest) {
         return { date, color } as VacationInput;
       })
       .filter(
-        (
-          entry: VacationInput | null,
-        ): entry is VacationInput => entry !== null,
+        (entry: VacationInput | null): entry is VacationInput => entry !== null,
       );
 
     const existing = await db
@@ -152,7 +155,9 @@ export async function POST(request: NextRequest) {
         ),
       );
 
-    const approvalMap = new Map(existing.map((row) => [row.date, row.approved]));
+    const approvalMap = new Map(
+      existing.map((row) => [row.date, row.approved]),
+    );
 
     await db
       .delete(vacationDays)

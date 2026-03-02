@@ -28,6 +28,7 @@ interface ShiftAssignmentModalProps {
   getShiftForType: (shiftType: string) => Shift | undefined;
   onAssign: (shiftType: string, doctorIds: number[]) => Promise<void>;
   unavailableByDoctor?: Record<number, Set<string>>;
+  approvedVacationsByDate?: Record<string, string[]>;
   focusShiftType?: ShiftType | null;
 }
 
@@ -39,6 +40,7 @@ export function ShiftAssignmentModal({
   getShiftForType,
   onAssign,
   unavailableByDoctor = {},
+  approvedVacationsByDate = {},
   focusShiftType = null,
 }: ShiftAssignmentModalProps) {
   const [pendingAssignments, setPendingAssignments] = React.useState<
@@ -109,6 +111,9 @@ export function ShiftAssignmentModal({
         Array.isArray(doctor.unavailableShiftTypes)
           ? doctor.unavailableShiftTypes.includes(shiftType)
           : false;
+      const vacationConflict =
+        !!doctor?.name &&
+        (approvedVacationsByDate[dateKey] ?? []).includes(doctor.name);
 
       const dayShiftTypes: readonly ShiftType[] = ["17shift", "20shift"];
       const nightOverlapConflict =
@@ -117,9 +122,20 @@ export function ShiftAssignmentModal({
           (pendingAssignments[type] ?? []).includes(doctorId),
         );
 
-      return dateConflict || shiftTypeConflict || nightOverlapConflict;
+      return (
+        dateConflict ||
+        shiftTypeConflict ||
+        vacationConflict ||
+        nightOverlapConflict
+      );
     },
-    [dateKey, doctors, unavailableByDoctor, pendingAssignments],
+    [
+      dateKey,
+      doctors,
+      unavailableByDoctor,
+      approvedVacationsByDate,
+      pendingAssignments,
+    ],
   );
 
   const handleSelectionChange = React.useCallback(
@@ -197,6 +213,8 @@ export function ShiftAssignmentModal({
                     )}
                     onChange={(values) => handleSelectionChange(t, values)}
                     placeholder="Select doctors..."
+                    searchable
+                    searchPlaceholder="Search doctors..."
                     className="w-full sm:w-60"
                   />
                 </div>

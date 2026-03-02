@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-client";
 import { vacationsApi, type VacationDay } from "@/lib/api";
-import { VACATION_COLORS, type VacationColor } from "@/lib/vacations";
+import {
+  VACATION_COLORS,
+  VACATION_COLOR_STYLES,
+  type VacationColor,
+} from "@/lib/vacations";
 import {
   Dialog,
   DialogContent,
@@ -16,40 +20,28 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { getDefaultClassNames, DayButton as RdpDayButton } from "react-day-picker";
+import {
+  getDefaultClassNames,
+  DayButton as RdpDayButton,
+} from "react-day-picker";
 
 const QUOTA_TOTAL = 5;
 const EMPTY_VACATION_DAYS: VacationDay[] = [];
 
-const COLOR_STYLES: Record<
-  VacationColor,
-  { label: string; classes: string; ring: string }
-> = {
-  red: {
-    label: "Red",
-    classes: "bg-red-500 text-white hover:bg-red-600",
-    ring: "ring-red-500",
-  },
-  orange: {
-    label: "Orange",
-    classes: "bg-orange-500 text-white hover:bg-orange-600",
-    ring: "ring-orange-500",
-  },
-  green: {
-    label: "Green",
-    classes: "bg-emerald-500 text-white hover:bg-emerald-600",
-    ring: "ring-emerald-500",
-  },
-};
-
-const countColors = (input: Record<string, VacationColor>) => {
-  return Object.values(input).reduce(
+const createColorCountMap = (): Record<VacationColor, number> =>
+  VACATION_COLORS.reduce(
     (acc, color) => {
-      acc[color] += 1;
+      acc[color] = 0;
       return acc;
     },
-    { red: 0, orange: 0, green: 0 } as Record<VacationColor, number>,
+    {} as Record<VacationColor, number>,
   );
+
+const countColors = (input: Record<string, VacationColor>) => {
+  return Object.values(input).reduce((acc, color) => {
+    acc[color] += 1;
+    return acc;
+  }, createColorCountMap());
 };
 
 const dayToKey = (day: Date) => format(day, "yyyy-MM-dd");
@@ -95,7 +87,6 @@ export default function VacationsPage() {
     setDayColors(next);
   }, [vacationDays, isApprover]);
 
-
   const colorCounts = useMemo(() => countColors(dayColors), [dayColors]);
 
   const updateMutation = useMutation({
@@ -103,25 +94,27 @@ export default function VacationsPage() {
       vacationsApi.updateYear(year, days, accessToken),
   });
 
+  const invalidateVacationsQueries = useCallback(() => {
+    queryClient.invalidateQueries({
+      queryKey: ["vacations", isApprover ? "all" : doctorId, year],
+    });
+    queryClient.invalidateQueries({ queryKey: ["vacations"] });
+  }, [doctorId, isApprover, queryClient, year]);
+
   const approvalMutation = useMutation({
     mutationFn: ({ id, approved }: { id: number; approved: boolean }) =>
       vacationsApi.updateApproval(id, approved, accessToken),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["vacations", isApprover ? "all" : doctorId, year],
-      });
+      invalidateVacationsQueries();
     },
   });
 
   const denyMutation = useMutation({
     mutationFn: (id: number) => vacationsApi.deny(id, accessToken),
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["vacations", isApprover ? "all" : doctorId, year],
-      });
+      invalidateVacationsQueries();
     },
   });
-
 
   const persistDays = useCallback(
     (nextMap: Record<string, VacationColor>) => {
@@ -172,12 +165,89 @@ export default function VacationsPage() {
     return vacationsByDate.get(selectedDate) ?? [];
   }, [isApprover, selectedDate, vacationsByDate]);
 
-  const modifiers = useMemo(() => {
-    const byColor: Record<VacationColor, Date[]> = {
-      red: [],
-      orange: [],
-      green: [],
+  const hasPendingByDate = useMemo(() => {
+    const next = new Map<string, boolean>();
+    vacationDays.forEach((entry) => {
+      const hasPending = next.get(entry.date) ?? false;
+      next.set(entry.date, hasPending || !entry.approved);
+    });
+    return next;
+  }, [vacationDays]);
+
+  const approverStats = useMemo(() => {
+    if (!isApprover) {
+      return {
+        approved: 0,
+        unapproved: 0,
+        doctors: [] as Array<{
+          key: string;
+          doctorName: string;
+          approved: Record<VacationColor, number>;
+          unapproved: Record<VacationColor, number>;
+        }>,
+      };
+    }
+
+    const byDoctor = new Map<
+      string,
+      {
+        key: string;
+        doctorName: string;
+        approved: Record<VacationColor, number>;
+        unapproved: Record<VacationColor, number>;
+      }
+    >();
+
+    let approved = 0;
+    let unapproved = 0;
+
+    vacationDays.forEach((entry) => {
+      const key = `${entry.doctorId ?? "unknown"}`;
+      const doctorName = entry.doctorName ?? `Doctor #${entry.doctorId ?? "?"}`;
+      const existing =
+        byDoctor.get(key) ??
+        ({
+          key,
+          doctorName,
+          approved: createColorCountMap(),
+          unapproved: createColorCountMap(),
+        } as {
+          key: string;
+          doctorName: string;
+          approved: Record<VacationColor, number>;
+          unapproved: Record<VacationColor, number>;
+        });
+
+      if (entry.approved) {
+        approved += 1;
+        existing.approved[entry.color] += 1;
+      } else {
+        unapproved += 1;
+        existing.unapproved[entry.color] += 1;
+      }
+
+      byDoctor.set(key, existing);
+    });
+
+    const doctors = Array.from(byDoctor.values()).sort((a, b) =>
+      a.doctorName.localeCompare(b.doctorName),
+    );
+
+    return {
+      approved,
+      unapproved,
+      doctors,
     };
+  }, [isApprover, vacationDays]);
+
+  const modifiers = useMemo(() => {
+    const byColor = VACATION_COLORS.reduce(
+      (acc, color) => {
+        acc[color] = [];
+        return acc;
+      },
+      {} as Record<VacationColor, Date[]>,
+    );
     Object.entries(dayColors).forEach(([date, color]) => {
       if (color in byColor) {
         byColor[color].push(parseISO(date));
@@ -189,7 +259,7 @@ export default function VacationsPage() {
   const modifierClasses = useMemo(() => {
     return VACATION_COLORS.reduce(
       (acc, color) => {
-        acc[color] = COLOR_STYLES[color].classes;
+        acc[color] = VACATION_COLOR_STYLES[color].classes;
         return acc;
       },
       {} as Record<VacationColor, string>,
@@ -231,7 +301,7 @@ export default function VacationsPage() {
           <>
             <div className="flex flex-wrap gap-3">
               {VACATION_COLORS.map((color) => {
-                const style = COLOR_STYLES[color];
+                const style = VACATION_COLOR_STYLES[color];
                 const used = colorCounts[color];
                 const remaining = Math.max(0, QUOTA_TOTAL - used);
                 const isActive = activeColor === color;
@@ -262,6 +332,61 @@ export default function VacationsPage() {
         )}
       </div>
 
+      {isApprover && (
+        <details className="max-w-sm rounded-md border">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+            Approved: {approverStats.approved} | Unapproved:{" "}
+            {approverStats.unapproved}
+          </summary>
+          <div className="border-t px-4 py-3">
+            {approverStats.doctors.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No vacation data yet.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="py-2 pr-2 font-medium">Doctor</th>
+                      {VACATION_COLORS.map((color) => (
+                        <th
+                          key={`header-${color}`}
+                          className="py-2 pr-2 font-medium"
+                        >
+                          {VACATION_COLOR_STYLES[color].label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {approverStats.doctors.map((doctor) => (
+                      <tr
+                        key={doctor.key}
+                        className="border-b last:border-0 align-top"
+                      >
+                        <td className="py-2 pr-2 font-medium">
+                          {doctor.doctorName}
+                        </td>
+                        {VACATION_COLORS.map((color) => (
+                          <td
+                            key={`${doctor.key}-${color}`}
+                            className="py-2 pr-2"
+                          >
+                            {doctor.approved[color]}/
+                            {doctor.approved[color] + doctor.unapproved[color]}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </details>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {months.map((month) => (
           <div key={month.toISOString()} className="rounded-md border">
@@ -280,101 +405,100 @@ export default function VacationsPage() {
                   handleDayClick(day);
                 }
               }}
-              components={
-                isApprover
-                  ? {
-                      DayButton: (
-                        props: React.ComponentProps<typeof RdpDayButton>,
-                      ) => {
-                        const { day, modifiers, className, children, ...rest } =
-                          props;
-                        const dayKey = dayToKey(day.date);
-                        const entries = vacationsByDate.get(dayKey) ?? [];
-                        const colors = Array.from(
-                          new Set(
-                            entries.map((entry: VacationDay) => entry.color),
-                          ),
-                        ) as VacationColor[];
+              components={{
+                DayButton: (
+                  props: React.ComponentProps<typeof RdpDayButton>,
+                ) => {
+                  const { day, modifiers, className, children, ...rest } =
+                    props;
+                  const dayKey = dayToKey(day.date);
+                  const entries = vacationsByDate.get(dayKey) ?? [];
+                  const colors = Array.from(
+                    new Set(entries.map((entry: VacationDay) => entry.color)),
+                  ) as VacationColor[];
+                  const hasPendingApproval =
+                    hasPendingByDate.get(dayKey) ?? false;
 
-                        const defaultClassNames = getDefaultClassNames();
-                        return (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            data-day={day.date.toLocaleDateString()}
-                            data-selected-single={
-                              modifiers.selected &&
-                              !modifiers.range_start &&
-                              !modifiers.range_end &&
-                              !modifiers.range_middle
-                            }
-                            data-range-start={modifiers.range_start}
-                            data-range-end={modifiers.range_end}
-                            data-range-middle={modifiers.range_middle}
-                            className={cn(
-                              "relative data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 dark:hover:text-accent-foreground flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
-                              defaultClassNames.day,
-                              className,
-                            )}
-                            {...rest}
-                          >
-                            {colors.length > 0 && (
-                              <span className="absolute inset-0 overflow-hidden rounded-md">
-                                {colors.length === 1 && (
-                                  <span
-                                    className={cn(
-                                      "absolute inset-0 opacity-80",
-                                      COLOR_STYLES[colors[0]].classes,
-                                    )}
-                                  />
+                  const defaultClassNames = getDefaultClassNames();
+                  return (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      data-day={day.date.toLocaleDateString()}
+                      data-selected-single={
+                        modifiers.selected &&
+                        !modifiers.range_start &&
+                        !modifiers.range_end &&
+                        !modifiers.range_middle
+                      }
+                      data-range-start={modifiers.range_start}
+                      data-range-end={modifiers.range_end}
+                      data-range-middle={modifiers.range_middle}
+                      className={cn(
+                        "relative data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 dark:hover:text-accent-foreground flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
+                        defaultClassNames.day,
+                        className,
+                      )}
+                      {...rest}
+                    >
+                      {isApprover && colors.length > 0 && (
+                        <span className="absolute inset-0 overflow-hidden rounded-md">
+                          {colors.length === 1 && (
+                            <span
+                              className={cn(
+                                "absolute inset-0 opacity-80",
+                                VACATION_COLOR_STYLES[colors[0]].classes,
+                              )}
+                            />
+                          )}
+                          {colors.length === 2 && (
+                            <>
+                              <span
+                                className={cn(
+                                  "absolute inset-x-0 top-0 h-1/2 opacity-80",
+                                  VACATION_COLOR_STYLES[colors[0]].classes,
                                 )}
-                                {colors.length === 2 && (
-                                  <>
-                                    <span
-                                      className={cn(
-                                        "absolute inset-x-0 top-0 h-1/2 opacity-80",
-                                        COLOR_STYLES[colors[0]].classes,
-                                      )}
-                                    />
-                                    <span
-                                      className={cn(
-                                        "absolute inset-x-0 bottom-0 h-1/2 opacity-80",
-                                        COLOR_STYLES[colors[1]].classes,
-                                      )}
-                                    />
-                                  </>
+                              />
+                              <span
+                                className={cn(
+                                  "absolute inset-x-0 bottom-0 h-1/2 opacity-80",
+                                  VACATION_COLOR_STYLES[colors[1]].classes,
                                 )}
-                                {colors.length >= 3 && (
-                                  <>
-                                    <span
-                                      className={cn(
-                                        "absolute inset-x-0 top-0 h-1/3 opacity-80",
-                                        COLOR_STYLES[colors[0]].classes,
-                                      )}
-                                    />
-                                    <span
-                                      className={cn(
-                                        "absolute inset-x-0 top-1/3 h-1/3 opacity-80",
-                                        COLOR_STYLES[colors[1]].classes,
-                                      )}
-                                    />
-                                    <span
-                                      className={cn(
-                                        "absolute inset-x-0 bottom-0 h-1/3 opacity-80",
-                                        COLOR_STYLES[colors[2]].classes,
-                                      )}
-                                    />
-                                  </>
+                              />
+                            </>
+                          )}
+                          {colors.length >= 3 && (
+                            <>
+                              <span
+                                className={cn(
+                                  "absolute inset-x-0 top-0 h-1/3 opacity-80",
+                                  VACATION_COLOR_STYLES[colors[0]].classes,
                                 )}
-                              </span>
-                            )}
-                            <span className="relative z-10">{children}</span>
-                          </Button>
-                        );
-                      },
-                    }
-                  : undefined
-              }
+                              />
+                              <span
+                                className={cn(
+                                  "absolute inset-x-0 top-1/3 h-1/3 opacity-80",
+                                  VACATION_COLOR_STYLES[colors[1]].classes,
+                                )}
+                              />
+                              <span
+                                className={cn(
+                                  "absolute inset-x-0 bottom-0 h-1/3 opacity-80",
+                                  VACATION_COLOR_STYLES[colors[2]].classes,
+                                )}
+                              />
+                            </>
+                          )}
+                        </span>
+                      )}
+                      {hasPendingApproval && (
+                        <span className="absolute top-1 right-1 z-20 h-2.5 w-2.5 rounded-full bg-blue-500 ring-1 ring-background" />
+                      )}
+                      <span className="relative z-10">{children}</span>
+                    </Button>
+                  );
+                },
+              }}
               className="w-full"
             />
           </div>
@@ -409,18 +533,21 @@ export default function VacationsPage() {
                 <div className="space-y-3">
                   {selectedVacations.map((vacation: VacationDay) => (
                     <div
-                      key={vacation.id ?? `${vacation.doctorId}-${vacation.date}`}
+                      key={
+                        vacation.id ?? `${vacation.doctorId}-${vacation.date}`
+                      }
                       className="flex items-center justify-between gap-3 rounded-md border px-3 py-2"
                     >
                       <div className="flex items-center gap-3">
                         <span
                           className={cn(
                             "h-3 w-3 rounded-full",
-                            COLOR_STYLES[vacation.color].classes,
+                            VACATION_COLOR_STYLES[vacation.color].classes,
                           )}
                         />
                         <div className="text-sm">
-                          {vacation.doctorName ?? `Doctor #${vacation.doctorId}`}
+                          {vacation.doctorName ??
+                            `Doctor #${vacation.doctorId}`}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">

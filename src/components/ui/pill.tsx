@@ -19,10 +19,7 @@ export function Pill({
   const markerColor = color || "#e5e7eb";
   return (
     <span
-      className={cn(
-        "inline-flex items-center gap-1 text-xs",
-        className,
-      )}
+      className={cn("inline-flex items-center gap-1 text-xs", className)}
       {...props}
     >
       <span

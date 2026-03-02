@@ -1,16 +1,22 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   doctorsApi,
   shiftsApi,
   unavailableDatesApi,
+  vacationsApi,
   type UnavailableDate,
+  type VacationDay,
 } from "@/lib/api";
 
-export function useCalendarQueries(accessToken?: string | null) {
+export function useCalendarQueries(month: Date, accessToken?: string | null) {
   const queryClient = useQueryClient();
+  const normalizedMonth = month instanceof Date ? month : new Date(month);
+  const year = Number.isNaN(normalizedMonth.getTime())
+    ? new Date().getFullYear()
+    : normalizedMonth.getFullYear();
 
   const { data: doctors = [] } = useQuery({
     queryKey: ["doctors"],
@@ -46,6 +52,43 @@ export function useCalendarQueries(accessToken?: string | null) {
     enabled: (doctors ?? []).length > 0,
   });
 
+  const { data: vacationDays = [] } = useQuery({
+    queryKey: ["vacations", "calendar", year],
+    queryFn: async (): Promise<VacationDay[]> => {
+      try {
+        return await vacationsApi.getByYear(year, accessToken);
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!accessToken,
+  });
+
+  const approvedVacationsByDate = useMemo(() => {
+    const doctorNameById = new Map(
+      doctors.map((doctor) => [doctor.id, doctor.name]),
+    );
+    const map: Record<string, string[]> = {};
+
+    vacationDays.forEach((entry) => {
+      if (!entry.approved) return;
+      const doctorName =
+        entry.doctorName ??
+        (typeof entry.doctorId === "number"
+          ? doctorNameById.get(entry.doctorId)
+          : undefined);
+      if (!doctorName) return;
+
+      const names = map[entry.date] ?? [];
+      if (!names.includes(doctorName)) {
+        names.push(doctorName);
+      }
+      map[entry.date] = names;
+    });
+
+    return map;
+  }, [doctors, vacationDays]);
+
   const assignShiftMutation = useMutation({
     mutationFn: (data: {
       date: string;
@@ -66,6 +109,7 @@ export function useCalendarQueries(accessToken?: string | null) {
     allShifts,
     shiftsLoading,
     unavailableByDoctor,
+    approvedVacationsByDate,
     assignShiftMutation,
     invalidateShifts,
   };

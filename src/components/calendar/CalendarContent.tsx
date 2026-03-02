@@ -12,6 +12,7 @@ type CalendarContentProps = {
   doctors: Doctor[];
   allShifts: Shift[];
   unavailableByDoctor: Record<number, Set<string>>;
+  approvedVacationsByDate: Record<string, string[]>;
   onRowClick?: (date: Date) => void;
   onCellClick?: (date: Date, shiftType: ShiftType) => void;
 };
@@ -22,6 +23,7 @@ export function CalendarContent({
   doctors,
   allShifts,
   unavailableByDoctor,
+  approvedVacationsByDate,
   onRowClick,
   onCellClick,
 }: CalendarContentProps) {
@@ -66,6 +68,7 @@ export function CalendarContent({
               shifts={allShifts}
               doctors={doctors}
               unavailableByDoctor={unavailableByDoctor}
+              approvedVacationsByDate={approvedVacationsByDate}
               onRowClick={onRowClick}
               onCellClick={onCellClick}
             />

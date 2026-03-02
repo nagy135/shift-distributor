@@ -48,12 +48,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: string;
       role: UserRole;
       doctorId: number | null;
-    }>(
-      "/api/auth/me",
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    );
+    }>("/api/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     setUser(me);
   }, []);
 

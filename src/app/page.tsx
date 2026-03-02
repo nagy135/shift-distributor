@@ -43,9 +43,10 @@ export default function CalendarPage() {
     allShifts,
     shiftsLoading,
     unavailableByDoctor,
+    approvedVacationsByDate,
     assignShiftMutation,
     invalidateShifts,
-  } = useCalendarQueries(accessToken);
+  } = useCalendarQueries(month, accessToken);
 
   const openAssignModalForDate = (date: Date) => {
     if (!isShiftAssigner) return;
@@ -144,7 +145,7 @@ export default function CalendarPage() {
 
   const handleClearMonthAssignments = async () => {
     try {
-        if (!isShiftAssigner) return;
+      if (!isShiftAssigner) return;
       if (isLocked) return;
       setIsClearing(true);
 
@@ -199,6 +200,7 @@ export default function CalendarPage() {
         doctors={doctors}
         allShifts={allShifts}
         unavailableByDoctor={unavailableByDoctor}
+        approvedVacationsByDate={approvedVacationsByDate}
         onRowClick={isShiftAssigner ? openAssignModalForDate : undefined}
         onCellClick={isShiftAssigner ? openAssignModalForCell : undefined}
       />
@@ -264,6 +266,7 @@ export default function CalendarPage() {
           await handleShiftAssignment(type, ids);
         }}
         unavailableByDoctor={unavailableByDoctor}
+        approvedVacationsByDate={approvedVacationsByDate}
       />
     </div>
   );

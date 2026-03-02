@@ -165,10 +165,7 @@ export function generateAssignmentsForMonth(
           }
           if (dayAssignments.includes(candidateId)) continue;
           // Still respect unavailable dates when relaxing
-          if (
-            unavailableDatesByDoctor &&
-            doesUnavailableDateClash(shiftType)
-          ) {
+          if (unavailableDatesByDoctor && doesUnavailableDateClash(shiftType)) {
             const set = unavailableDatesByDoctor[candidateId];
             if (set && set.has(format(date, "yyyy-MM-dd"))) {
               continue;

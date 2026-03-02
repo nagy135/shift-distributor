@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from "react";
-import { Check, X } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Check, Trash2 } from "lucide-react";
 import { Button } from "./button";
+import { Input } from "./input";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { Pill } from "./pill";
 
@@ -17,6 +18,8 @@ interface MultiSelectProps {
   onChange: (selected: string[]) => void;
   placeholder?: string;
   className?: string;
+  searchable?: boolean;
+  searchPlaceholder?: string;
 }
 
 export function MultiSelect({
@@ -25,8 +28,11 @@ export function MultiSelect({
   onChange,
   placeholder = "Select items...",
   className,
+  searchable = false,
+  searchPlaceholder = "Search...",
 }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const optionsByValue = useMemo(() => {
     const map = new Map<string, MultiSelectOption>();
@@ -35,6 +41,22 @@ export function MultiSelect({
     }
     return map;
   }, [options]);
+
+  const filteredOptions = useMemo(() => {
+    if (!searchable || !searchTerm.trim()) {
+      return options;
+    }
+    const normalizedTerm = searchTerm.trim().toLowerCase();
+    return options.filter((option) =>
+      option.label.toLowerCase().includes(normalizedTerm),
+    );
+  }, [options, searchable, searchTerm]);
+
+  useEffect(() => {
+    if (!open) {
+      setSearchTerm("");
+    }
+  }, [open]);
 
   const handleSelect = (value: string) => {
     const newSelected = selected.includes(value)
@@ -93,7 +115,7 @@ export function MultiSelect({
                         aria-label={`Remove ${label}`}
                         className="hover:bg-secondary-foreground/20 rounded-full w-4 h-4 flex items-center justify-center cursor-pointer"
                       >
-                        <X className="w-3 h-3" />
+                        <Trash2 className="w-3 h-3" />
                       </span>
                     </div>
                   );
@@ -103,27 +125,43 @@ export function MultiSelect({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-full p-0" align="start">
+          {searchable && (
+            <div className="p-2 border-b">
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder={searchPlaceholder}
+                className="h-9"
+              />
+            </div>
+          )}
           <div className="max-h-60 overflow-auto">
-            {options.map((option) => (
-              <div
-                key={option.value}
-                className="flex items-center space-x-2 px-3 py-2 hover:bg-accent cursor-pointer"
-                onClick={() => handleSelect(option.value)}
-              >
-                <div className="flex h-4 w-4 items-center justify-center border border-input rounded-sm">
-                  {selected.includes(option.value) && (
-                    <Check className="h-3 w-3 text-primary" />
-                  )}
-                </div>
-                <Pill
-                  color={option.color ?? undefined}
-                  showX={option.hasConflict ?? false}
-                  className="text-xs"
-                >
-                  {option.label}
-                </Pill>
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-muted-foreground">
+                No results found.
               </div>
-            ))}
+            ) : (
+              filteredOptions.map((option) => (
+                <div
+                  key={option.value}
+                  className="flex items-center space-x-2 px-3 py-2 hover:bg-accent cursor-pointer"
+                  onClick={() => handleSelect(option.value)}
+                >
+                  <div className="flex h-4 w-4 items-center justify-center border border-input rounded-sm">
+                    {selected.includes(option.value) && (
+                      <Check className="h-3 w-3 text-primary" />
+                    )}
+                  </div>
+                  <Pill
+                    color={option.color ?? undefined}
+                    showX={option.hasConflict ?? false}
+                    className="text-xs"
+                  >
+                    {option.label}
+                  </Pill>
+                </div>
+              ))
+            )}
           </div>
         </PopoverContent>
       </Popover>
