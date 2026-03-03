@@ -11,6 +11,7 @@ import { vacationsApi, type VacationDay } from "@/lib/api";
 import {
   VACATION_COLORS,
   VACATION_COLOR_STYLES,
+  VACATION_DAYS_PER_YEAR,
   type VacationColor,
 } from "@/lib/vacations";
 import {
@@ -25,7 +26,6 @@ import {
   DayButton as RdpDayButton,
 } from "react-day-picker";
 
-const QUOTA_TOTAL = 5;
 const EMPTY_VACATION_DAYS: VacationDay[] = [];
 
 const createColorCountMap = (): Record<VacationColor, number> =>
@@ -135,9 +135,10 @@ export default function VacationsPage() {
       setDayColors((current) => {
         const existing = current[key];
         const counts = countColors(current);
+        const yearlyLimit = VACATION_DAYS_PER_YEAR[activeColor];
         const remaining =
-          QUOTA_TOTAL - counts[activeColor] + (existing ? 1 : 0);
-        if (!existing && remaining <= 0) {
+          yearlyLimit - counts[activeColor] + (existing === activeColor ? 1 : 0);
+        if (existing !== activeColor && remaining <= 0) {
           return current;
         }
 
@@ -303,7 +304,8 @@ export default function VacationsPage() {
               {VACATION_COLORS.map((color) => {
                 const style = VACATION_COLOR_STYLES[color];
                 const used = colorCounts[color];
-                const remaining = Math.max(0, QUOTA_TOTAL - used);
+                const yearlyLimit = VACATION_DAYS_PER_YEAR[color];
+                const remaining = Math.max(0, yearlyLimit - used);
                 const isActive = activeColor === color;
                 return (
                   <Button
@@ -318,7 +320,9 @@ export default function VacationsPage() {
                     onClick={() => setActiveColor(color)}
                   >
                     <span>{style.label}</span>
-                    <span className="text-xs opacity-90">{remaining}/5</span>
+                    <span className="text-xs opacity-90">
+                      {remaining}/{yearlyLimit}
+                    </span>
                   </Button>
                 );
               })}
