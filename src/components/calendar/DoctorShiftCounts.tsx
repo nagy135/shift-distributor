@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
-import { isSameMonth } from "date-fns";
-import { SHIFT_DEFS, SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
+import { format, isSameMonth } from "date-fns";
+import { HOLIDAY_DATE_SET_2026 } from "@/lib/holidays";
 import { cn } from "@/lib/utils";
 import type { Doctor, Shift } from "@/lib/api";
 
@@ -19,30 +19,54 @@ export function DoctorShiftCounts({
   month,
   className,
 }: DoctorShiftCountsProps) {
-  const shiftTypes = React.useMemo(
-    () => SHIFT_TYPES.filter((shiftType) => SHIFT_DEFS[shiftType].acronym),
+  const countColumns = React.useMemo(
+    () => ["ND", "LD", "SD", "KD", "ITS"] as const,
     [],
   );
 
   const shiftCounts = doctors
     .filter((doctor) => !doctor.disabled && doctor.oa === false)
     .map((doctor) => {
-      const counts = Object.fromEntries(
-        shiftTypes.map((shiftType) => [shiftType, 0]),
-      ) as Record<ShiftType, number>;
+      const counts: Record<(typeof countColumns)[number], number> = {
+        ND: 0,
+        LD: 0,
+        SD: 0,
+        KD: 0,
+        ITS: 0,
+      };
 
       for (const shift of shifts) {
         if (!Array.isArray(shift.doctorIds)) continue;
         if (!shift.doctorIds.includes(doctor.id)) continue;
         if (!isSameMonth(new Date(shift.date), month)) continue;
-        const shiftType = shift.shiftType as ShiftType;
-        if (shiftType in counts) counts[shiftType] += 1;
+
+        const date = new Date(shift.date);
+        const dateKey = format(date, "yyyy-MM-dd");
+        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+        const isHoliday = HOLIDAY_DATE_SET_2026.has(dateKey);
+        const isWeekday = !isWeekend && !isHoliday;
+
+        if (shift.shiftType === "night") {
+          counts.ND += 1;
+          continue;
+        }
+
+        if (shift.shiftType === "20shift") {
+          if (isWeekday) counts.SD += 1;
+          else counts.LD += 1;
+          continue;
+        }
+
+        if (shift.shiftType === "17shift") {
+          if (isWeekday) counts.ITS += 1;
+          else counts.KD += 1;
+        }
       }
 
-      const total = shiftTypes.reduce(
-        (sum, shiftType) => sum + counts[shiftType],
-        0,
-      );
+      const total = countColumns.reduce((sum, column) => {
+        if (column === "ITS") return sum;
+        return sum + counts[column];
+      }, 0);
 
       return {
         doctor,
@@ -56,14 +80,27 @@ export function DoctorShiftCounts({
     });
 
   return (
-    <div className={cn("overflow-x-auto rounded-md border", className)}>
-      <table className="w-full text-sm">
+    <div
+      className={cn(
+        "inline-block max-w-full overflow-x-auto rounded-md border",
+        className,
+      )}
+    >
+      <table className="w-fit text-sm border-collapse">
         <thead className="bg-muted/50 border-b border-gray-400">
           <tr>
-            <th className="text-left px-2 py-1">Arzt</th>
-            {shiftTypes.map((shiftType) => (
-              <th key={shiftType} className="text-center px-2 py-1">
-                {SHIFT_DEFS[shiftType].acronym}
+            <th className="text-left px-2 py-1 whitespace-nowrap border-r border-gray-300">
+              Arzt
+            </th>
+            {countColumns.map((column, index) => (
+              <th
+                key={column}
+                className={cn(
+                  "text-center px-2 py-1",
+                  index < countColumns.length - 1 && "border-r border-gray-300",
+                )}
+              >
+                {column}
               </th>
             ))}
           </tr>
@@ -71,13 +108,18 @@ export function DoctorShiftCounts({
         <tbody className="divide-y divide-gray-400">
           {shiftCounts.map(({ doctor, counts }) => (
             <tr key={doctor.id}>
-              <td className="px-2 py-1 font-medium">{doctor.name}</td>
-              {shiftTypes.map((shiftType) => (
+              <td className="px-2 py-1 font-medium whitespace-nowrap border-r border-gray-300">
+                {doctor.name}
+              </td>
+              {countColumns.map((column, index) => (
                 <td
-                  key={shiftType}
-                  className="px-2 py-1 text-center tabular-nums"
+                  key={column}
+                  className={cn(
+                    "px-2 py-1 text-center tabular-nums",
+                    index < countColumns.length - 1 && "border-r border-gray-300",
+                  )}
                 >
-                  {counts[shiftType]}
+                  {counts[column]}
                 </td>
               ))}
             </tr>

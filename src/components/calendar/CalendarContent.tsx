@@ -44,7 +44,7 @@ export function CalendarContent({
           doctors={doctors}
           shifts={allShifts}
           month={month}
-          className="lg:w-56"
+          className="lg:max-w-md"
         />
       )}
     </ClientOnly>
@@ -71,7 +71,7 @@ export function CalendarContent({
         >
           {shiftsLoading ? (
             <div className="rounded-md border mx-auto max-w-md p-4 text-center text-muted-foreground">
-               Dienste werden geladen...
+              Dienste werden geladen...
             </div>
           ) : (
             <MonthlyShiftTable
