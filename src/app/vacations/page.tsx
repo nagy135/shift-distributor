@@ -260,7 +260,7 @@ export default function VacationsPage() {
   const modifierClasses = useMemo(() => {
     return VACATION_COLORS.reduce(
       (acc, color) => {
-        acc[color] = VACATION_COLOR_STYLES[color].classes;
+        acc[color] = cn(VACATION_COLOR_STYLES[color].classes, "rounded-md");
         return acc;
       },
       {} as Record<VacationColor, string>,
