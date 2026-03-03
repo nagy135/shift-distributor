@@ -1,6 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
+import { de } from "date-fns/locale";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +41,7 @@ export function ShiftDetailsDialog({
         <DialogHeader>
           <DialogTitle>
             <div className="flex-col items-center gap-2">
-              <h1>Shift Details</h1>
+              <h1>Dienstdetails</h1>
               <span className="text-sm text-muted-foreground">
                 {doctor?.name}
               </span>
@@ -59,7 +60,9 @@ export function ShiftDetailsDialog({
                         className="flex justify-between items-center p-2 border rounded"
                       >
                         <span className="font-medium">
-                          {format(new Date(shift.date), "MMM d, yyyy")}
+                          {format(new Date(shift.date), "d. MMM yyyy", {
+                            locale: de,
+                          })}
                         </span>
                         <span className="text-sm text-muted-foreground capitalize">
                           {SHIFT_LABELS[
@@ -71,7 +74,8 @@ export function ShiftDetailsDialog({
                   </div>
                 ) : (
                   <p className="text-center text-muted-foreground py-4">
-                    No shifts assigned for {format(month, "MMMM yyyy")}.
+                    Für {format(month, "MMMM yyyy", { locale: de })} wurden
+                    keine Dienste zugewiesen.
                   </p>
                 )}
               </div>
@@ -84,14 +88,14 @@ export function ShiftDetailsDialog({
               className="flex-1"
             >
               <Download />
-              Export
+              Exportieren
             </Button>
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
               className="flex-1"
             >
-              Close
+              Schließen
             </Button>
           </div>
         </div>

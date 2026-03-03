@@ -43,11 +43,11 @@ export function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon"
-      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={isDark ? "Zum hellen Modus wechseln" : "Zum dunklen Modus wechseln"}
       onClick={toggleTheme}
     >
       {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
-      <span className="sr-only">Toggle theme</span>
+      <span className="sr-only">Designmodus umschalten</span>
     </Button>
   );
 }

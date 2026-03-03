@@ -33,19 +33,19 @@ export function Navigation() {
     },
   });
   const navItems = [
-    { href: "/", label: "Calendar", active: pathname === "/" },
+    { href: "/", label: "Kalender", active: pathname === "/" },
     {
       href: "/vacations",
-      label: "Vacations",
+      label: "Urlaub",
       active: pathname === "/vacations",
     },
-    { href: "/doctors", label: "Doctors", active: pathname === "/doctors" },
+    { href: "/doctors", label: "Ärzte", active: pathname === "/doctors" },
   ];
 
   if (user?.role === "shift_assigner") {
     navItems.push({
       href: "/admin/users",
-      label: "Users",
+      label: "Benutzer",
       active: pathname === "/admin/users",
     });
   }
@@ -53,7 +53,7 @@ export function Navigation() {
   return (
     <nav className="flex flex-col">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Shift</h1>
+        <h1 className="text-2xl font-bold">Dienstplan</h1>
         <div className="flex items-center gap-1">
           <div className="hidden items-center gap-1 md:flex">
             {navItems.map((item) => (
@@ -73,7 +73,7 @@ export function Navigation() {
                 size="icon"
                 variant="ghost"
                 className="md:hidden"
-                aria-label="Open navigation menu"
+                aria-label="Navigationsmenü öffnen"
               >
                 <span className="flex flex-col gap-1">
                   <span className="h-0.5 w-4 rounded-full bg-current" />
@@ -111,7 +111,7 @@ export function Navigation() {
                     type="button"
                     size="icon"
                     variant="ghost"
-                    aria-label="Vacation notifications"
+                    aria-label="Urlaubsbenachrichtigungen"
                     className="relative"
                   >
                     <Bell className="h-4 w-4" />
@@ -124,12 +124,12 @@ export function Navigation() {
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-72 p-2">
                   <div className="px-2 py-1 text-xs font-semibold uppercase text-muted-foreground">
-                    Notifications
+                    Benachrichtigungen
                   </div>
                   <div className="my-2 h-px bg-border" />
                   {notifications.length === 0 ? (
                     <div className="px-2 py-3 text-sm text-muted-foreground">
-                      No new notifications.
+                      Keine neuen Benachrichtigungen.
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -161,7 +161,7 @@ export function Navigation() {
                           }
                         }}
                       >
-                        Open vacations
+                        Urlaub öffnen
                       </Link>
                     </PopoverClose>
                   </div>
@@ -190,7 +190,7 @@ export function Navigation() {
                     className="w-full justify-start"
                     onClick={() => logout()}
                   >
-                    Logout
+                    Abmelden
                   </Button>
                 </PopoverContent>
               </Popover>
@@ -207,14 +207,14 @@ export function Navigation() {
                 href="/register"
                 className="text-sm border-2 border-primary bg-primary/5 px-3 py-2 rounded-md"
               >
-                Register
+                Registrieren
               </Link>
             ) : (
               <Link
                 href="/login"
                 className="text-sm border-2 border-primary bg-primary/5 px-3 py-2 rounded-md"
               >
-                Login
+                Anmelden
               </Link>
             )}
           </div>

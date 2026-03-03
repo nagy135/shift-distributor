@@ -40,12 +40,12 @@ export function CalendarHeaderActions({
           disabled={
             isLocked || isDistributing || shiftsLoading || doctorsCount === 0
           }
-          title={isLocked ? "Unlock to enable distribution" : undefined}
+          title={isLocked ? "Zum Verteilen entsperren" : undefined}
           className="relative"
           aria-busy={isDistributing}
         >
           <span className={isDistributing ? "opacity-0" : "opacity-100"}>
-            Distribute
+            Verteilen
           </span>
           {isDistributing && (
             <span className="absolute inset-0 flex items-center justify-center">
@@ -62,9 +62,11 @@ export function CalendarHeaderActions({
           onClick={onToggleLocked}
           aria-pressed={!isLocked}
           aria-label={
-            isLocked ? "Locked. Click to unlock" : "Unlocked. Click to lock"
+            isLocked
+              ? "Gesperrt. Zum Entsperren klicken"
+              : "Entsperrt. Zum Sperren klicken"
           }
-          title={isLocked ? "Locked" : "Unlocked"}
+          title={isLocked ? "Gesperrt" : "Entsperrt"}
         >
           {isLocked ? (
             <LockIcon className="size-4" />
@@ -76,7 +78,7 @@ export function CalendarHeaderActions({
 
       <Button variant="default" onClick={onExport} disabled={shiftsLoading}>
         <DownloadIcon className="size-4" />
-        <span className="ml-1">Export</span>
+        <span className="ml-1">Exportieren</span>
       </Button>
     </>
   );

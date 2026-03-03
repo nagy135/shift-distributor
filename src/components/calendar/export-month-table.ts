@@ -110,7 +110,7 @@ export async function exportMonthTable({
 
   const ExcelJS = (await import("exceljs")) as unknown as ExcelJSPackage;
   const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet("Month", {
+  const worksheet = workbook.addWorksheet("Monat", {
     properties: { defaultRowHeight: 18 },
     views: [{ state: "frozen", ySplit: 1 }],
   });
@@ -193,7 +193,7 @@ export async function exportMonthTable({
     }
   }
 
-  const fileName = `Shifts-${format(month, "yyyy-MM")}.xlsx`;
+  const fileName = `Dienstplan-${format(month, "yyyy-MM")}.xlsx`;
   const buffer: ArrayBuffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

@@ -7,7 +7,7 @@ export const VACATION_COLOR_STYLES: Record<
   { label: string; classes: string; ring: string }
 > = {
   red: {
-    label: "Red",
+    label: "Rot",
     classes: "bg-red-500 text-white hover:bg-red-600",
     ring: "ring-red-500",
   },
@@ -17,7 +17,7 @@ export const VACATION_COLOR_STYLES: Record<
     ring: "ring-orange-500",
   },
   green: {
-    label: "Green",
+    label: "Grün",
     classes: "bg-emerald-500 text-white hover:bg-emerald-600",
     ring: "ring-emerald-500",
   },

@@ -117,10 +117,12 @@ export default function DoctorsPage() {
                 onCheckedChange={setOaOnly}
               />
             </div>
-            <Button onClick={() => setIsAddDialogOpen(true)}>Add Doctor</Button>
-          </div>
-        }
-      />
+             <Button onClick={() => setIsAddDialogOpen(true)}>
+               Arzt hinzufügen
+             </Button>
+           </div>
+         }
+       />
       <AddDoctorDialog
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}

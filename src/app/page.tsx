@@ -225,11 +225,11 @@ export default function CalendarPage() {
             }
             title={
               isLocked
-                ? "Unlock to enable clearing"
-                : "Clear all assignments in this month"
+                ? "Zum Löschen entsperren"
+                : "Alle Zuweisungen in diesem Monat löschen"
             }
             aria-busy={isClearing}
-            aria-label="Clear all assignments in this month"
+            aria-label="Alle Zuweisungen in diesem Monat löschen"
           >
             {isClearing ? (
               <LoaderIcon className="size-4 animate-spin" />

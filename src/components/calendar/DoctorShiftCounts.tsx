@@ -25,7 +25,7 @@ export function DoctorShiftCounts({
   );
 
   const shiftCounts = doctors
-    .filter((doctor) => !doctor.disabled)
+    .filter((doctor) => !doctor.disabled && doctor.oa === false)
     .map((doctor) => {
       const counts = Object.fromEntries(
         shiftTypes.map((shiftType) => [shiftType, 0]),
@@ -60,7 +60,7 @@ export function DoctorShiftCounts({
       <table className="w-full text-sm">
         <thead className="bg-muted/50 border-b border-gray-400">
           <tr>
-            <th className="text-left px-2 py-1">Doctor</th>
+            <th className="text-left px-2 py-1">Arzt</th>
             {shiftTypes.map((shiftType) => (
               <th key={shiftType} className="text-center px-2 py-1">
                 {SHIFT_DEFS[shiftType].acronym}

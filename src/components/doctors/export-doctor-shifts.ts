@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { de } from "date-fns/locale";
 import { SHIFT_LABELS } from "@/lib/shifts";
 import type { Doctor, Shift } from "@/lib/api";
 import { getDoctorShiftsForMonth } from "@/components/doctors/utils";
@@ -18,8 +19,8 @@ export async function exportDoctorShifts({
   if (monthlyShifts.length === 0) return false;
 
   const rows = monthlyShifts.map((shift) => ({
-    Date: format(new Date(shift.date), "MMM d, yyyy"),
-    Shift:
+    Datum: format(new Date(shift.date), "d. MMM yyyy", { locale: de }),
+    Dienst:
       SHIFT_LABELS[shift.shiftType as keyof typeof SHIFT_LABELS] ??
       shift.shiftType,
   }));
@@ -27,10 +28,10 @@ export async function exportDoctorShifts({
   const XLSX = await import("xlsx");
   const worksheet = XLSX.utils.json_to_sheet(rows);
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Shifts");
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Dienste");
 
   const safeName = doctor.name.replace(/[^\w\-]+/g, "_");
-  const fileName = `${safeName}-${format(month, "yyyy-MM")}-shifts.xlsx`;
+  const fileName = `${safeName}-${format(month, "yyyy-MM")}-dienste.xlsx`;
   XLSX.writeFile(workbook, fileName);
   return true;
 }

@@ -6,6 +6,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
 } from "lucide-react";
+import { de } from "date-fns/locale";
 import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
 
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ function Calendar({
   showOutsideDays = true,
   captionLayout = "label",
   buttonVariant = "ghost",
+  locale = de,
   formatters,
   components,
   ...props
@@ -168,6 +170,7 @@ function Calendar({
         },
         ...components,
       }}
+      locale={locale}
       {...props}
     />
   );

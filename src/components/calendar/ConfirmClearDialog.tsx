@@ -32,10 +32,10 @@ export function ConfirmClearDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{"Reset this month's assignments"}</DialogTitle>
+          <DialogTitle>{"Zuweisungen dieses Monats zurücksetzen"}</DialogTitle>
           <DialogDescription>
-            This will set all shifts in the selected month to Unassigned. This
-            action cannot be undone.
+            Alle Dienste im ausgewählten Monat werden auf „Nicht zugewiesen“
+            gesetzt. Diese Aktion kann nicht rückgängig gemacht werden.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -49,11 +49,11 @@ export function ConfirmClearDialog({
               {isClearing ? (
                 <LoaderIcon className="size-4 animate-spin" />
               ) : (
-                "Reset"
+                "Zurücksetzen"
               )}
             </Button>
             <Button variant="outline" onClick={onCancel}>
-              Cancel
+              Abbrechen
             </Button>
           </div>
         </DialogFooter>

@@ -23,7 +23,7 @@ export default function RegisterPage() {
       await register(email, password);
       router.push("/");
     } catch {
-      setError("Failed to register");
+      setError("Registrierung fehlgeschlagen");
     } finally {
       setLoading(false);
     }
@@ -31,7 +31,7 @@ export default function RegisterPage() {
 
   return (
     <div className="max-w-sm mx-auto">
-      <h1 className="text-2xl font-semibold mb-4 text-center">Register</h1>
+      <h1 className="text-2xl font-semibold mb-4 text-center">Registrierung</h1>
       <form onSubmit={onSubmit} className="space-y-4 flex-col items-end">
         <Input
           placeholder="Email"
@@ -41,7 +41,7 @@ export default function RegisterPage() {
           required
         />
         <Input
-          placeholder="Password"
+          placeholder="Passwort"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           type="password"
@@ -53,13 +53,13 @@ export default function RegisterPage() {
           disabled={loading}
           className="w-full cursor-pointer"
         >
-          {loading ? "Creating account..." : "Create account"}
+          {loading ? "Konto wird erstellt..." : "Konto erstellen"}
         </Button>
       </form>
       <p className="mt-4 text-sm">
-        Already have an account?{" "}
+        Haben Sie bereits ein Konto?{" "}
         <Link className="underline" href="/login">
-          Login
+          Anmelden
         </Link>
       </p>
     </div>

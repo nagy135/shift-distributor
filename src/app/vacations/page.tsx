@@ -203,7 +203,7 @@ export default function VacationsPage() {
 
     vacationDays.forEach((entry) => {
       const key = `${entry.doctorId ?? "unknown"}`;
-      const doctorName = entry.doctorName ?? `Doctor #${entry.doctorId ?? "?"}`;
+      const doctorName = entry.doctorName ?? `Arzt #${entry.doctorId ?? "?"}`;
       const existing =
         byDoctor.get(key) ??
         ({
@@ -272,15 +272,15 @@ export default function VacationsPage() {
   );
 
   if (isLoading) {
-    return <div className="text-center">Loading...</div>;
+    return <div className="text-center">Lädt...</div>;
   }
 
   if (!doctorId && !isApprover) {
     return (
       <div className="space-y-3">
-        <h2 className="text-xl font-semibold">Vacations</h2>
+        <h2 className="text-xl font-semibold">Urlaub</h2>
         <p className="text-sm text-muted-foreground">
-          You need to be assigned to a doctor to manage vacation days.
+          Sie müssen einem Arzt zugewiesen sein, um Urlaubstage zu verwalten.
         </p>
       </div>
     );
@@ -290,12 +290,12 @@ export default function VacationsPage() {
     <div className="space-y-6">
       <div className="space-y-3">
         <div>
-          <h2 className="text-2xl font-semibold">Vacations</h2>
-          <p className="text-sm text-muted-foreground">
-            {isApprover
-              ? "Click a day to review vacation approvals."
-              : `Select a color, then click days to mark vacations for ${year}.`}
-          </p>
+            <h2 className="text-2xl font-semibold">Urlaub</h2>
+            <p className="text-sm text-muted-foreground">
+              {isApprover
+                ? "Klicken Sie auf einen Tag, um Urlaubsfreigaben zu prüfen."
+                : `Wählen Sie eine Farbe und klicken Sie dann auf Tage, um Urlaub für ${year} zu markieren.`}
+            </p>
         </div>
         {!isApprover && (
           <>
@@ -325,7 +325,7 @@ export default function VacationsPage() {
             </div>
             {!activeColor && (
               <p className="text-xs text-muted-foreground">
-                Choose a color to start marking days.
+                Wählen Sie eine Farbe, um Tage zu markieren.
               </p>
             )}
           </>
@@ -335,20 +335,20 @@ export default function VacationsPage() {
       {isApprover && (
         <details className="max-w-sm rounded-md border">
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
-            Approved: {approverStats.approved} | Unapproved:{" "}
+            Genehmigt: {approverStats.approved} | Nicht genehmigt:{" "}
             {approverStats.unapproved}
           </summary>
           <div className="border-t px-4 py-3">
             {approverStats.doctors.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No vacation data yet.
+                 Noch keine Urlaubsdaten vorhanden.
               </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
-                      <th className="py-2 pr-2 font-medium">Doctor</th>
+                       <th className="py-2 pr-2 font-medium">Arzt</th>
                       {VACATION_COLORS.map((color) => (
                         <th
                           key={`header-${color}`}
@@ -506,29 +506,29 @@ export default function VacationsPage() {
       </div>
 
       {isVacationsLoading && (
-        <p className="text-sm text-muted-foreground">Loading vacations...</p>
+         <p className="text-sm text-muted-foreground">Urlaubsdaten werden geladen...</p>
       )}
       {updateMutation.isPending && (
-        <p className="text-sm text-muted-foreground">Saving changes...</p>
+        <p className="text-sm text-muted-foreground">Änderungen werden gespeichert...</p>
       )}
       {approvalMutation.isPending && (
-        <p className="text-sm text-muted-foreground">Updating approval...</p>
+        <p className="text-sm text-muted-foreground">Freigabe wird aktualisiert...</p>
       )}
       {denyMutation.isPending && (
-        <p className="text-sm text-muted-foreground">Denying vacation...</p>
+        <p className="text-sm text-muted-foreground">Urlaub wird abgelehnt...</p>
       )}
       {isApprover && (
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Vacation approvals</DialogTitle>
+              <DialogTitle>Urlaubsfreigaben</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="text-sm text-muted-foreground">
                 {selectedDate}
               </div>
               {selectedVacations.length === 0 ? (
-                <div className="text-sm">No vacations for this day.</div>
+                <div className="text-sm">Kein Urlaub für diesen Tag.</div>
               ) : (
                 <div className="space-y-3">
                   {selectedVacations.map((vacation: VacationDay) => (
@@ -547,12 +547,12 @@ export default function VacationsPage() {
                         />
                         <div className="text-sm">
                           {vacation.doctorName ??
-                            `Doctor #${vacation.doctorId}`}
+                            `Arzt #${vacation.doctorId}`}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">
-                          {vacation.approved ? "Approved" : "Pending"}
+                          {vacation.approved ? "Genehmigt" : "Ausstehend"}
                         </span>
                         <Switch
                           checked={!!vacation.approved}
@@ -573,7 +573,7 @@ export default function VacationsPage() {
                             denyMutation.mutate(vacation.id);
                           }}
                         >
-                          Deny
+                          Ablehnen
                         </Button>
                       </div>
                     </div>

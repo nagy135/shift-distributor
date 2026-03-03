@@ -48,7 +48,7 @@ export function DoctorList({
                   </Pill>
                   {doctor.disabled && (
                     <span className="text-sm bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded">
-                      Disabled
+                      Deaktiviert
                     </span>
                   )}
                   <span className="text-sm text-muted-foreground">
@@ -62,8 +62,8 @@ export function DoctorList({
                   size="icon"
                   onClick={() => onOpenShiftDetails(doctor)}
                   className="sm:hidden"
-                  aria-label="Shifts"
-                  title="Shifts"
+                   aria-label="Dienste"
+                   title="Dienste"
                 >
                   <CalendarDays className="size-4" />
                 </Button>
@@ -73,15 +73,15 @@ export function DoctorList({
                   onClick={() => onOpenShiftDetails(doctor)}
                   className="hidden sm:inline-flex"
                 >
-                  Shifts
+                  Dienste
                 </Button>
                 <Button
                   variant="outline"
                   size="icon"
                   onClick={() => onOpenUnavailable(doctor)}
                   className="sm:hidden"
-                  aria-label="Unavailable"
-                  title="Unavailable"
+                   aria-label="Dienstwünsche"
+                   title="Dienstwünsche"
                 >
                   <CalendarOff className="size-4" />
                 </Button>
@@ -91,7 +91,7 @@ export function DoctorList({
                   onClick={() => onOpenUnavailable(doctor)}
                   className="hidden sm:inline-flex"
                 >
-                  Unavailable
+                  Dienstwünsche
                 </Button>
               </div>
             </div>
@@ -100,7 +100,7 @@ export function DoctorList({
 
       {doctors.length === 0 && (
         <div className="text-center py-8 text-muted-foreground">
-          No doctors added yet. Add your first doctor to get started.
+          Noch keine Ärzte hinzugefügt. Fügen Sie den ersten Arzt hinzu.
         </div>
       )}
     </div>

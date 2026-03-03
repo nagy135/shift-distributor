@@ -26,10 +26,10 @@ export function MultiSelect({
   options,
   selected,
   onChange,
-  placeholder = "Select items...",
+  placeholder = "Elemente auswählen...",
   className,
   searchable = false,
-  searchPlaceholder = "Search...",
+  searchPlaceholder = "Suchen...",
 }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -112,7 +112,7 @@ export function MultiSelect({
                         }}
                         role="button"
                         tabIndex={0}
-                        aria-label={`Remove ${label}`}
+                        aria-label={`${label} entfernen`}
                         className="hover:bg-secondary-foreground/20 rounded-full w-4 h-4 flex items-center justify-center cursor-pointer"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -138,7 +138,7 @@ export function MultiSelect({
           <div className="max-h-60 overflow-auto">
             {filteredOptions.length === 0 ? (
               <div className="px-3 py-2 text-sm text-muted-foreground">
-                No results found.
+                Keine Ergebnisse gefunden.
               </div>
             ) : (
               filteredOptions.map((option) => (

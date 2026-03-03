@@ -2,6 +2,7 @@
 
 import React from "react";
 import { format } from "date-fns";
+import { de } from "date-fns/locale";
 import {
   Dialog,
   DialogContent,
@@ -173,9 +174,10 @@ export function ShiftAssignmentModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            Assign Shifts {date ? `- ${format(date, "MMM d, yyyy")}` : ""}
-          </DialogTitle>
+            <DialogTitle>
+            Dienste zuweisen
+            {date ? ` - ${format(date, "d. MMM yyyy", { locale: de })}` : ""}
+            </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           {activeShiftTypes.map((t) => {
@@ -212,9 +214,9 @@ export function ShiftAssignmentModal({
                       id.toString(),
                     )}
                     onChange={(values) => handleSelectionChange(t, values)}
-                    placeholder="Select doctors..."
+                    placeholder="Ärzte auswählen..."
                     searchable
-                    searchPlaceholder="Search doctors..."
+                    searchPlaceholder="Ärzte suchen..."
                     className="w-full sm:w-60"
                   />
                 </div>
@@ -246,7 +248,7 @@ export function ShiftAssignmentModal({
             onClick={handleApply}
             className="w-full border-2 border-green-200"
           >
-            Apply
+            Übernehmen
           </Button>
         </div>
       </DialogContent>

@@ -27,40 +27,51 @@ export function CalendarContent({
   onRowClick,
   onCellClick,
 }: CalendarContentProps) {
+  const statisticsContent = (
+    <ClientOnly
+      fallback={
+        <div className="rounded-md border mx-auto max-w-md p-4 text-center text-muted-foreground">
+          Diensteinträge werden geladen...
+        </div>
+      }
+    >
+      {shiftsLoading ? (
+        <div className="rounded-md border mx-auto max-w-md p-4 text-center text-muted-foreground">
+          Dienste werden geladen...
+        </div>
+      ) : (
+        <DoctorShiftCounts
+          doctors={doctors}
+          shifts={allShifts}
+          month={month}
+          className="lg:w-56"
+        />
+      )}
+    </ClientOnly>
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
-        <ClientOnly
-          fallback={
-            <div className="rounded-md border mx-auto max-w-md p-4 text-center text-muted-foreground">
-              Loading shift counts...
-            </div>
-          }
-        >
-          {shiftsLoading ? (
-            <div className="rounded-md border mx-auto max-w-md p-4 text-center text-muted-foreground">
-              Loading shifts...
-            </div>
-          ) : (
-            <DoctorShiftCounts
-              doctors={doctors}
-              shifts={allShifts}
-              month={month}
-              className="lg:w-56"
-            />
-          )}
-        </ClientOnly>
+        <details className="rounded-md border md:hidden">
+          <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">
+            Statistik
+          </summary>
+          <div className="p-3 pt-0">{statisticsContent}</div>
+        </details>
+
+        <div className="hidden md:block">{statisticsContent}</div>
 
         <ClientOnly
           fallback={
             <div className="rounded-md border mx-auto max-w-md p-4 text-center text-muted-foreground">
-              Loading table...
+              Tabelle wird geladen...
             </div>
           }
         >
           {shiftsLoading ? (
             <div className="rounded-md border mx-auto max-w-md p-4 text-center text-muted-foreground">
-              Loading shifts...
+               Dienste werden geladen...
             </div>
           ) : (
             <MonthlyShiftTable

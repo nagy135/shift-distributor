@@ -1,6 +1,7 @@
 "use client";
 
 import { format, isSameMonth } from "date-fns";
+import { de } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { useMonthStore } from "@/lib/month-store";
 import type { ReactNode } from "react";
@@ -20,7 +21,7 @@ export function MonthSelector({ rightActions }: Props) {
           {"<"}
         </Button>
         <div className="text-sm font-medium w-30 text-center">
-          {format(month, "MMMM yyyy")}
+          {format(month, "MMMM yyyy", { locale: de })}
         </div>
         <Button variant="outline" onClick={nextMonth}>
           {">"}
@@ -30,7 +31,7 @@ export function MonthSelector({ rightActions }: Props) {
           variant={isTodayMonth ? "secondary" : "outline"}
           onClick={() => setMonth(new Date())}
         >
-          Today
+          Heute
         </Button>
       </div>
       <div className="flex items-center gap-2 lg:ml-auto">{rightActions}</div>

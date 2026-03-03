@@ -41,7 +41,7 @@ export function AddDoctorDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Add New Doctor</DialogTitle>
+          <DialogTitle>Neuen Arzt hinzufügen</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div>
@@ -50,7 +50,7 @@ export function AddDoctorDialog({
               id="name"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Enter doctor's name"
+               placeholder="Namen des Arztes eingeben"
               autoComplete="off"
               onKeyPress={(event) => {
                 if (event.key === "Enter") {
@@ -60,7 +60,7 @@ export function AddDoctorDialog({
             />
           </div>
           <Button onClick={handleAdd} className="w-full" disabled={isSaving}>
-            {isSaving ? "Adding..." : "Add Doctor"}
+            {isSaving ? "Wird hinzugefügt..." : "Arzt hinzufügen"}
           </Button>
         </div>
       </DialogContent>

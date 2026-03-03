@@ -23,7 +23,7 @@ export default function LoginPage() {
       await login(email, password);
       router.push("/");
     } catch {
-      setError("Invalid credentials");
+      setError("Ungültige Anmeldedaten");
     } finally {
       setLoading(false);
     }
@@ -31,7 +31,7 @@ export default function LoginPage() {
 
   return (
     <div className="max-w-sm mx-auto">
-      <h1 className="text-2xl font-semibold mb-4 text-center">Login</h1>
+      <h1 className="text-2xl font-semibold mb-4 text-center">Anmeldung</h1>
       <form onSubmit={onSubmit} className="space-y-4 flex flex-col items-end">
         <Input
           placeholder="Email"
@@ -41,7 +41,7 @@ export default function LoginPage() {
           required
         />
         <Input
-          placeholder="Password"
+          placeholder="Passwort"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           type="password"
@@ -53,13 +53,13 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full cursor-pointer"
         >
-          {loading ? "Signing in..." : "Sign in"}
+          {loading ? "Anmeldung läuft..." : "Anmelden"}
         </Button>
       </form>
       <p className="mt-4 text-sm">
-        No account?{" "}
+        Noch kein Konto?{" "}
         <Link className="underline" href="/register">
-          Register
+          Registrieren
         </Link>
       </p>
     </div>

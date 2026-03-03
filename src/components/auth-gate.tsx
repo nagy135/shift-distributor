@@ -18,7 +18,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }, [isLoading, user, isAuthPage, router]);
 
   if (isAuthPage) return <>{children}</>;
-  if (isLoading) return <div className="text-center">Loading...</div>;
+  if (isLoading) return <div className="text-center">Lädt...</div>;
   if (!user) return null;
   return <>{children}</>;
 }

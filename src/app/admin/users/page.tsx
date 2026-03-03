@@ -20,6 +20,12 @@ import {
 } from "@/components/ui/select";
 import { USER_ROLES, type UserRole } from "@/lib/roles";
 
+const ROLE_LABELS: Record<UserRole, string> = {
+  doctor: "Arzt",
+  shift_assigner: "Dienstplaner",
+  secretary: "Sekretariat",
+};
+
 type AdminUser = {
   id: number;
   email: string;
@@ -70,7 +76,7 @@ export default function AdminUsersPage() {
       setUsers(data);
     } catch (err) {
       console.error(err);
-      setError("Failed to load users");
+      setError("Benutzer konnten nicht geladen werden");
     } finally {
       setIsFetching(false);
     }
@@ -88,7 +94,7 @@ export default function AdminUsersPage() {
       setDoctors(data.slice().sort((a, b) => a.name.localeCompare(b.name)));
     } catch (err) {
       console.error(err);
-      setError("Failed to load doctors");
+      setError("Ärzte konnten nicht geladen werden");
     } finally {
       setIsDoctorsFetching(false);
     }
@@ -125,7 +131,7 @@ export default function AdminUsersPage() {
       );
     } catch (err) {
       console.error(err);
-      setError("Failed to update role");
+      setError("Rolle konnte nicht aktualisiert werden");
     } finally {
       setBusyUserId(null);
     }
@@ -133,7 +139,7 @@ export default function AdminUsersPage() {
 
   const handleDelete = async (userId: number) => {
     if (!accessToken) return;
-    const confirmed = window.confirm("Delete this user?");
+    const confirmed = window.confirm("Diesen Benutzer löschen?");
     if (!confirmed) return;
     setBusyUserId(userId);
     setError(null);
@@ -148,7 +154,7 @@ export default function AdminUsersPage() {
       setUsers((prev) => prev.filter((item) => item.id !== userId));
     } catch (err) {
       console.error(err);
-      setError("Failed to delete user");
+      setError("Benutzer konnte nicht gelöscht werden");
     } finally {
       setBusyUserId(null);
     }
@@ -195,7 +201,7 @@ export default function AdminUsersPage() {
       setIsDoctorDialogOpen(false);
     } catch (err) {
       console.error(err);
-      setError("Failed to update doctor");
+      setError("Arztzuordnung konnte nicht aktualisiert werden");
     } finally {
       setBusyUserId(null);
     }
@@ -204,29 +210,29 @@ export default function AdminUsersPage() {
   if (!isLoading && !canManage) {
     return (
       <div className="space-y-2">
-        <h2 className="text-xl font-semibold">Users</h2>
+        <h2 className="text-xl font-semibold">Benutzer</h2>
         <p className="text-sm text-muted-foreground">
-          You do not have permission to view this page.
+          Sie haben keine Berechtigung, diese Seite zu sehen.
         </p>
       </div>
     );
   }
 
   if (isLoading) {
-    return <div className="text-center">Loading...</div>;
+    return <div className="text-center">Lädt...</div>;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold">Users</h2>
+          <h2 className="text-2xl font-semibold">Benutzer</h2>
           <p className="text-sm text-muted-foreground">
-            Manage user roles and access.
+            Benutzerrollen und Zugriffe verwalten.
           </p>
         </div>
         <Button onClick={loadUsers} disabled={isFetching}>
-          Refresh
+          Aktualisieren
         </Button>
       </div>
 
@@ -237,10 +243,10 @@ export default function AdminUsersPage() {
           <thead className="bg-muted/50 text-muted-foreground">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Email</th>
-              <th className="px-4 py-3 text-left font-medium">Role</th>
-              <th className="px-4 py-3 text-left font-medium">Doctor</th>
-              <th className="px-4 py-3 text-left font-medium">Created</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
+              <th className="px-4 py-3 text-left font-medium">Rolle</th>
+              <th className="px-4 py-3 text-left font-medium">Arzt</th>
+              <th className="px-4 py-3 text-left font-medium">Erstellt</th>
+              <th className="px-4 py-3 text-right font-medium">Aktionen</th>
             </tr>
           </thead>
           <tbody>
@@ -258,12 +264,12 @@ export default function AdminUsersPage() {
                       disabled={isBusy}
                     >
                       <SelectTrigger size="sm">
-                        <SelectValue placeholder="Select role" />
+                        <SelectValue placeholder="Rolle auswählen" />
                       </SelectTrigger>
                       <SelectContent>
                         {USER_ROLES.map((role) => (
                           <SelectItem key={role} value={role}>
-                            {role}
+                            {ROLE_LABELS[role]}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -286,7 +292,7 @@ export default function AdminUsersPage() {
                         onClick={() => openDoctorDialog(row)}
                         disabled={isBusy}
                       >
-                        Connect doctor
+                        Arzt zuordnen
                       </Button>
                     )}
                   </td>
@@ -298,7 +304,7 @@ export default function AdminUsersPage() {
                       onClick={() => handleDelete(row.id)}
                       disabled={isBusy}
                     >
-                      Delete
+                      Löschen
                     </Button>
                   </td>
                 </tr>
@@ -310,7 +316,7 @@ export default function AdminUsersPage() {
                   className="px-4 py-6 text-center text-muted-foreground"
                   colSpan={5}
                 >
-                  No users found.
+                  Keine Benutzer gefunden.
                 </td>
               </tr>
             )}
@@ -320,7 +326,7 @@ export default function AdminUsersPage() {
                   className="px-4 py-6 text-center text-muted-foreground"
                   colSpan={5}
                 >
-                  Loading users...
+                  Benutzer werden geladen...
                 </td>
               </tr>
             )}
@@ -331,9 +337,9 @@ export default function AdminUsersPage() {
       <Dialog open={isDoctorDialogOpen} onOpenChange={setIsDoctorDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Connect doctor</DialogTitle>
+            <DialogTitle>Arzt zuordnen</DialogTitle>
             <DialogDescription>
-              Choose the doctor linked to this user.
+              Wählen Sie den Arzt aus, der diesem Benutzer zugeordnet ist.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -345,7 +351,9 @@ export default function AdminUsersPage() {
               <SelectTrigger>
                 <SelectValue
                   placeholder={
-                    isDoctorsFetching ? "Loading doctors..." : "Select doctor"
+                    isDoctorsFetching
+                      ? "Ärzte werden geladen..."
+                      : "Arzt auswählen"
                   }
                 />
               </SelectTrigger>
@@ -359,7 +367,7 @@ export default function AdminUsersPage() {
             </Select>
             {doctors.length === 0 && !isDoctorsFetching && (
               <p className="text-sm text-muted-foreground">
-                No doctors available.
+                Keine Ärzte verfügbar.
               </p>
             )}
           </div>
@@ -368,7 +376,7 @@ export default function AdminUsersPage() {
               variant="secondary"
               onClick={() => setIsDoctorDialogOpen(false)}
             >
-              Cancel
+              Abbrechen
             </Button>
             <Button
               onClick={handleDoctorSave}
@@ -379,7 +387,7 @@ export default function AdminUsersPage() {
                 doctors.length === 0
               }
             >
-              Save
+              Speichern
             </Button>
           </DialogFooter>
         </DialogContent>

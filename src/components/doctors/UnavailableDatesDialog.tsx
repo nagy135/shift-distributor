@@ -104,7 +104,7 @@ export function UnavailableDatesDialog({
         <DialogHeader>
           <DialogTitle>
             <div className="flex-col items-center gap-2">
-              <h1>Unavailable Dates</h1>
+              <h1>Dienstwünsche</h1>
               <span className="text-sm text-muted-foreground">
                 {doctor?.name}
               </span>
@@ -113,7 +113,7 @@ export function UnavailableDatesDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div className="flex flex-col gap-2 items-center">
-            <Label>Select dates when this doctor cannot work:</Label>
+            <Label>Dienstwünsche für diesen Arzt auswählen:</Label>
             <Calendar
               mode="multiple"
               selected={selectedDates}
@@ -129,31 +129,31 @@ export function UnavailableDatesDialog({
               variant="outline"
               size="sm"
               onClick={handleSelectAllMonth}
-              title="Select all days in this month"
+               title="Alle Tage in diesem Monat auswählen"
             >
               <CheckSquare className="w-4 h-4" />
-              All
+              Alle
             </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={handleDeselectAllMonth}
-              title="Deselect all days in this month"
+               title="Alle Tage in diesem Monat abwählen"
             >
               <Square className="w-4 h-4" />
-              Nothing
+              Keine
             </Button>
           </div>
           <div className="flex gap-2">
             <Button onClick={handleSave} className="flex-1" disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save Changes"}
+              {isSaving ? "Wird gespeichert..." : "Änderungen speichern"}
             </Button>
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
               className="flex-1"
             >
-              Cancel
+              Abbrechen
             </Button>
           </div>
         </div>

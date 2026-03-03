@@ -119,10 +119,10 @@ export function MonthlyShiftTable({
         <table className="w-full text-sm">
           <thead className="bg-muted/50 border-b border-gray-400">
             <tr>
-              <th
-                className="text-left px-1 py-1 w-[50px] border-r border-gray-400"
-                aria-label="Date"
-              />
+                <th
+                  className="text-left px-1 py-1 w-[50px] border-r border-gray-400"
+                  aria-label="Datum"
+                />
               {SHIFT_TYPES.map((t, index) => (
                 <th
                   key={t}
@@ -137,7 +137,7 @@ export function MonthlyShiftTable({
                 </th>
               ))}
               <th className="text-center py-1 px-2 min-w-[140px] border-l border-gray-400">
-                Vacation
+                Urlaub
               </th>
             </tr>
           </thead>

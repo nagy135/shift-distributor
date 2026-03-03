@@ -75,7 +75,7 @@ export function DoctorSettingsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Doctor Settings - {doctor?.name}</DialogTitle>
+          <DialogTitle>Ärzteeinstellungen - {doctor?.name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
@@ -87,7 +87,7 @@ export function DoctorSettingsDialog({
             />
           </div>
           <div className="flex items-center gap-3">
-            <Pill color={pendingColor || undefined}>Preview</Pill>
+            <Pill color={pendingColor || undefined}>Vorschau</Pill>
             <input
               type="color"
               value={pendingColor ?? "#22c55e"}
@@ -96,7 +96,7 @@ export function DoctorSettingsDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label>Unavailable Shift Types</Label>
+            <Label>Nicht verfügbare Diensttypen</Label>
             <MultiSelect
               options={SHIFT_TYPES.map((shiftType) => ({
                 value: shiftType,
@@ -104,12 +104,12 @@ export function DoctorSettingsDialog({
               }))}
               selected={pendingUnavailableShiftTypes}
               onChange={setPendingUnavailableShiftTypes}
-              placeholder="Select shift types this doctor cannot do..."
+              placeholder="Diensttypen auswählen, die dieser Arzt nicht übernehmen kann..."
             />
           </div>
           <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
             <Label htmlFor="disabled-toggle" className="cursor-pointer">
-              Disabled
+               Deaktiviert
             </Label>
             <Switch
               id="disabled-toggle"
@@ -129,14 +129,14 @@ export function DoctorSettingsDialog({
           </div>
           <div className="flex gap-2">
             <Button onClick={handleSave} className="flex-1" disabled={isSaving}>
-              {isSaving ? "Saving..." : "Save"}
+              {isSaving ? "Wird gespeichert..." : "Speichern"}
             </Button>
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
               className="flex-1"
             >
-              Cancel
+              Abbrechen
             </Button>
           </div>
         </div>

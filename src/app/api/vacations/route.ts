@@ -233,7 +233,7 @@ export async function PATCH(request: NextRequest) {
     if (updated.approved) {
       await createNotificationsForDoctor(
         updated.doctorId,
-        `Your vacation on ${updated.date} was approved.`,
+        `Ihr Urlaub am ${updated.date} wurde genehmigt.`,
       );
     }
 
@@ -283,7 +283,7 @@ export async function DELETE(request: NextRequest) {
 
     await createNotificationsForDoctor(
       existing.doctorId,
-      `Your vacation on ${existing.date} was denied.`,
+      `Ihr Urlaub am ${existing.date} wurde abgelehnt.`,
     );
 
     return NextResponse.json({ success: true }, { status: 200 });
