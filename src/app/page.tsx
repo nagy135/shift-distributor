@@ -8,13 +8,10 @@ import {
   eachDayOfInterval,
   isSameMonth,
 } from "date-fns";
-import { Loader2 as LoaderIcon, Trash as TrashIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { MonthSelector } from "@/components/MonthSelector";
 import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
 import { CalendarHeaderActions } from "@/components/calendar/CalendarHeaderActions";
 import { CalendarContent } from "@/components/calendar/CalendarContent";
-import { ConfirmClearDialog } from "@/components/calendar/ConfirmClearDialog";
 import { exportMonthTable } from "@/components/calendar/export-month-table";
 import { getShiftForType } from "@/components/calendar/utils";
 import { useCalendarQueries } from "@/components/calendar/useCalendarQueries";
@@ -35,8 +32,6 @@ export default function CalendarPage() {
   const [selectedShiftType, setSelectedShiftType] = useState<ShiftType | null>(
     null,
   );
-  const [isClearing, setIsClearing] = useState(false);
-  const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
   const { isLocked, toggleLocked } = useDistributeLockStore();
   const {
     doctors,
@@ -143,39 +138,6 @@ export default function CalendarPage() {
     }
   };
 
-  const handleClearMonthAssignments = async () => {
-    try {
-      if (!isShiftAssigner) return;
-      if (isLocked) return;
-      setIsClearing(true);
-
-      const targets = allShifts.filter(
-        (s) =>
-          isSameMonth(new Date(s.date), month) &&
-          Array.isArray(s.doctorIds) &&
-          s.doctorIds.length > 0,
-      );
-
-      // Clear all assigned shifts for the selected month using batch endpoint
-      const clearAssignments = targets.map((s) => ({
-        date: s.date,
-        shiftType: s.shiftType,
-        doctorIds: [] as number[],
-      }));
-
-      if (clearAssignments.length > 0) {
-        await shiftsApi.assignBatch(clearAssignments, accessToken);
-      }
-
-      await invalidateShifts();
-    } catch (error) {
-      console.error("Failed to clear assignments", error);
-    } finally {
-      setIsClearing(false);
-      setIsConfirmClearOpen(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
       <MonthSelector
@@ -204,52 +166,6 @@ export default function CalendarPage() {
         onRowClick={isShiftAssigner ? openAssignModalForDate : undefined}
         onCellClick={isShiftAssigner ? openAssignModalForCell : undefined}
       />
-
-      {isShiftAssigner && (
-        <div className="max-w-2xl mx-auto flex justify-center mt-2">
-          <Button
-            variant="destructive"
-            size="icon"
-            onClick={() => setIsConfirmClearOpen(true)}
-            disabled={
-              isLocked ||
-              isDistributing ||
-              isClearing ||
-              shiftsLoading ||
-              !allShifts.some(
-                (s) =>
-                  isSameMonth(new Date(s.date), month) &&
-                  Array.isArray(s.doctorIds) &&
-                  s.doctorIds.length > 0,
-              )
-            }
-            title={
-              isLocked
-                ? "Zum Löschen entsperren"
-                : "Alle Zuweisungen in diesem Monat löschen"
-            }
-            aria-busy={isClearing}
-            aria-label="Alle Zuweisungen in diesem Monat löschen"
-          >
-            {isClearing ? (
-              <LoaderIcon className="size-4 animate-spin" />
-            ) : (
-              <TrashIcon className="size-4" />
-            )}
-          </Button>
-        </div>
-      )}
-
-      {isShiftAssigner && (
-        <ConfirmClearDialog
-          open={isConfirmClearOpen}
-          onOpenChange={setIsConfirmClearOpen}
-          onConfirm={handleClearMonthAssignments}
-          onCancel={() => setIsConfirmClearOpen(false)}
-          isLocked={isLocked}
-          isClearing={isClearing}
-        />
-      )}
 
       {/* Reusable shift assignment modal for table rows */}
       <ShiftAssignmentModal
