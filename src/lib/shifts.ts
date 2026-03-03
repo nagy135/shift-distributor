@@ -17,7 +17,7 @@ export const SHIFT_DEFS: Record<
 > = {
   "17shift": { label: "Stationsdienst", acronym: "KD", weekendOnly: true },
   "20shift": { label: "Spätdienst", acronym: "LD", weekendOnly: false },
-  night: { label: "Nachtdient", acronym: "ND", weekendOnly: true },
+  night: { label: "Nachtdienst", acronym: "ND", weekendOnly: true },
   oa: { label: "OA", weekendOnly: false },
 };
 
