@@ -12,10 +12,12 @@ import {
 import { Button } from "@/components/ui/button";
 import type { Doctor, Shift } from "@/lib/api";
 import {
-  SHIFT_LABELS,
+  ALL_CALENDAR_SHIFT_TYPES,
   SHIFT_TYPES,
-  type ShiftType,
-  doesUnavailableDateClash,
+  doesCalendarShiftUnavailableDateClash,
+  getShiftLabel,
+  isDayDutyShiftType,
+  isShiftType,
 } from "@/lib/shifts";
 import { Pill } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
@@ -28,9 +30,10 @@ interface ShiftAssignmentModalProps {
   doctors: Doctor[];
   getShiftForType: (shiftType: string) => Shift | undefined;
   onAssign: (shiftType: string, doctorIds: number[]) => Promise<void>;
+  shiftTypes?: readonly string[];
   unavailableByDoctor?: Record<number, Set<string>>;
   approvedVacationsByDate?: Record<string, string[]>;
-  focusShiftType?: ShiftType | null;
+  focusShiftType?: string | null;
 }
 
 export function ShiftAssignmentModal({
@@ -40,6 +43,7 @@ export function ShiftAssignmentModal({
   doctors,
   getShiftForType,
   onAssign,
+  shiftTypes = SHIFT_TYPES,
   unavailableByDoctor = {},
   approvedVacationsByDate = {},
   focusShiftType = null,
@@ -49,12 +53,12 @@ export function ShiftAssignmentModal({
   >({});
 
   const activeShiftTypes = React.useMemo(
-    () => (focusShiftType ? [focusShiftType] : SHIFT_TYPES),
-    [focusShiftType],
+    () => (focusShiftType ? [focusShiftType] : shiftTypes),
+    [focusShiftType, shiftTypes],
   );
 
   const isDoctorAllowed = React.useCallback(
-    (doctor: Doctor, shiftType: ShiftType) =>
+    (doctor: Doctor, shiftType: string) =>
       shiftType === "oa" ? doctor.oa : !doctor.oa,
     [],
   );
@@ -91,7 +95,7 @@ export function ShiftAssignmentModal({
   ]);
 
   const updatePending = React.useCallback(
-    (shiftType: ShiftType, doctorIds: number[]) => {
+    (shiftType: string, doctorIds: number[]) => {
       setPendingAssignments((prev) => ({
         ...prev,
         [shiftType]: doctorIds,
@@ -100,14 +104,29 @@ export function ShiftAssignmentModal({
     [],
   );
 
+  const isDoctorAssignedToShift = React.useCallback(
+    (doctorId: number, shiftType: string) => {
+      if (activeShiftTypes.includes(shiftType)) {
+        return (pendingAssignments[shiftType] ?? []).includes(doctorId);
+      }
+
+      const shift = getShiftForType(shiftType);
+      return Array.isArray(shift?.doctorIds)
+        ? shift.doctorIds.includes(doctorId)
+        : false;
+    },
+    [activeShiftTypes, getShiftForType, pendingAssignments],
+  );
+
   const hasDoctorConflict = React.useCallback(
-    (doctorId: number, shiftType: ShiftType) => {
+    (doctorId: number, shiftType: string) => {
       if (!dateKey) return false;
-      const dateConflict = doesUnavailableDateClash(shiftType)
+      const dateConflict = doesCalendarShiftUnavailableDateClash(shiftType)
         ? (unavailableByDoctor[doctorId]?.has(dateKey) ?? false)
         : false;
       const doctor = doctors.find((d) => d.id === doctorId);
       const shiftTypeConflict =
+        isShiftType(shiftType) &&
         doctor?.unavailableShiftTypes &&
         Array.isArray(doctor.unavailableShiftTypes)
           ? doctor.unavailableShiftTypes.includes(shiftType)
@@ -116,12 +135,15 @@ export function ShiftAssignmentModal({
         !!doctor?.name &&
         (approvedVacationsByDate[dateKey] ?? []).includes(doctor.name);
 
-      const dayShiftTypes: readonly ShiftType[] = ["17shift", "20shift"];
       const nightOverlapConflict =
-        shiftType === "night" &&
-        dayShiftTypes.some((type) =>
-          (pendingAssignments[type] ?? []).includes(doctorId),
-        );
+        shiftType === "night"
+          ? ALL_CALENDAR_SHIFT_TYPES.some(
+              (type) =>
+                isDayDutyShiftType(type) &&
+                isDoctorAssignedToShift(doctorId, type),
+            )
+          : isDayDutyShiftType(shiftType) &&
+            isDoctorAssignedToShift(doctorId, "night");
 
       return (
         dateConflict ||
@@ -135,12 +157,12 @@ export function ShiftAssignmentModal({
       doctors,
       unavailableByDoctor,
       approvedVacationsByDate,
-      pendingAssignments,
+      isDoctorAssignedToShift,
     ],
   );
 
   const handleSelectionChange = React.useCallback(
-    (shiftType: ShiftType, values: string[]) => {
+    (shiftType: string, values: string[]) => {
       const uniqueIds = Array.from(
         new Set(
           values
@@ -207,7 +229,7 @@ export function ShiftAssignmentModal({
             return (
               <div key={t} className="p-3 border rounded-lg space-y-2">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <h3 className="font-medium text-sm">{SHIFT_LABELS[t]}</h3>
+                  <h3 className="font-medium text-sm">{getShiftLabel(t)}</h3>
                   <MultiSelect
                     options={options}
                     selected={allowedSelectedDoctorIds.map((id) =>

@@ -1,0 +1,1 @@
+- we will use English as the primary language for this project for all variables, functions, and comments but all the labels in frontend will be in German.

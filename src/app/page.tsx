@@ -18,7 +18,7 @@ import { useCalendarQueries } from "@/components/calendar/useCalendarQueries";
 import { useMonthStore } from "@/lib/month-store";
 import { useDistributeLockStore } from "@/lib/distribute-lock-store";
 import { generateAssignmentsForMonth } from "@/lib/scheduler";
-import { AUTO_DISTRIBUTE_SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
+import { AUTO_DISTRIBUTE_SHIFT_TYPES, SHIFT_TYPES } from "@/lib/shifts";
 import { shiftsApi, unavailableDatesApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-client";
 
@@ -29,9 +29,10 @@ export default function CalendarPage() {
   const { month } = useMonthStore();
   const [isDistributing, setIsDistributing] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-  const [selectedShiftType, setSelectedShiftType] = useState<ShiftType | null>(
-    null,
-  );
+  const [selectedShiftType, setSelectedShiftType] = useState<string | null>(null);
+  const [selectedShiftTypes, setSelectedShiftTypes] = useState<string[]>([
+    ...SHIFT_TYPES,
+  ]);
   const { isLocked, toggleLocked } = useDistributeLockStore();
   const {
     doctors,
@@ -43,16 +44,25 @@ export default function CalendarPage() {
     invalidateShifts,
   } = useCalendarQueries(month, accessToken);
 
-  const openAssignModalForDate = (date: Date) => {
+  const openAssignModalForDate = (
+    date: Date,
+    shiftTypes: readonly string[],
+  ) => {
     if (!isShiftAssigner) return;
     setSelectedDate(date);
+    setSelectedShiftTypes([...shiftTypes]);
     setSelectedShiftType(null);
     setIsAssignModalOpen(true);
   };
 
-  const openAssignModalForCell = (date: Date, shiftType: ShiftType) => {
+  const openAssignModalForCell = (
+    date: Date,
+    shiftType: string,
+    shiftTypes: readonly string[],
+  ) => {
     if (!isShiftAssigner) return;
     setSelectedDate(date);
+    setSelectedShiftTypes([...shiftTypes]);
     setSelectedShiftType(shiftType);
     setIsAssignModalOpen(true);
   };
@@ -176,6 +186,7 @@ export default function CalendarPage() {
         getShiftForType={(type) =>
           getShiftForType({ selectedDate, shiftType: type, allShifts })
         }
+        shiftTypes={selectedShiftTypes}
         focusShiftType={selectedShiftType}
         onAssign={async (type, ids) => {
           if (!selectedDate) return;

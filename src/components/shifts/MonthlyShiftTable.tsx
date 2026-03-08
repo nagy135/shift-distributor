@@ -5,10 +5,10 @@ import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
 import { de } from "date-fns/locale";
 import type { Shift, Doctor } from "@/lib/api";
 import {
-  SHIFT_LABELS,
-  SHIFT_TYPES,
-  type ShiftType,
-  doesUnavailableDateClash,
+  SHIFT_TABLE_COLUMNS,
+  type CalendarShiftColumn,
+  doesCalendarShiftUnavailableDateClash,
+  isDayDutyShiftType,
   isShiftType,
 } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
@@ -20,8 +20,9 @@ interface MonthlyShiftTableProps {
   doctors: Doctor[];
   unavailableByDoctor?: Record<number, Set<string>>;
   approvedVacationsByDate?: Record<string, string[]>;
+  columns?: readonly CalendarShiftColumn[];
   onRowClick?: (date: Date) => void;
-  onCellClick?: (date: Date, shiftType: ShiftType) => void;
+  onCellClick?: (date: Date, shiftType: string) => void;
 }
 
 export function MonthlyShiftTable({
@@ -30,6 +31,7 @@ export function MonthlyShiftTable({
   doctors,
   unavailableByDoctor = {},
   approvedVacationsByDate = {},
+  columns = SHIFT_TABLE_COLUMNS,
   onRowClick,
   onCellClick,
 }: MonthlyShiftTableProps) {
@@ -41,11 +43,8 @@ export function MonthlyShiftTable({
   }, [month]);
 
   const shiftIndex = React.useMemo(() => {
-    const map = new Map<string, Partial<Record<ShiftType, Shift>>>();
+    const map = new Map<string, Record<string, Shift>>();
     for (const s of shifts) {
-      if (!isShiftType(s.shiftType)) {
-        continue;
-      }
       const byType = map.get(s.date) ?? {};
       byType[s.shiftType] = s;
       map.set(s.date, byType);
@@ -63,32 +62,35 @@ export function MonthlyShiftTable({
       doctorId: number,
       shift: Shift,
       date: string,
-      byType: Partial<Record<ShiftType, Shift>>,
+      byType: Record<string, Shift>,
     ): boolean => {
-      if (!isShiftType(shift.shiftType)) {
-        return false;
-      }
-
-      const hasDateConflict = doesUnavailableDateClash(shift.shiftType)
+      const hasDateConflict = doesCalendarShiftUnavailableDateClash(
+        shift.shiftType,
+      )
         ? (unavailableByDoctor[doctorId]?.has(date) ?? false)
         : false;
 
       const doctor = doctors.find((d) => d.id === doctorId);
       const hasShiftTypeConflict =
+        isShiftType(shift.shiftType) &&
         doctor?.unavailableShiftTypes &&
         Array.isArray(doctor.unavailableShiftTypes)
           ? doctor.unavailableShiftTypes.includes(shift.shiftType)
           : false;
 
-      const dayShiftTypes: readonly ShiftType[] = ["17shift", "20shift"];
+      const doctorHasNightShift =
+        Array.isArray(byType.night?.doctorIds) &&
+        byType.night.doctorIds.includes(doctorId);
+      const doctorHasDayDuty = Object.entries(byType).some(
+        ([shiftType, otherShift]) =>
+          isDayDutyShiftType(shiftType) &&
+          Array.isArray(otherShift.doctorIds) &&
+          otherShift.doctorIds.includes(doctorId),
+      );
       const hasNightOverlap =
-        shift.shiftType === "night" &&
-        dayShiftTypes.some((type) => {
-          const other = byType[type];
-          return Array.isArray(other?.doctorIds)
-            ? other?.doctorIds.includes(doctorId)
-            : false;
-        });
+        shift.shiftType === "night"
+          ? doctorHasDayDuty
+          : isDayDutyShiftType(shift.shiftType) && doctorHasNightShift;
 
       return hasDateConflict || hasShiftTypeConflict || hasNightOverlap;
     },
@@ -99,7 +101,7 @@ export function MonthlyShiftTable({
     (
       shift: Shift,
       date: string,
-      byType: Partial<Record<ShiftType, Shift>>,
+      byType: Record<string, Shift>,
     ): boolean => {
       if (!Array.isArray(shift.doctorIds) || shift.doctorIds.length === 0)
         return false;
@@ -114,18 +116,18 @@ export function MonthlyShiftTable({
   const canCellClick = typeof onCellClick === "function";
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-sm">
+    <div className="w-full">
+      <div className="max-w-full overflow-x-auto rounded-md border">
+        <table className="w-max min-w-full text-sm">
           <thead className="bg-muted/50 border-b border-gray-400">
             <tr>
                 <th
                   className="text-left px-1 py-1 w-[50px] border-r border-gray-400"
                   aria-label="Datum"
                 />
-              {SHIFT_TYPES.map((t, index) => (
+              {columns.map((t, index) => (
                 <th
-                  key={t}
+                  key={t.id}
                   className={cn(
                     "text-center py-1",
                     index === 0
@@ -133,7 +135,14 @@ export function MonthlyShiftTable({
                       : "px-2 min-w-[120px] border-l border-gray-400",
                   )}
                 >
-                  {SHIFT_LABELS[t]}
+                  <span className="flex flex-col items-center leading-tight">
+                    <span>{t.label}</span>
+                    {t.headerNote ? (
+                      <span className="text-[10px] font-normal text-muted-foreground">
+                        {t.headerNote}
+                      </span>
+                    ) : null}
+                  </span>
                 </th>
               ))}
               <th className="text-center py-1 px-2 min-w-[140px] border-l border-gray-400">
@@ -147,7 +156,7 @@ export function MonthlyShiftTable({
               const isHoliday = HOLIDAY_DATE_SET_2026.has(key);
               const dayName = format(d, "EEEE", { locale: de });
               const dayPrefix = dayName.slice(0, 2);
-              const byType = shiftIndex.get(key) || {};
+              const byType = shiftIndex.get(key) ?? {};
               const vacationDoctors = approvedVacationsByDate[key] ?? [];
               const vacationDoctorIds = new Set<number>(
                 vacationDoctors
@@ -155,15 +164,15 @@ export function MonthlyShiftTable({
                   .filter(
                     (doctorId): doctorId is number =>
                       typeof doctorId === "number",
-                  ),
+                    ),
               );
-              const hasShiftConflictInRow = SHIFT_TYPES.some((t) => {
-                const s = byType[t];
+              const hasShiftConflictInRow = columns.some((column) => {
+                const s = byType[column.id];
                 return s && hasShiftConflict(s, key, byType);
               });
               const assignedDoctorIds = new Set<number>();
-              SHIFT_TYPES.forEach((t) => {
-                const s = byType[t];
+              columns.forEach((column) => {
+                const s = byType[column.id];
                 if (!s || !Array.isArray(s.doctorIds)) {
                   return;
                 }
@@ -211,8 +220,8 @@ export function MonthlyShiftTable({
                       </span>
                     </span>
                   </td>
-                  {SHIFT_TYPES.map((t, index) => {
-                    const s = byType[t];
+                  {columns.map((column, index) => {
+                    const s = byType[column.id];
                     const hasShiftCellConflict = s
                       ? hasShiftConflict(s, key, byType)
                       : false;
@@ -226,7 +235,7 @@ export function MonthlyShiftTable({
                       hasShiftCellConflict || hasVacationCellConflict;
                     return (
                       <td
-                        key={t}
+                        key={column.id}
                         className={cn(
                           "py-1 text-center",
                           index === 0
@@ -242,7 +251,7 @@ export function MonthlyShiftTable({
                         onClick={(event) => {
                           if (!canCellClick) return;
                           event.stopPropagation();
-                          onCellClick(d, t);
+                          onCellClick(d, column.id);
                         }}
                       >
                         {s ? (

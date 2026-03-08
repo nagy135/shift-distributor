@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { SHIFT_LABELS } from "@/lib/shifts";
+import { getShiftLabel } from "@/lib/shifts";
 import type { Doctor, Shift } from "@/lib/api";
 import { getDoctorShiftsForMonth } from "@/components/doctors/utils";
 
@@ -20,9 +20,7 @@ export async function exportDoctorShifts({
 
   const rows = monthlyShifts.map((shift) => ({
     Datum: format(new Date(shift.date), "d. MMM yyyy", { locale: de }),
-    Dienst:
-      SHIFT_LABELS[shift.shiftType as keyof typeof SHIFT_LABELS] ??
-      shift.shiftType,
+    Dienst: getShiftLabel(shift.shiftType),
   }));
 
   const XLSX = await import("xlsx");

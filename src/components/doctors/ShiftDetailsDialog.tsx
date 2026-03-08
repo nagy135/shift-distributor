@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SHIFT_LABELS } from "@/lib/shifts";
+import { getShiftLabel } from "@/lib/shifts";
 import type { Doctor, Shift } from "@/lib/api";
 import { getDoctorShiftsForMonth } from "@/components/doctors/utils";
 
@@ -65,9 +65,7 @@ export function ShiftDetailsDialog({
                           })}
                         </span>
                         <span className="text-sm text-muted-foreground capitalize">
-                          {SHIFT_LABELS[
-                            shift.shiftType as keyof typeof SHIFT_LABELS
-                          ] ?? shift.shiftType}
+                          {getShiftLabel(shift.shiftType)}
                         </span>
                       </div>
                     ))}
