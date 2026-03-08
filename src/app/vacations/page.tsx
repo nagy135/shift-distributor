@@ -22,6 +22,13 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   getDefaultClassNames,
   DayButton as RdpDayButton,
 } from "react-day-picker";
@@ -74,6 +81,7 @@ export default function VacationsPage() {
   const [activeColor, setActiveColor] = useState<VacationColor | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>("all");
 
   useEffect(() => {
     if (isApprover) return;
@@ -137,7 +145,9 @@ export default function VacationsPage() {
         const counts = countColors(current);
         const yearlyLimit = VACATION_DAYS_PER_YEAR[activeColor];
         const remaining =
-          yearlyLimit - counts[activeColor] + (existing === activeColor ? 1 : 0);
+          yearlyLimit -
+          counts[activeColor] +
+          (existing === activeColor ? 1 : 0);
         if (existing !== activeColor && remaining <= 0) {
           return current;
         }
@@ -156,10 +166,19 @@ export default function VacationsPage() {
     [activeColor, persistDays],
   );
 
-  const vacationsByDate = useMemo(
-    () => (isApprover ? getDayColors(vacationDays) : new Map()),
-    [isApprover, vacationDays],
-  );
+  const vacationsByDate = useMemo(() => {
+    if (!isApprover) {
+      return new Map<string, VacationDay[]>();
+    }
+
+    const filtered = vacationDays.filter(
+      (entry) =>
+        selectedDoctorId === "all" ||
+        String(entry.doctorId ?? "unknown") === selectedDoctorId,
+    );
+
+    return getDayColors(filtered);
+  }, [isApprover, selectedDoctorId, vacationDays]);
 
   const selectedVacations = useMemo<VacationDay[]>(() => {
     if (!selectedDate || !isApprover) return [] as VacationDay[];
@@ -168,11 +187,27 @@ export default function VacationsPage() {
 
   const hasPendingByDate = useMemo(() => {
     const next = new Map<string, boolean>();
-    vacationDays.forEach((entry) => {
-      const hasPending = next.get(entry.date) ?? false;
-      next.set(entry.date, hasPending || !entry.approved);
+    vacationsByDate.forEach((entries, date) => {
+      const hasPending = entries.some((entry) => !entry.approved);
+      next.set(date, hasPending);
     });
     return next;
+  }, [vacationsByDate]);
+
+  const availableDoctors = useMemo(() => {
+    const next = new Map<string, { id: string; name: string }>();
+
+    vacationDays.forEach((entry) => {
+      const doctorId = String(entry.doctorId ?? "unknown");
+      const doctorName = entry.doctorName ?? `Arzt #${entry.doctorId ?? "?"}`;
+      if (!next.has(doctorId)) {
+        next.set(doctorId, { id: doctorId, name: doctorName });
+      }
+    });
+
+    return Array.from(next.values()).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
   }, [vacationDays]);
 
   const approverStats = useMemo(() => {
@@ -291,13 +326,34 @@ export default function VacationsPage() {
     <div className="space-y-6">
       <div className="space-y-3">
         <div>
-            <h2 className="text-2xl font-semibold">Urlaub</h2>
-            <p className="text-sm text-muted-foreground">
-              {isApprover
-                ? "Klicken Sie auf einen Tag, um Urlaubsfreigaben zu prüfen."
-                : `Wählen Sie eine Farbe und klicken Sie dann auf Tage, um Urlaub für ${year} zu markieren.`}
-            </p>
+          <h2 className="text-2xl font-semibold">Urlaub</h2>
+          <p className="text-sm text-muted-foreground">
+            {isApprover
+              ? "Klicken Sie auf einen Tag, um Urlaubsfreigaben zu prüfen."
+              : `Wählen Sie eine Farbe und klicken Sie dann auf Tage, um Urlaub für ${year} zu markieren.`}
+          </p>
         </div>
+        {isApprover && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={selectedDoctorId}
+              onValueChange={setSelectedDoctorId}
+              disabled={availableDoctors.length === 0}
+            >
+              <SelectTrigger className="w-full sm:w-72">
+                <SelectValue placeholder="Arzt auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Ärzte</SelectItem>
+                {availableDoctors.map((doctor) => (
+                  <SelectItem key={doctor.id} value={doctor.id}>
+                    {doctor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         {!isApprover && (
           <>
             <div className="flex flex-wrap gap-3">
@@ -345,14 +401,14 @@ export default function VacationsPage() {
           <div className="border-t px-4 py-3">
             {approverStats.doctors.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                 Noch keine Urlaubsdaten vorhanden.
+                Noch keine Urlaubsdaten vorhanden.
               </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
-                       <th className="py-2 pr-2 font-medium">Arzt</th>
+                      <th className="py-2 pr-2 font-medium">Arzt</th>
                       {VACATION_COLORS.map((color) => (
                         <th
                           key={`header-${color}`}
@@ -510,16 +566,24 @@ export default function VacationsPage() {
       </div>
 
       {isVacationsLoading && (
-         <p className="text-sm text-muted-foreground">Urlaubsdaten werden geladen...</p>
+        <p className="text-sm text-muted-foreground">
+          Urlaubsdaten werden geladen...
+        </p>
       )}
       {updateMutation.isPending && (
-        <p className="text-sm text-muted-foreground">Änderungen werden gespeichert...</p>
+        <p className="text-sm text-muted-foreground">
+          Änderungen werden gespeichert...
+        </p>
       )}
       {approvalMutation.isPending && (
-        <p className="text-sm text-muted-foreground">Freigabe wird aktualisiert...</p>
+        <p className="text-sm text-muted-foreground">
+          Freigabe wird aktualisiert...
+        </p>
       )}
       {denyMutation.isPending && (
-        <p className="text-sm text-muted-foreground">Urlaub wird abgelehnt...</p>
+        <p className="text-sm text-muted-foreground">
+          Urlaub wird abgelehnt...
+        </p>
       )}
       {isApprover && (
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -550,8 +614,7 @@ export default function VacationsPage() {
                           )}
                         />
                         <div className="text-sm">
-                          {vacation.doctorName ??
-                            `Arzt #${vacation.doctorId}`}
+                          {vacation.doctorName ?? `Arzt #${vacation.doctorId}`}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
