@@ -67,6 +67,11 @@ export function MonthlyShiftTable({
     return new Map(doctors.map((doctor) => [doctor.name, doctor.id]));
   }, [doctors]);
 
+  const activeColumnIds = React.useMemo(
+    () => new Set(columns.map((column) => column.id)),
+    [columns],
+  );
+
   // Helper function to check if a shift assignment violates constraints
   const hasDoctorConflict = React.useCallback(
     (
@@ -177,6 +182,11 @@ export function MonthlyShiftTable({
               const dayName = format(d, "EEEE", { locale: de });
               const dayPrefix = dayName.slice(0, 2);
               const byType = shiftIndex.get(key) ?? {};
+              const visibleByType = Object.fromEntries(
+                Object.entries(byType).filter(([shiftType]) =>
+                  activeColumnIds.has(shiftType),
+                ),
+              );
               const vacationDoctors = approvedVacationsByDate[key] ?? [];
               const vacationDoctorIds = new Set<number>(
                 vacationDoctors
@@ -187,12 +197,12 @@ export function MonthlyShiftTable({
                     ),
               );
               const hasShiftConflictInRow = columns.some((column) => {
-                const s = byType[column.id];
-                return s && hasShiftConflict(s, key, byType);
+                const s = visibleByType[column.id];
+                return s && hasShiftConflict(s, key, visibleByType);
               });
               const assignedDoctorIds = new Set<number>();
               columns.forEach((column) => {
-                const s = byType[column.id];
+                const s = visibleByType[column.id];
                 if (!s || !Array.isArray(s.doctorIds)) {
                   return;
                 }
@@ -242,14 +252,14 @@ export function MonthlyShiftTable({
                     </span>
                   </td>
                   {columns.map((column, index) => {
-                    const s = byType[column.id];
+                    const s = visibleByType[column.id];
                     const cellKey = getShiftTargetKey({
                       date: d,
                       shiftType: column.id,
                     });
                     const isSelectedCell = selectedCellKeys?.has(cellKey) ?? false;
                     const hasShiftCellConflict = s
-                      ? hasShiftConflict(s, key, byType)
+                      ? hasShiftConflict(s, key, visibleByType)
                       : false;
                     const hasVacationCellConflict =
                       !!s &&
