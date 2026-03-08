@@ -8,10 +8,20 @@ import {
   eachDayOfInterval,
   isSameMonth,
 } from "date-fns";
+import { de } from "date-fns/locale";
 import { MonthSelector } from "@/components/MonthSelector";
 import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
 import { CalendarHeaderActions } from "@/components/calendar/CalendarHeaderActions";
 import { CalendarContent } from "@/components/calendar/CalendarContent";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { exportMonthTable } from "@/components/calendar/export-month-table";
 import {
   getShiftForType,
@@ -37,6 +47,7 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const { month } = useMonthStore();
   const [isDistributing, setIsDistributing] = useState(false);
+  const [isDistributeConfirmOpen, setIsDistributeConfirmOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedShiftType, setSelectedShiftType] = useState<string | null>(null);
   const [selectedShiftTypes, setSelectedShiftTypes] = useState<string[]>([
@@ -178,9 +189,16 @@ export default function CalendarPage() {
     }
   };
 
-  const handleDistributeMonth = async () => {
+  const handleDistributeMonth = useCallback(() => {
+    if (!isShiftAssigner || isDistributing) return;
+    setIsDistributeConfirmOpen(true);
+  }, [isDistributing, isShiftAssigner]);
+
+  const confirmDistributeMonth = async () => {
     if (!isShiftAssigner) return;
+
     try {
+      setIsDistributeConfirmOpen(false);
       setIsDistributing(true);
       const range = {
         start: startOfMonth(month),
@@ -287,6 +305,37 @@ export default function CalendarPage() {
         unavailableByDoctor={unavailableByDoctor}
         approvedVacationsByDate={approvedVacationsByDate}
       />
+
+      <Dialog
+        open={isDistributeConfirmOpen && isShiftAssigner}
+        onOpenChange={setIsDistributeConfirmOpen}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Dienste verteilen?</DialogTitle>
+            <DialogDescription>
+              {`Die automatische Verteilung wird fuer ${format(month, "MMMM yyyy", { locale: de })} gestartet und kann bestehende Eintraege ueberschreiben.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDistributeConfirmOpen(false)}
+              disabled={isDistributing}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmDistributeMonth}
+              disabled={isDistributing}
+            >
+              Verteilung starten
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

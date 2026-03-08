@@ -231,9 +231,6 @@ export default function AdminUsersPage() {
             Benutzerrollen und Zugriffe verwalten.
           </p>
         </div>
-        <Button onClick={loadUsers} disabled={isFetching}>
-          Aktualisieren
-        </Button>
       </div>
 
       {error && <div className="text-sm text-destructive">{error}</div>}
