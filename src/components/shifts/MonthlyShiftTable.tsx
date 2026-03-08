@@ -15,6 +15,7 @@ import {
   isDayDutyShiftType,
   isShiftType,
 } from "@/lib/shifts";
+import { useDragToScroll } from "@/lib/use-drag-to-scroll";
 import { cn } from "@/lib/utils";
 import { HOLIDAY_DATE_SET_2026 } from "@/lib/holidays";
 
@@ -124,10 +125,19 @@ export function MonthlyShiftTable({
 
   const canRowClick = typeof onRowClick === "function";
   const canCellClick = typeof onCellClick === "function";
+  const { containerRef, isDragging, dragHandlers } =
+    useDragToScroll<HTMLDivElement>();
 
   return (
     <div className="w-full">
-      <div className="max-w-full overflow-x-auto rounded-md border">
+      <div
+        ref={containerRef}
+        className={cn(
+          "max-w-full overflow-auto rounded-md border cursor-grab select-none",
+          isDragging && "cursor-grabbing",
+        )}
+        {...dragHandlers}
+      >
         <table className="w-max min-w-full text-sm">
           <thead className="bg-muted/50 border-b border-gray-400">
             <tr>

@@ -3,6 +3,7 @@
 import React from "react";
 import { format, isSameMonth } from "date-fns";
 import { HOLIDAY_DATE_SET_2026 } from "@/lib/holidays";
+import { useDragToScroll } from "@/lib/use-drag-to-scroll";
 import { cn } from "@/lib/utils";
 import type { Doctor, Shift } from "@/lib/api";
 
@@ -19,6 +20,9 @@ export function DoctorShiftCounts({
   month,
   className,
 }: DoctorShiftCountsProps) {
+  const { containerRef, isDragging, dragHandlers } =
+    useDragToScroll<HTMLDivElement>();
+
   const countColumns = React.useMemo(
     () => ["ND", "LD", "SD", "KD", "ITS"] as const,
     [],
@@ -81,10 +85,13 @@ export function DoctorShiftCounts({
 
   return (
     <div
+      ref={containerRef}
       className={cn(
-        "inline-block max-w-full overflow-x-auto rounded-md border",
+        "inline-block max-w-full overflow-auto rounded-md border cursor-grab select-none",
+        isDragging && "cursor-grabbing",
         className,
       )}
+      {...dragHandlers}
     >
       <table className="w-fit text-sm border-collapse">
         <thead className="bg-muted/50 border-b border-gray-400">
