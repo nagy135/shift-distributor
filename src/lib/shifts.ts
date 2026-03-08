@@ -45,7 +45,7 @@ export const SHIFT_TABLE_COLUMNS: readonly CalendarShiftColumn[] = (
 }));
 
 export const DEPARTMENT_DEFS = {
-  INT: { count: 1 },
+  INT: { count: 2 },
   INA: { count: 1 },
   "A1.1": { count: 1, headerNote: "INN" },
   "A1.4": { count: 1, headerNote: "INN" },

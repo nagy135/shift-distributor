@@ -6,11 +6,22 @@ import { HOLIDAY_DATE_SET_2026 } from "@/lib/holidays";
 import { useDragToScroll } from "@/lib/use-drag-to-scroll";
 import { cn } from "@/lib/utils";
 import type { Doctor, Shift } from "@/lib/api";
+import type { CalendarShiftColumn } from "@/lib/shifts";
+
+type DoctorShiftCountsView = "shifts" | "departments";
+
+type StatisticColumn = {
+  id: string;
+  label: string;
+  headerNote?: string;
+};
 
 type DoctorShiftCountsProps = {
   doctors: Doctor[];
   shifts: Shift[];
   month: Date;
+  columns: readonly CalendarShiftColumn[];
+  view: DoctorShiftCountsView;
   className?: string;
 };
 
@@ -18,117 +29,153 @@ export function DoctorShiftCounts({
   doctors,
   shifts,
   month,
+  columns,
+  view,
   className,
 }: DoctorShiftCountsProps) {
   const { containerRef, isDragging, dragHandlers } =
     useDragToScroll<HTMLDivElement>();
 
-  const countColumns = React.useMemo(
-    () => ["ND", "LD", "SD", "KD", "ITS"] as const,
-    [],
-  );
+  const displayColumns = React.useMemo(() => {
+    if (view === "shifts") {
+      return [
+        { id: "ND", label: "ND", headerNote: undefined },
+        { id: "LD", label: "LD", headerNote: undefined },
+        { id: "SD", label: "SD", headerNote: undefined },
+        { id: "KD", label: "KD", headerNote: undefined },
+        { id: "ITS", label: "ITS", headerNote: undefined },
+      ] satisfies readonly StatisticColumn[];
+    }
 
-  const shiftCounts = doctors
-    .filter((doctor) => !doctor.disabled && doctor.oa === false)
-    .map((doctor) => {
-      const counts: Record<(typeof countColumns)[number], number> = {
-        ND: 0,
-        LD: 0,
-        SD: 0,
-        KD: 0,
-        ITS: 0,
-      };
+    return columns.map((column) => ({
+      id: column.id,
+      label: column.slotLabel ?? column.label,
+      headerNote: column.headerNote,
+    })) satisfies readonly StatisticColumn[];
+  }, [columns, view]);
 
-      for (const shift of shifts) {
-        if (!Array.isArray(shift.doctorIds)) continue;
-        if (!shift.doctorIds.includes(doctor.id)) continue;
-        if (!isSameMonth(new Date(shift.date), month)) continue;
+  const shiftCounts = React.useMemo(() => {
+    return doctors
+      .filter(
+        (doctor) => !doctor.disabled && (view === "departments" || !doctor.oa),
+      )
+      .map((doctor) => {
+        const counts = Object.fromEntries(
+          displayColumns.map((column) => [column.id, 0]),
+        ) as Record<string, number>;
 
-        const date = new Date(shift.date);
-        const dateKey = format(date, "yyyy-MM-dd");
-        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-        const isHoliday = HOLIDAY_DATE_SET_2026.has(dateKey);
-        const isWeekday = !isWeekend && !isHoliday;
+        for (const shift of shifts) {
+          if (!Array.isArray(shift.doctorIds)) continue;
+          if (!shift.doctorIds.includes(doctor.id)) continue;
 
-        if (shift.shiftType === "night") {
-          counts.ND += 1;
-          continue;
+          if (!isSameMonth(new Date(shift.date), month)) continue;
+
+          if (view === "shifts") {
+            const date = new Date(shift.date);
+            const dateKey = format(date, "yyyy-MM-dd");
+            const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+            const isHoliday = HOLIDAY_DATE_SET_2026.has(dateKey);
+            const isWeekday = !isWeekend && !isHoliday;
+
+            if (shift.shiftType === "night") {
+              counts.ND += 1;
+              continue;
+            }
+
+            if (shift.shiftType === "20shift") {
+              if (isWeekday) counts.SD += 1;
+              else counts.LD += 1;
+              continue;
+            }
+
+            if (shift.shiftType === "17shift") {
+              if (isWeekday) counts.ITS += 1;
+              else counts.KD += 1;
+            }
+            continue;
+          }
+
+          if (!(shift.shiftType in counts)) continue;
+
+          counts[shift.shiftType] += 1;
         }
 
-        if (shift.shiftType === "20shift") {
-          if (isWeekday) counts.SD += 1;
-          else counts.LD += 1;
-          continue;
-        }
+        const total = Object.values(counts).reduce(
+          (sum, value) => sum + value,
+          0,
+        );
 
-        if (shift.shiftType === "17shift") {
-          if (isWeekday) counts.ITS += 1;
-          else counts.KD += 1;
-        }
-      }
-
-      const total = countColumns.reduce((sum, column) => {
-        if (column === "ITS") return sum;
-        return sum + counts[column];
-      }, 0);
-
-      return {
-        doctor,
-        counts,
-        total,
-      };
-    })
-    .sort((a, b) => {
-      if (b.total !== a.total) return b.total - a.total;
-      return a.doctor.name.localeCompare(b.doctor.name);
-    });
+        return {
+          doctor,
+          counts,
+          total,
+        };
+      })
+      .sort((a, b) => {
+        if (b.total !== a.total) return b.total - a.total;
+        return a.doctor.name.localeCompare(b.doctor.name);
+      });
+  }, [displayColumns, doctors, month, shifts, view]);
 
   return (
     <div
       ref={containerRef}
       className={cn(
-        "inline-block max-w-full overflow-auto rounded-md border cursor-grab select-none",
+        "max-w-full overflow-auto rounded-md border cursor-grab select-none",
         isDragging && "cursor-grabbing",
         className,
       )}
       {...dragHandlers}
     >
-      <table className="w-fit text-sm border-collapse">
+      <table className="w-max min-w-full text-[11px] border-collapse md:text-xs">
         <thead className="bg-muted/50 border-b border-gray-400">
           <tr>
-            <th className="text-left px-2 py-1 whitespace-nowrap border-r border-gray-300">
+            <th className="text-left px-1 py-0.5 whitespace-nowrap border-r border-gray-300 md:px-1.5">
               Arzt
             </th>
-            {countColumns.map((column, index) => (
+            {displayColumns.map((column) => (
               <th
-                key={column}
+                key={column.id}
                 className={cn(
-                  "text-center px-2 py-1",
-                  index < countColumns.length - 1 && "border-r border-gray-300",
+                  "text-center px-0.5 py-0.5 md:px-1 md:py-0.5",
+                  "border-r border-gray-300",
                 )}
               >
-                {column}
+                <span className="flex min-w-[42px] flex-col items-center leading-none md:min-w-[48px]">
+                  <span>{column.label}</span>
+                  {column.headerNote ? (
+                    <span className="text-[8px] font-normal text-muted-foreground md:text-[9px]">
+                      {column.headerNote}
+                    </span>
+                  ) : null}
+                </span>
               </th>
             ))}
+            <th className="text-center px-0.5 py-0.5 border-r border-gray-300 md:px-1 md:py-0.5">
+              Gesamt
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-400">
-          {shiftCounts.map(({ doctor, counts }) => (
+          {shiftCounts.map(({ doctor, counts, total }) => (
             <tr key={doctor.id}>
-              <td className="px-2 py-1 font-medium whitespace-nowrap border-r border-gray-300">
+              <td className="px-1 py-0.5 font-medium whitespace-nowrap border-r border-gray-300 md:px-1.5 md:py-0.5">
                 {doctor.name}
               </td>
-              {countColumns.map((column, index) => (
+              {displayColumns.map((column) => (
                 <td
-                  key={column}
+                  key={column.id}
                   className={cn(
-                    "px-2 py-1 text-center tabular-nums",
-                    index < countColumns.length - 1 && "border-r border-gray-300",
+                    "px-0.5 py-0.5 text-center tabular-nums md:px-1 md:py-0.5",
+                    "border-r border-gray-300",
                   )}
                 >
-                  {counts[column]}
+                  {counts[column.id]}
                 </td>
               ))}
+              <td className="px-0.5 py-0.5 text-center tabular-nums font-medium md:px-1 md:py-0.5">
+                {total}
+              </td>
             </tr>
           ))}
         </tbody>

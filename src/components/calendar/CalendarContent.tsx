@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ClientOnly } from "@/components/client-only";
 import { Button } from "@/components/ui/button";
 import type { CalendarCellClickOptions } from "@/components/calendar/utils";
@@ -45,6 +46,7 @@ export function CalendarContent({
   onCellClick,
 }: CalendarContentProps) {
   const [tableView, setTableView] = React.useState<CalendarTableView>("shifts");
+  const [statisticsVisible, setStatisticsVisible] = React.useState(true);
 
   const activeColumns =
     tableView === "shifts" ? SHIFT_TABLE_COLUMNS : DEPARTMENT_SHIFT_COLUMNS;
@@ -68,7 +70,13 @@ export function CalendarContent({
           doctors={doctors}
           shifts={allShifts}
           month={month}
-          className="lg:max-w-md"
+          columns={activeColumns}
+          view={tableView}
+          className={
+            tableView === "shifts"
+              ? "w-full lg:max-w-md"
+              : "w-full lg:max-w-[32rem]"
+          }
         />
       )}
     </ClientOnly>
@@ -105,7 +113,44 @@ export function CalendarContent({
           <div className="p-3 pt-0">{statisticsContent}</div>
         </details>
 
-        <div className="hidden md:block">{statisticsContent}</div>
+        <div className="hidden md:flex md:items-start md:gap-3">
+          <div
+            className={[
+              "grid transition-[grid-template-columns,opacity,margin] duration-500 ease-in-out",
+              statisticsVisible
+                ? "mr-0 grid-cols-[minmax(0,1fr)] opacity-100"
+                : "mr-[-0.75rem] grid-cols-[0fr] opacity-0",
+            ].join(" ")}
+          >
+            <div className="min-w-0 overflow-hidden">
+              <div className="min-w-0 shrink-0">{statisticsContent}</div>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="size-8 shrink-0 transition-all duration-500 ease-in-out"
+            onClick={() => setStatisticsVisible((current) => !current)}
+            aria-label={
+              statisticsVisible
+                ? "Statistik ausblenden"
+                : "Statistik einblenden"
+            }
+            title={
+              statisticsVisible
+                ? "Statistik ausblenden"
+                : "Statistik einblenden"
+            }
+          >
+            {statisticsVisible ? (
+              <ChevronLeft className="size-4 transition-transform duration-500 ease-in-out" />
+            ) : (
+              <ChevronRight className="size-4 transition-transform duration-500 ease-in-out" />
+            )}
+          </Button>
+        </div>
 
         <div className="min-w-0 flex-1">
           <ClientOnly
