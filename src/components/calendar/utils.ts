@@ -2,19 +2,32 @@ import { format, getDay } from "date-fns";
 import { AUTO_DISTRIBUTE_SHIFT_TYPES, isWeekendOnly } from "@/lib/shifts";
 import type { Shift } from "@/lib/api";
 
+export type CalendarShiftTarget = {
+  date: Date;
+  shiftType: string;
+};
+
+export type CalendarCellClickOptions = {
+  additive: boolean;
+};
+
 type ShiftLookupParams = {
-  selectedDate?: Date;
+  date?: Date;
   shiftType: string;
   allShifts: Shift[];
 };
 
+export function getShiftTargetKey({ date, shiftType }: CalendarShiftTarget) {
+  return `${format(date, "yyyy-MM-dd")}|${shiftType}`;
+}
+
 export function getShiftForType({
-  selectedDate,
+  date,
   shiftType,
   allShifts,
 }: ShiftLookupParams) {
-  if (!selectedDate) return undefined;
-  const dateStr = format(selectedDate, "yyyy-MM-dd");
+  if (!date) return undefined;
+  const dateStr = format(date, "yyyy-MM-dd");
   return allShifts.find(
     (shift) => shift.date === dateStr && shift.shiftType === shiftType,
   );

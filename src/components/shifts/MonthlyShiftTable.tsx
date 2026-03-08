@@ -3,6 +3,10 @@
 import React from "react";
 import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
 import { de } from "date-fns/locale";
+import {
+  getShiftTargetKey,
+  type CalendarCellClickOptions,
+} from "@/components/calendar/utils";
 import type { Shift, Doctor } from "@/lib/api";
 import {
   SHIFT_TABLE_COLUMNS,
@@ -21,8 +25,13 @@ interface MonthlyShiftTableProps {
   unavailableByDoctor?: Record<number, Set<string>>;
   approvedVacationsByDate?: Record<string, string[]>;
   columns?: readonly CalendarShiftColumn[];
+  selectedCellKeys?: ReadonlySet<string>;
   onRowClick?: (date: Date) => void;
-  onCellClick?: (date: Date, shiftType: string) => void;
+  onCellClick?: (
+    date: Date,
+    shiftType: string,
+    options: CalendarCellClickOptions,
+  ) => void;
 }
 
 export function MonthlyShiftTable({
@@ -32,6 +41,7 @@ export function MonthlyShiftTable({
   unavailableByDoctor = {},
   approvedVacationsByDate = {},
   columns = SHIFT_TABLE_COLUMNS,
+  selectedCellKeys,
   onRowClick,
   onCellClick,
 }: MonthlyShiftTableProps) {
@@ -198,7 +208,8 @@ export function MonthlyShiftTable({
                       ? "bg-red-100 dark:bg-red-800/40 hover:bg-red-200 dark:hover:bg-red-700/50 border rounded border-red-400 dark:border-red-500/70"
                       : undefined,
                   )}
-                  onClick={() => {
+                  onClick={(event) => {
+                    if (event.ctrlKey || event.metaKey) return;
                     if (!canRowClick) return;
                     onRowClick(d);
                   }}
@@ -222,6 +233,11 @@ export function MonthlyShiftTable({
                   </td>
                   {columns.map((column, index) => {
                     const s = byType[column.id];
+                    const cellKey = getShiftTargetKey({
+                      date: d,
+                      shiftType: column.id,
+                    });
+                    const isSelectedCell = selectedCellKeys?.has(cellKey) ?? false;
                     const hasShiftCellConflict = s
                       ? hasShiftConflict(s, key, byType)
                       : false;
@@ -240,18 +256,32 @@ export function MonthlyShiftTable({
                           "py-1 text-center",
                           index === 0
                             ? "pl-1 pr-1"
-                            : "px-2 min-w-[120px] border-l border-gray-400",
+                           : "px-2 min-w-[120px] border-l border-gray-400",
                           canCellClick && "cursor-pointer",
                           cellConflict &&
                             "bg-red-300 dark:bg-red-700/80 hover:bg-red-300 dark:hover:bg-red-700/80",
+                          isSelectedCell &&
+                            "outline-2 outline-sky-500 outline-solid outline-offset-[-2px] bg-sky-100 dark:bg-sky-950/60",
                           !cellConflict &&
                             (canRowClick || canCellClick) &&
                             "hover:bg-muted/30",
                         )}
+                        onMouseDown={(event) => {
+                          if (event.ctrlKey || event.metaKey) {
+                            event.preventDefault();
+                          }
+                        }}
+                        onContextMenu={(event) => {
+                          if (event.ctrlKey || event.metaKey) {
+                            event.preventDefault();
+                          }
+                        }}
                         onClick={(event) => {
                           if (!canCellClick) return;
                           event.stopPropagation();
-                          onCellClick(d, column.id);
+                          onCellClick(d, column.id, {
+                            additive: event.ctrlKey || event.metaKey,
+                          });
                         }}
                       >
                         {s ? (

@@ -3,6 +3,7 @@
 import React from "react";
 import { ClientOnly } from "@/components/client-only";
 import { Button } from "@/components/ui/button";
+import type { CalendarCellClickOptions } from "@/components/calendar/utils";
 import { MonthlyShiftTable } from "@/components/shifts/MonthlyShiftTable";
 import { DoctorShiftCounts } from "@/components/calendar/DoctorShiftCounts";
 import type { Doctor, Shift } from "@/lib/api";
@@ -22,11 +23,13 @@ type CalendarContentProps = {
   allShifts: Shift[];
   unavailableByDoctor: Record<number, Set<string>>;
   approvedVacationsByDate: Record<string, string[]>;
+  selectedCellKeys?: ReadonlySet<string>;
   onRowClick?: (date: Date, shiftTypes: readonly string[]) => void;
   onCellClick?: (
     date: Date,
     shiftType: string,
     shiftTypes: readonly string[],
+    options: CalendarCellClickOptions,
   ) => void;
 };
 
@@ -37,6 +40,7 @@ export function CalendarContent({
   allShifts,
   unavailableByDoctor,
   approvedVacationsByDate,
+  selectedCellKeys,
   onRowClick,
   onCellClick,
 }: CalendarContentProps) {
@@ -123,6 +127,7 @@ export function CalendarContent({
                 unavailableByDoctor={unavailableByDoctor}
                 approvedVacationsByDate={approvedVacationsByDate}
                 columns={activeColumns}
+                selectedCellKeys={selectedCellKeys}
                 onRowClick={
                   onRowClick
                     ? (date) => onRowClick(date, activeShiftTypes)
@@ -130,8 +135,8 @@ export function CalendarContent({
                 }
                 onCellClick={
                   onCellClick
-                    ? (date, shiftType) =>
-                        onCellClick(date, shiftType, activeShiftTypes)
+                    ? (date, shiftType, options) =>
+                        onCellClick(date, shiftType, activeShiftTypes, options)
                     : undefined
                 }
               />

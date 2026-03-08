@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   format,
   startOfMonth,
@@ -13,7 +13,12 @@ import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
 import { CalendarHeaderActions } from "@/components/calendar/CalendarHeaderActions";
 import { CalendarContent } from "@/components/calendar/CalendarContent";
 import { exportMonthTable } from "@/components/calendar/export-month-table";
-import { getShiftForType } from "@/components/calendar/utils";
+import {
+  getShiftForType,
+  getShiftTargetKey,
+  type CalendarCellClickOptions,
+  type CalendarShiftTarget,
+} from "@/components/calendar/utils";
 import { useCalendarQueries } from "@/components/calendar/useCalendarQueries";
 import { useMonthStore } from "@/lib/month-store";
 import { useDistributeLockStore } from "@/lib/distribute-lock-store";
@@ -21,6 +26,10 @@ import { generateAssignmentsForMonth } from "@/lib/scheduler";
 import { AUTO_DISTRIBUTE_SHIFT_TYPES, SHIFT_TYPES } from "@/lib/shifts";
 import { shiftsApi, unavailableDatesApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth-client";
+
+type ShiftAssignment = CalendarShiftTarget & {
+  doctorIds: number[];
+};
 
 export default function CalendarPage() {
   const { user, accessToken } = useAuth();
@@ -33,6 +42,9 @@ export default function CalendarPage() {
   const [selectedShiftTypes, setSelectedShiftTypes] = useState<string[]>([
     ...SHIFT_TYPES,
   ]);
+  const [selectedTargets, setSelectedTargets] = useState<CalendarShiftTarget[]>(
+    [],
+  );
   const { isLocked, toggleLocked } = useDistributeLockStore();
   const {
     doctors,
@@ -44,11 +56,64 @@ export default function CalendarPage() {
     invalidateShifts,
   } = useCalendarQueries(month, accessToken);
 
+  const clearSelectedTargets = useCallback(() => {
+    setSelectedTargets([]);
+  }, []);
+
+  const selectedCellKeys = useMemo(
+    () => new Set(selectedTargets.map((target) => getShiftTargetKey(target))),
+    [selectedTargets],
+  );
+
+  const openAssignModalForSelection = useCallback(() => {
+    if (!isShiftAssigner || selectedTargets.length === 0) return;
+    setSelectedDate(undefined);
+    setSelectedShiftType(null);
+    setSelectedShiftTypes(
+      Array.from(new Set(selectedTargets.map((target) => target.shiftType))),
+    );
+    setIsAssignModalOpen(true);
+  }, [isShiftAssigner, selectedTargets]);
+
+  useEffect(() => {
+    if (!isShiftAssigner || selectedTargets.length === 0 || isAssignModalOpen) {
+      return;
+    }
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key !== "Control" && event.key !== "Meta") {
+        return;
+      }
+      openAssignModalForSelection();
+    };
+
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [
+    isAssignModalOpen,
+    isShiftAssigner,
+    openAssignModalForSelection,
+    selectedTargets.length,
+  ]);
+
+  const handleAssignModalOpenChange = useCallback(
+    (open: boolean) => {
+      setIsAssignModalOpen(open);
+      if (!open) {
+        clearSelectedTargets();
+      }
+    },
+    [clearSelectedTargets],
+  );
+
   const openAssignModalForDate = (
     date: Date,
     shiftTypes: readonly string[],
   ) => {
     if (!isShiftAssigner) return;
+    clearSelectedTargets();
     setSelectedDate(date);
     setSelectedShiftTypes([...shiftTypes]);
     setSelectedShiftType(null);
@@ -59,29 +124,57 @@ export default function CalendarPage() {
     date: Date,
     shiftType: string,
     shiftTypes: readonly string[],
+    options: CalendarCellClickOptions,
   ) => {
     if (!isShiftAssigner) return;
+
+    if (options.additive) {
+      const nextTarget = { date, shiftType };
+      const nextKey = getShiftTargetKey(nextTarget);
+
+      setSelectedTargets((previousTargets) => {
+        const hasTarget = previousTargets.some(
+          (target) => getShiftTargetKey(target) === nextKey,
+        );
+
+        if (hasTarget) {
+          return previousTargets.filter(
+            (target) => getShiftTargetKey(target) !== nextKey,
+          );
+        }
+
+        return [...previousTargets, nextTarget];
+      });
+      return;
+    }
+
+    clearSelectedTargets();
     setSelectedDate(date);
     setSelectedShiftTypes([...shiftTypes]);
     setSelectedShiftType(shiftType);
     setIsAssignModalOpen(true);
   };
 
-  const handleShiftAssignment = async (
-    shiftType: string,
-    doctorIds: number[],
-  ) => {
+  const handleShiftAssignments = async (assignments: ShiftAssignment[]) => {
     if (!isShiftAssigner) return;
-    if (!selectedDate) return;
+
+    if (assignments.length === 0) return;
+
+    const payload = assignments.map((assignment) => ({
+      date: format(assignment.date, "yyyy-MM-dd"),
+      shiftType: assignment.shiftType,
+      doctorIds: assignment.doctorIds,
+    }));
 
     try {
-      await assignShiftMutation.mutateAsync({
-        date: format(selectedDate, "yyyy-MM-dd"),
-        shiftType,
-        doctorIds,
-      });
+      if (payload.length === 1) {
+        await assignShiftMutation.mutateAsync(payload[0]);
+      } else {
+        await shiftsApi.assignBatch(payload, accessToken);
+        await invalidateShifts();
+      }
     } catch (error) {
-      console.error("Error assigning shift:", error);
+      console.error("Error assigning shifts:", error);
     }
   };
 
@@ -173,6 +266,7 @@ export default function CalendarPage() {
         allShifts={allShifts}
         unavailableByDoctor={unavailableByDoctor}
         approvedVacationsByDate={approvedVacationsByDate}
+        selectedCellKeys={selectedCellKeys}
         onRowClick={isShiftAssigner ? openAssignModalForDate : undefined}
         onCellClick={isShiftAssigner ? openAssignModalForCell : undefined}
       />
@@ -180,18 +274,16 @@ export default function CalendarPage() {
       {/* Reusable shift assignment modal for table rows */}
       <ShiftAssignmentModal
         open={isAssignModalOpen && isShiftAssigner}
-        onOpenChange={setIsAssignModalOpen}
+        onOpenChange={handleAssignModalOpenChange}
         date={selectedDate}
+        targets={selectedTargets}
         doctors={doctors}
-        getShiftForType={(type) =>
-          getShiftForType({ selectedDate, shiftType: type, allShifts })
+        getShift={(date, shiftType) =>
+          getShiftForType({ date, shiftType, allShifts })
         }
         shiftTypes={selectedShiftTypes}
         focusShiftType={selectedShiftType}
-        onAssign={async (type, ids) => {
-          if (!selectedDate) return;
-          await handleShiftAssignment(type, ids);
-        }}
+        onAssign={handleShiftAssignments}
         unavailableByDoctor={unavailableByDoctor}
         approvedVacationsByDate={approvedVacationsByDate}
       />
