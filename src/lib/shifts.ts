@@ -1,6 +1,7 @@
 type DepartmentDefinition = {
+  label: string;
   count: number;
-  headerNote?: string;
+  headerNote?: string | readonly string[];
 };
 
 export type CalendarShiftColumn = {
@@ -44,34 +45,55 @@ export const SHIFT_TABLE_COLUMNS: readonly CalendarShiftColumn[] = (
   label: SHIFT_LABELS[shiftType],
 }));
 
-export const DEPARTMENT_DEFS = {
-  INT: { count: 2 },
-  INA: { count: 1 },
-  "A1.1": { count: 1, headerNote: "INN" },
-  "A1.4": { count: 1, headerNote: "INN" },
-  "500": { count: 1, headerNote: "INN" },
-  "C-600": { count: 1, headerNote: "INN" },
-  Senior: { count: 2 },
-  "A3.1": { count: 1, headerNote: "GER" },
-  "A3.2": { count: 1, headerNote: "GER" },
-  "A4.1": { count: 1, headerNote: "GER/INN" },
-  "A4.2": { count: 1, headerNote: "GER/INN" },
-  ND: { count: 1 },
-  "ND-frei": { count: 1 },
-} as const satisfies Record<string, DepartmentDefinition>;
+export const DEPARTMENT_DEFS: readonly DepartmentDefinition[] = [
+  { label: "INT", count: 2, headerNote: ["8:00-16:30", "14:00-22:30"] },
+  { label: "INA", count: 1 },
+  { label: "A1.1", count: 1, headerNote: "INN" },
+  { label: "A1.4", count: 1, headerNote: "INN" },
+  { label: "500", count: 1, headerNote: "INN" },
+  { label: "C-600", count: 1, headerNote: "INN" },
+  { label: "Senior", count: 2 },
+  { label: "A3.1", count: 1, headerNote: "GER" },
+  { label: "A3.2", count: 1, headerNote: "GER" },
+  { label: "A4.1", count: 1, headerNote: "GER/INN" },
+  { label: "A4.2", count: 1, headerNote: "GER/INN" },
+  { label: "ND", count: 1 },
+  { label: "ND-frei", count: 1 },
+];
 
-export const DEPARTMENT_SHIFT_COLUMNS: readonly CalendarShiftColumn[] =
-  Object.entries(DEPARTMENT_DEFS).flatMap(([department, definition]) =>
-    Array.from({ length: definition.count }, (_, index) => ({
-      id:
-        definition.count > 1 ? `${department}-${index + 1}` : department,
-      label: department,
-      slotLabel:
-        definition.count > 1 ? `${department} ${index + 1}` : department,
-      headerNote:
-        "headerNote" in definition ? definition.headerNote : undefined,
-    })),
+export const DEPARTMENT_SHIFT_COLUMNS: readonly CalendarShiftColumn[] = (() => {
+  const totalCountsByLabel = new Map<string, number>();
+
+  for (const definition of DEPARTMENT_DEFS) {
+    totalCountsByLabel.set(
+      definition.label,
+      (totalCountsByLabel.get(definition.label) ?? 0) + definition.count,
+    );
+  }
+
+  const usedCountsByLabel = new Map<string, number>();
+
+  return DEPARTMENT_DEFS.flatMap((definition) =>
+    Array.from({ length: definition.count }, (_, slotIndex) => {
+      const nextIndex = (usedCountsByLabel.get(definition.label) ?? 0) + 1;
+      usedCountsByLabel.set(definition.label, nextIndex);
+
+      const hasDuplicates = (totalCountsByLabel.get(definition.label) ?? 0) > 1;
+      const headerNote = Array.isArray(definition.headerNote)
+        ? definition.headerNote[slotIndex]
+        : definition.headerNote;
+
+      return {
+        id: hasDuplicates ? `${definition.label}-${nextIndex}` : definition.label,
+        label: definition.label,
+        slotLabel: hasDuplicates
+          ? `${definition.label} ${nextIndex}`
+          : definition.label,
+        headerNote,
+      };
+    }),
   );
+})();
 
 export const DEPARTMENT_SHIFT_TYPES: readonly string[] =
   DEPARTMENT_SHIFT_COLUMNS.map((column) => column.id);
@@ -84,7 +106,10 @@ export const ALL_CALENDAR_SHIFT_TYPES: readonly string[] = [
 const DEPARTMENT_SHIFT_TYPE_SET = new Set<string>(DEPARTMENT_SHIFT_TYPES);
 
 const DEPARTMENT_SHIFT_LABELS = Object.fromEntries(
-  DEPARTMENT_SHIFT_COLUMNS.map((column) => [column.id, column.slotLabel ?? column.label]),
+  DEPARTMENT_SHIFT_COLUMNS.map((column) => [
+    column.id,
+    column.slotLabel ?? column.label,
+  ]),
 ) as Record<string, string>;
 
 const CALENDAR_SHIFT_LABELS: Record<string, string> = {

@@ -4,8 +4,12 @@ import React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ClientOnly } from "@/components/client-only";
 import { Button } from "@/components/ui/button";
-import type { CalendarCellClickOptions } from "@/components/calendar/utils";
+import type {
+  CalendarCellClickOptions,
+  CalendarShiftTarget,
+} from "@/components/calendar/utils";
 import { MonthlyShiftTable } from "@/components/shifts/MonthlyShiftTable";
+import type { QuickAssignOption } from "@/components/shifts/QuickAssignOverlay";
 import { DoctorShiftCounts } from "@/components/calendar/DoctorShiftCounts";
 import type { Doctor, Shift } from "@/lib/api";
 import {
@@ -24,6 +28,7 @@ type CalendarContentProps = {
   allShifts: Shift[];
   unavailableByDoctor: Record<number, Set<string>>;
   approvedVacationsByDate: Record<string, string[]>;
+  selectedTargets?: readonly CalendarShiftTarget[];
   selectedCellKeys?: ReadonlySet<string>;
   onRowClick?: (date: Date, shiftTypes: readonly string[]) => void;
   onCellClick?: (
@@ -32,6 +37,18 @@ type CalendarContentProps = {
     shiftTypes: readonly string[],
     options: CalendarCellClickOptions,
   ) => void;
+  onSelectionChange?: (targets: CalendarShiftTarget[]) => void;
+  onSelectionInteractionChange?: (active: boolean) => void;
+  quickAssignOpen?: boolean;
+  quickAssignFilterText?: string;
+  quickAssignHighlightedIndex?: number;
+  quickAssignOptions?: readonly QuickAssignOption[];
+  quickAssignSelectedValues?: readonly string[];
+  onQuickAssignOptionClick?: (value: string, additive: boolean) => void;
+  onQuickAssignToggle?: (value: string) => void;
+  onQuickAssignApply?: () => void;
+  onQuickAssignClose?: () => void;
+  onQuickAssignHighlightChange?: (index: number) => void;
 };
 
 export function CalendarContent({
@@ -41,9 +58,22 @@ export function CalendarContent({
   allShifts,
   unavailableByDoctor,
   approvedVacationsByDate,
+  selectedTargets,
   selectedCellKeys,
   onRowClick,
   onCellClick,
+  onSelectionChange,
+  onSelectionInteractionChange,
+  quickAssignOpen,
+  quickAssignFilterText,
+  quickAssignHighlightedIndex,
+  quickAssignOptions,
+  quickAssignSelectedValues,
+  onQuickAssignOptionClick,
+  onQuickAssignToggle,
+  onQuickAssignApply,
+  onQuickAssignClose,
+  onQuickAssignHighlightChange,
 }: CalendarContentProps) {
   const [tableView, setTableView] = React.useState<CalendarTableView>("shifts");
   const [statisticsVisible, setStatisticsVisible] = React.useState(true);
@@ -172,6 +202,7 @@ export function CalendarContent({
                 unavailableByDoctor={unavailableByDoctor}
                 approvedVacationsByDate={approvedVacationsByDate}
                 columns={activeColumns}
+                selectedTargets={selectedTargets}
                 selectedCellKeys={selectedCellKeys}
                 onRowClick={
                   onRowClick
@@ -184,6 +215,18 @@ export function CalendarContent({
                         onCellClick(date, shiftType, activeShiftTypes, options)
                     : undefined
                 }
+                onSelectionChange={onSelectionChange}
+                onSelectionInteractionChange={onSelectionInteractionChange}
+                quickAssignOpen={quickAssignOpen}
+                quickAssignFilterText={quickAssignFilterText}
+                quickAssignHighlightedIndex={quickAssignHighlightedIndex}
+                quickAssignOptions={quickAssignOptions}
+                quickAssignSelectedValues={quickAssignSelectedValues}
+                onQuickAssignOptionClick={onQuickAssignOptionClick}
+                onQuickAssignToggle={onQuickAssignToggle}
+                onQuickAssignApply={onQuickAssignApply}
+                onQuickAssignClose={onQuickAssignClose}
+                onQuickAssignHighlightChange={onQuickAssignHighlightChange}
               />
             )}
           </ClientOnly>

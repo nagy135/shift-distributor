@@ -6,7 +6,12 @@ import { de } from "date-fns/locale";
 import {
   getShiftTargetKey,
   type CalendarCellClickOptions,
+  type CalendarShiftTarget,
 } from "@/components/calendar/utils";
+import {
+  QuickAssignOverlay,
+  type QuickAssignOption,
+} from "@/components/shifts/QuickAssignOverlay";
 import type { Shift, Doctor } from "@/lib/api";
 import {
   SHIFT_TABLE_COLUMNS,
@@ -26,6 +31,7 @@ interface MonthlyShiftTableProps {
   unavailableByDoctor?: Record<number, Set<string>>;
   approvedVacationsByDate?: Record<string, string[]>;
   columns?: readonly CalendarShiftColumn[];
+  selectedTargets?: readonly CalendarShiftTarget[];
   selectedCellKeys?: ReadonlySet<string>;
   onRowClick?: (date: Date) => void;
   onCellClick?: (
@@ -33,6 +39,18 @@ interface MonthlyShiftTableProps {
     shiftType: string,
     options: CalendarCellClickOptions,
   ) => void;
+  onSelectionChange?: (targets: CalendarShiftTarget[]) => void;
+  onSelectionInteractionChange?: (active: boolean) => void;
+  quickAssignOpen?: boolean;
+  quickAssignFilterText?: string;
+  quickAssignHighlightedIndex?: number;
+  quickAssignOptions?: readonly QuickAssignOption[];
+  quickAssignSelectedValues?: readonly string[];
+  onQuickAssignOptionClick?: (value: string, additive: boolean) => void;
+  onQuickAssignToggle?: (value: string) => void;
+  onQuickAssignApply?: () => void;
+  onQuickAssignClose?: () => void;
+  onQuickAssignHighlightChange?: (index: number) => void;
 }
 
 export function MonthlyShiftTable({
@@ -42,10 +60,24 @@ export function MonthlyShiftTable({
   unavailableByDoctor = {},
   approvedVacationsByDate = {},
   columns = SHIFT_TABLE_COLUMNS,
+  selectedTargets = [],
   selectedCellKeys,
   onRowClick,
   onCellClick,
+  onSelectionChange,
+  onSelectionInteractionChange,
+  quickAssignOpen = false,
+  quickAssignFilterText = "",
+  quickAssignHighlightedIndex = 0,
+  quickAssignOptions = [],
+  quickAssignSelectedValues = [],
+  onQuickAssignOptionClick,
+  onQuickAssignToggle,
+  onQuickAssignApply,
+  onQuickAssignClose,
+  onQuickAssignHighlightChange,
 }: MonthlyShiftTableProps) {
+  const wrapperRef = React.useRef<HTMLDivElement | null>(null);
   const days = React.useMemo(() => {
     return eachDayOfInterval({
       start: startOfMonth(month),
@@ -130,11 +162,203 @@ export function MonthlyShiftTable({
 
   const canRowClick = typeof onRowClick === "function";
   const canCellClick = typeof onCellClick === "function";
+  const canChangeSelection = typeof onSelectionChange === "function";
   const { containerRef, isDragging, dragHandlers } =
     useDragToScroll<HTMLDivElement>();
+  const dragSelectionRef = React.useRef<{
+    anchorRowIndex: number;
+    anchorColumnIndex: number;
+    mode: "add" | "remove";
+    baselineTargets: CalendarShiftTarget[];
+  } | null>(null);
+  const cellRefs = React.useRef(new Map<string, HTMLTableCellElement>());
+  const suppressNextSelectionClickRef = React.useRef(false);
+  const suppressSelectionClickTimeoutRef = React.useRef<number | null>(null);
+  const [quickAssignPosition, setQuickAssignPosition] = React.useState<{
+    top: number;
+    left: number;
+    minWidth: number;
+  } | null>(null);
+
+  const clearSuppressedSelectionClick = React.useCallback(() => {
+    if (suppressSelectionClickTimeoutRef.current !== null) {
+      window.clearTimeout(suppressSelectionClickTimeoutRef.current);
+      suppressSelectionClickTimeoutRef.current = null;
+    }
+    suppressNextSelectionClickRef.current = false;
+  }, []);
+
+  const buildSelectionTargets = React.useCallback(
+    (
+      baselineTargets: readonly CalendarShiftTarget[],
+      mode: "add" | "remove",
+      fromRowIndex: number,
+      fromColumnIndex: number,
+      toRowIndex: number,
+      toColumnIndex: number,
+    ) => {
+      const nextTargets = new Map(
+        baselineTargets.map((target) => [getShiftTargetKey(target), target]),
+      );
+      const startRow = Math.min(fromRowIndex, toRowIndex);
+      const endRow = Math.max(fromRowIndex, toRowIndex);
+      const startColumn = Math.min(fromColumnIndex, toColumnIndex);
+      const endColumn = Math.max(fromColumnIndex, toColumnIndex);
+
+      for (let row = startRow; row <= endRow; row += 1) {
+        const date = days[row];
+
+        for (let column = startColumn; column <= endColumn; column += 1) {
+          const shiftType = columns[column]?.id;
+
+          if (!date || !shiftType) {
+            continue;
+          }
+
+          const target = { date, shiftType };
+          const targetKey = getShiftTargetKey(target);
+
+          if (mode === "add") {
+            nextTargets.set(targetKey, target);
+          } else {
+            nextTargets.delete(targetKey);
+          }
+        }
+      }
+
+      return Array.from(nextTargets.values());
+    },
+    [columns, days],
+  );
+
+  const updateDragSelection = React.useCallback(
+    (rowIndex: number, columnIndex: number) => {
+      const dragSelection = dragSelectionRef.current;
+
+      if (!dragSelection || !canChangeSelection) {
+        return;
+      }
+
+      onSelectionChange(
+        buildSelectionTargets(
+          dragSelection.baselineTargets,
+          dragSelection.mode,
+          dragSelection.anchorRowIndex,
+          dragSelection.anchorColumnIndex,
+          rowIndex,
+          columnIndex,
+        ),
+      );
+    },
+    [buildSelectionTargets, canChangeSelection, onSelectionChange],
+  );
+
+  const updateQuickAssignPosition = React.useCallback(() => {
+    if (!quickAssignOpen || selectedTargets.length === 0) {
+      setQuickAssignPosition(null);
+      return;
+    }
+
+    const wrapper = wrapperRef.current;
+    const anchorTarget = selectedTargets[selectedTargets.length - 1];
+    const anchorKey = anchorTarget ? getShiftTargetKey(anchorTarget) : null;
+    const anchorCell = anchorKey ? cellRefs.current.get(anchorKey) : null;
+
+    if (!wrapper || !anchorCell) {
+      setQuickAssignPosition(null);
+      return;
+    }
+
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const anchorRect = anchorCell.getBoundingClientRect();
+
+    setQuickAssignPosition({
+      top: anchorRect.bottom - wrapperRect.top + 6,
+      left: anchorRect.left - wrapperRect.left,
+      minWidth: anchorRect.width,
+    });
+  }, [quickAssignOpen, selectedTargets]);
+
+  const finishDragSelection = React.useCallback(() => {
+    dragSelectionRef.current = null;
+    clearSuppressedSelectionClick();
+  }, [clearSuppressedSelectionClick]);
+
+  React.useEffect(() => {
+    const handleMouseUp = () => {
+      dragSelectionRef.current = null;
+      onSelectionInteractionChange?.(false);
+
+      if (!suppressNextSelectionClickRef.current) {
+        return;
+      }
+
+      if (suppressSelectionClickTimeoutRef.current !== null) {
+        window.clearTimeout(suppressSelectionClickTimeoutRef.current);
+      }
+
+      suppressSelectionClickTimeoutRef.current = window.setTimeout(() => {
+        suppressNextSelectionClickRef.current = false;
+        suppressSelectionClickTimeoutRef.current = null;
+      }, 0);
+    };
+
+    const handleWindowBlur = () => {
+      onSelectionInteractionChange?.(false);
+      finishDragSelection();
+    };
+
+    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("blur", handleWindowBlur);
+
+    return () => {
+      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("blur", handleWindowBlur);
+      finishDragSelection();
+    };
+  }, [finishDragSelection, onSelectionInteractionChange]);
+
+  React.useEffect(() => {
+    updateQuickAssignPosition();
+
+    if (!quickAssignOpen) {
+      return;
+    }
+
+    const container = containerRef.current;
+
+    window.addEventListener("resize", updateQuickAssignPosition);
+    container?.addEventListener("scroll", updateQuickAssignPosition);
+
+    return () => {
+      window.removeEventListener("resize", updateQuickAssignPosition);
+      container?.removeEventListener("scroll", updateQuickAssignPosition);
+    };
+  }, [containerRef, quickAssignOpen, updateQuickAssignPosition]);
+
+  React.useEffect(() => {
+    if (!canChangeSelection || selectedTargets.length === 0) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (wrapperRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      onSelectionChange([]);
+      onQuickAssignClose?.();
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [canChangeSelection, onQuickAssignClose, onSelectionChange, selectedTargets.length]);
 
   return (
-    <div className="w-full">
+    <div ref={wrapperRef} className="relative w-full">
       <div
         ref={containerRef}
         className={cn(
@@ -155,9 +379,9 @@ export function MonthlyShiftTable({
                   key={t.id}
                   className={cn(
                     "text-center py-1",
-                    index === 0
-                      ? "pl-1 pr-1"
-                      : "px-2 min-w-[120px] border-l border-gray-400",
+                          index === 0
+                            ? "pl-1 pr-1"
+                            : "px-2 min-w-[120px] border-l border-gray-400",
                   )}
                 >
                   <span className="flex flex-col items-center leading-tight">
@@ -176,7 +400,7 @@ export function MonthlyShiftTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-400">
-            {days.map((d) => {
+            {days.map((d, rowIndex) => {
               const key = format(d, "yyyy-MM-dd");
               const isHoliday = HOLIDAY_DATE_SET_2026.has(key);
               const dayName = format(d, "EEEE", { locale: de });
@@ -253,10 +477,11 @@ export function MonthlyShiftTable({
                   </td>
                   {columns.map((column, index) => {
                     const s = visibleByType[column.id];
-                    const cellKey = getShiftTargetKey({
+                    const cellTarget = {
                       date: d,
                       shiftType: column.id,
-                    });
+                    };
+                    const cellKey = getShiftTargetKey(cellTarget);
                     const isSelectedCell = selectedCellKeys?.has(cellKey) ?? false;
                     const hasShiftCellConflict = s
                       ? hasShiftConflict(s, key, visibleByType)
@@ -269,9 +494,17 @@ export function MonthlyShiftTable({
                       );
                     const cellConflict =
                       hasShiftCellConflict || hasVacationCellConflict;
+
                     return (
                       <td
                         key={column.id}
+                        ref={(node) => {
+                          if (node) {
+                            cellRefs.current.set(cellKey, node);
+                          } else {
+                            cellRefs.current.delete(cellKey);
+                          }
+                        }}
                         className={cn(
                           "py-1 text-center",
                           index === 0
@@ -289,7 +522,42 @@ export function MonthlyShiftTable({
                         onMouseDown={(event) => {
                           if (event.ctrlKey || event.metaKey) {
                             event.preventDefault();
+                            event.stopPropagation();
+
+                            if (!canChangeSelection || event.button !== 0) {
+                              return;
+                            }
+
+                            onSelectionInteractionChange?.(true);
+
+                            clearSuppressedSelectionClick();
+
+                            const selectionMode = isSelectedCell
+                              ? "remove"
+                              : "add";
+
+                            dragSelectionRef.current = {
+                              anchorRowIndex: rowIndex,
+                              anchorColumnIndex: index,
+                              mode: selectionMode,
+                              baselineTargets: [...selectedTargets],
+                            };
+                            suppressNextSelectionClickRef.current = true;
+                            updateDragSelection(rowIndex, index);
                           }
+                        }}
+                        onMouseEnter={(event) => {
+                          if ((event.buttons & 1) !== 1) {
+                            return;
+                          }
+
+                          if (!dragSelectionRef.current) {
+                            return;
+                          }
+
+                          event.preventDefault();
+                          event.stopPropagation();
+                          updateDragSelection(rowIndex, index);
                         }}
                         onContextMenu={(event) => {
                           if (event.ctrlKey || event.metaKey) {
@@ -298,6 +566,14 @@ export function MonthlyShiftTable({
                         }}
                         onClick={(event) => {
                           if (!canCellClick) return;
+
+                          if (suppressNextSelectionClickRef.current) {
+                            clearSuppressedSelectionClick();
+                            event.preventDefault();
+                            event.stopPropagation();
+                            return;
+                          }
+
                           event.stopPropagation();
                           onCellClick(d, column.id, {
                             additive: event.ctrlKey || event.metaKey,
@@ -340,6 +616,22 @@ export function MonthlyShiftTable({
           </tbody>
         </table>
       </div>
+
+      <QuickAssignOverlay
+        open={quickAssignOpen}
+        position={quickAssignPosition}
+        options={quickAssignOptions}
+        filterText={quickAssignFilterText}
+        highlightedIndex={quickAssignHighlightedIndex}
+        selectedValues={quickAssignSelectedValues}
+        onOptionClick={(value, additive) =>
+          onQuickAssignOptionClick?.(value, additive)
+        }
+        onToggleSelect={(value) => onQuickAssignToggle?.(value)}
+        onApply={() => onQuickAssignApply?.()}
+        onClose={() => onQuickAssignClose?.()}
+        onHighlightChange={(index) => onQuickAssignHighlightChange?.(index)}
+      />
     </div>
   );
 }
