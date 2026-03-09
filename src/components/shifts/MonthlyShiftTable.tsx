@@ -146,11 +146,7 @@ export function MonthlyShiftTable({
   );
 
   const hasShiftConflict = React.useCallback(
-    (
-      shift: Shift,
-      date: string,
-      byType: Record<string, Shift>,
-    ): boolean => {
+    (shift: Shift, date: string, byType: Record<string, Shift>): boolean => {
       if (!Array.isArray(shift.doctorIds) || shift.doctorIds.length === 0)
         return false;
       return shift.doctorIds.some((doctorId) =>
@@ -355,14 +351,19 @@ export function MonthlyShiftTable({
     return () => {
       window.removeEventListener("mousedown", handlePointerDown);
     };
-  }, [canChangeSelection, onQuickAssignClose, onSelectionChange, selectedTargets.length]);
+  }, [
+    canChangeSelection,
+    onQuickAssignClose,
+    onSelectionChange,
+    selectedTargets.length,
+  ]);
 
   return (
     <div ref={wrapperRef} className="relative w-full">
       <div
         ref={containerRef}
         className={cn(
-          "max-w-full overflow-auto rounded-md border cursor-grab select-none",
+          "max-w-full overflow-auto rounded-md border cursor-move select-none",
           isDragging && "cursor-grabbing",
         )}
         {...dragHandlers}
@@ -370,18 +371,18 @@ export function MonthlyShiftTable({
         <table className="w-max min-w-full text-sm">
           <thead className="bg-muted/50 border-b border-gray-400">
             <tr>
-                <th
-                  className="text-left px-1 py-1 w-[50px] border-r border-gray-400"
-                  aria-label="Datum"
-                />
+              <th
+                className="text-left px-1 py-1 w-[50px] border-r border-gray-400"
+                aria-label="Datum"
+              />
               {columns.map((t, index) => (
                 <th
                   key={t.id}
                   className={cn(
                     "text-center py-1",
-                          index === 0
-                            ? "pl-1 pr-1"
-                            : "px-2 min-w-[120px] border-l border-gray-400",
+                    index === 0
+                      ? "pl-1 pr-1"
+                      : "px-2 min-w-[120px] border-l border-gray-400",
                   )}
                 >
                   <span className="flex flex-col items-center leading-tight">
@@ -418,7 +419,7 @@ export function MonthlyShiftTable({
                   .filter(
                     (doctorId): doctorId is number =>
                       typeof doctorId === "number",
-                    ),
+                  ),
               );
               const hasShiftConflictInRow = columns.some((column) => {
                 const s = visibleByType[column.id];
@@ -445,8 +446,8 @@ export function MonthlyShiftTable({
                 <tr
                   key={key}
                   className={cn(
-                    canRowClick && "cursor-pointer",
-                    !canRowClick && "cursor-default",
+                    // canRowClick && "cursor-pointer",
+                    // !canRowClick && "cursor-default",
                     (isWeekend || isHoliday) && "bg-gray-200 dark:bg-gray-700",
                     rowConflict
                       ? "bg-red-100 dark:bg-red-800/40 hover:bg-red-200 dark:hover:bg-red-700/50 border rounded border-red-400 dark:border-red-500/70"
@@ -482,7 +483,8 @@ export function MonthlyShiftTable({
                       shiftType: column.id,
                     };
                     const cellKey = getShiftTargetKey(cellTarget);
-                    const isSelectedCell = selectedCellKeys?.has(cellKey) ?? false;
+                    const isSelectedCell =
+                      selectedCellKeys?.has(cellKey) ?? false;
                     const hasShiftCellConflict = s
                       ? hasShiftConflict(s, key, visibleByType)
                       : false;
@@ -509,8 +511,8 @@ export function MonthlyShiftTable({
                           "py-1 text-center",
                           index === 0
                             ? "pl-1 pr-1"
-                           : "px-2 min-w-[120px] border-l border-gray-400",
-                          canCellClick && "cursor-pointer",
+                            : "px-2 min-w-[120px] border-l border-gray-400",
+                          // canCellClick && "cursor-pointer",
                           cellConflict &&
                             "bg-red-300 dark:bg-red-700/80 hover:bg-red-300 dark:hover:bg-red-700/80",
                           isSelectedCell &&
