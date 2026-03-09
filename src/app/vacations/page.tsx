@@ -63,6 +63,30 @@ const getDayColors = (entries: VacationDay[]) => {
   return map;
 };
 
+function CalendarSkeleton() {
+  return (
+    <div className="w-full animate-pulse p-3">
+      <div className="ml-12 mb-4 h-7 w-28 rounded-md bg-muted" />
+      <div className="mb-3 grid grid-cols-7 gap-1">
+        {Array.from({ length: 7 }).map((_, index) => (
+          <div
+            key={`weekday-${index}`}
+            className="mx-auto h-3 w-6 rounded bg-muted/80"
+          />
+        ))}
+      </div>
+      <div className="grid min-h-[15rem] grid-cols-7 gap-1">
+        {Array.from({ length: 42 }).map((_, index) => (
+          <div
+            key={`day-${index}`}
+            className="aspect-square rounded-md bg-muted/80"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function VacationsPage() {
   const { user, accessToken, isLoading } = useAuth();
   const queryClient = useQueryClient();
@@ -450,117 +474,121 @@ export default function VacationsPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {months.map((month) => (
           <div key={month.toISOString()} className="rounded-md border">
-            <Calendar
-              month={month}
-              disableNavigation
-              showOutsideDays={false}
-              modifiers={modifiers}
-              modifiersClassNames={modifierClasses}
-              onDayClick={(day) => {
-                if (isApprover) {
-                  const key = dayToKey(day);
-                  setSelectedDate(key);
-                  setIsDialogOpen(true);
-                } else {
-                  handleDayClick(day);
-                }
-              }}
-              components={{
-                DayButton: (
-                  props: React.ComponentProps<typeof RdpDayButton>,
-                ) => {
-                  const { day, modifiers, className, children, ...rest } =
-                    props;
-                  const dayKey = dayToKey(day.date);
-                  const entries = vacationsByDate.get(dayKey) ?? [];
-                  const colors = Array.from(
-                    new Set(entries.map((entry: VacationDay) => entry.color)),
-                  ) as VacationColor[];
-                  const hasPendingApproval =
-                    hasPendingByDate.get(dayKey) ?? false;
+            {!isVacationsLoading ? (
+              <Calendar
+                month={month}
+                disableNavigation
+                showOutsideDays={false}
+                modifiers={modifiers}
+                modifiersClassNames={modifierClasses}
+                onDayClick={(day) => {
+                  if (isApprover) {
+                    const key = dayToKey(day);
+                    setSelectedDate(key);
+                    setIsDialogOpen(true);
+                  } else {
+                    handleDayClick(day);
+                  }
+                }}
+                components={{
+                  DayButton: (
+                    props: React.ComponentProps<typeof RdpDayButton>,
+                  ) => {
+                    const { day, modifiers, className, children, ...rest } =
+                      props;
+                    const dayKey = dayToKey(day.date);
+                    const entries = vacationsByDate.get(dayKey) ?? [];
+                    const colors = Array.from(
+                      new Set(entries.map((entry: VacationDay) => entry.color)),
+                    ) as VacationColor[];
+                    const hasPendingApproval =
+                      hasPendingByDate.get(dayKey) ?? false;
 
-                  const defaultClassNames = getDefaultClassNames();
-                  return (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      data-day={day.date.toLocaleDateString()}
-                      data-selected-single={
-                        modifiers.selected &&
-                        !modifiers.range_start &&
-                        !modifiers.range_end &&
-                        !modifiers.range_middle
-                      }
-                      data-range-start={modifiers.range_start}
-                      data-range-end={modifiers.range_end}
-                      data-range-middle={modifiers.range_middle}
-                      className={cn(
-                        "relative data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 dark:hover:text-accent-foreground flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
-                        defaultClassNames.day,
-                        className,
-                      )}
-                      {...rest}
-                    >
-                      {isApprover && colors.length > 0 && (
-                        <span className="absolute inset-0 overflow-hidden rounded-md">
-                          {colors.length === 1 && (
-                            <span
-                              className={cn(
-                                "absolute inset-0 opacity-80",
-                                VACATION_COLOR_STYLES[colors[0]].classes,
-                              )}
-                            />
-                          )}
-                          {colors.length === 2 && (
-                            <>
+                    const defaultClassNames = getDefaultClassNames();
+                    return (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        data-day={day.date.toLocaleDateString()}
+                        data-selected-single={
+                          modifiers.selected &&
+                          !modifiers.range_start &&
+                          !modifiers.range_end &&
+                          !modifiers.range_middle
+                        }
+                        data-range-start={modifiers.range_start}
+                        data-range-end={modifiers.range_end}
+                        data-range-middle={modifiers.range_middle}
+                        className={cn(
+                          "relative data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 dark:hover:text-accent-foreground flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
+                          defaultClassNames.day,
+                          className,
+                        )}
+                        {...rest}
+                      >
+                        {isApprover && colors.length > 0 && (
+                          <span className="absolute inset-0 overflow-hidden rounded-md">
+                            {colors.length === 1 && (
                               <span
                                 className={cn(
-                                  "absolute inset-x-0 top-0 h-1/2 opacity-80",
+                                  "absolute inset-0 opacity-80",
                                   VACATION_COLOR_STYLES[colors[0]].classes,
                                 )}
                               />
-                              <span
-                                className={cn(
-                                  "absolute inset-x-0 bottom-0 h-1/2 opacity-80",
-                                  VACATION_COLOR_STYLES[colors[1]].classes,
-                                )}
-                              />
-                            </>
-                          )}
-                          {colors.length >= 3 && (
-                            <>
-                              <span
-                                className={cn(
-                                  "absolute inset-x-0 top-0 h-1/3 opacity-80",
-                                  VACATION_COLOR_STYLES[colors[0]].classes,
-                                )}
-                              />
-                              <span
-                                className={cn(
-                                  "absolute inset-x-0 top-1/3 h-1/3 opacity-80",
-                                  VACATION_COLOR_STYLES[colors[1]].classes,
-                                )}
-                              />
-                              <span
-                                className={cn(
-                                  "absolute inset-x-0 bottom-0 h-1/3 opacity-80",
-                                  VACATION_COLOR_STYLES[colors[2]].classes,
-                                )}
-                              />
-                            </>
-                          )}
-                        </span>
-                      )}
-                      {hasPendingApproval && (
-                        <span className="absolute top-1 right-1 z-20 h-2.5 w-2.5 rounded-full bg-blue-500 ring-1 ring-background" />
-                      )}
-                      <span className="relative z-10">{children}</span>
-                    </Button>
-                  );
-                },
-              }}
-              className="w-full"
-            />
+                            )}
+                            {colors.length === 2 && (
+                              <>
+                                <span
+                                  className={cn(
+                                    "absolute inset-x-0 top-0 h-1/2 opacity-80",
+                                    VACATION_COLOR_STYLES[colors[0]].classes,
+                                  )}
+                                />
+                                <span
+                                  className={cn(
+                                    "absolute inset-x-0 bottom-0 h-1/2 opacity-80",
+                                    VACATION_COLOR_STYLES[colors[1]].classes,
+                                  )}
+                                />
+                              </>
+                            )}
+                            {colors.length >= 3 && (
+                              <>
+                                <span
+                                  className={cn(
+                                    "absolute inset-x-0 top-0 h-1/3 opacity-80",
+                                    VACATION_COLOR_STYLES[colors[0]].classes,
+                                  )}
+                                />
+                                <span
+                                  className={cn(
+                                    "absolute inset-x-0 top-1/3 h-1/3 opacity-80",
+                                    VACATION_COLOR_STYLES[colors[1]].classes,
+                                  )}
+                                />
+                                <span
+                                  className={cn(
+                                    "absolute inset-x-0 bottom-0 h-1/3 opacity-80",
+                                    VACATION_COLOR_STYLES[colors[2]].classes,
+                                  )}
+                                />
+                              </>
+                            )}
+                          </span>
+                        )}
+                        {hasPendingApproval && (
+                          <span className="absolute top-1 right-1 z-20 h-2.5 w-2.5 rounded-full bg-blue-500 ring-1 ring-background" />
+                        )}
+                        <span className="relative z-10">{children}</span>
+                      </Button>
+                    );
+                  },
+                }}
+                className="w-full"
+              />
+            ) : (
+              <CalendarSkeleton />
+            )}
           </div>
         ))}
       </div>
