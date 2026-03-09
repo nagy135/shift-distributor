@@ -1,7 +1,13 @@
 "use client";
 
 import React from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Building2,
+  CalendarDays,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { ClientOnly } from "@/components/client-only";
 import { Button } from "@/components/ui/button";
 import type {
@@ -115,13 +121,14 @@ export function CalendarContent({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex justify-center">
-        <div className="inline-flex flex-wrap items-center justify-center gap-2 rounded-md border p-1">
+        <div className="inline-flex flex-wrap items-center justify-center gap-2 rounded-md p-1">
           <Button
             type="button"
             size="sm"
             variant={tableView === "shifts" ? "default" : "outline"}
             onClick={() => setTableView("shifts")}
           >
+            <CalendarDays className="size-4" />
             Dienste
           </Button>
           <Button
@@ -130,15 +137,21 @@ export function CalendarContent({
             variant={tableView === "departments" ? "default" : "outline"}
             onClick={() => setTableView("departments")}
           >
+            <Building2 className="size-4" />
             Abteilungen
           </Button>
         </div>
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
-        <details className="rounded-md border md:hidden">
-          <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">
-            Statistik
+        <details className="group overflow-hidden rounded-xl border bg-card shadow-sm md:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-1.5 select-none [&::-webkit-details-marker]:hidden">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold leading-none">Statistik</p>
+            </div>
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full border bg-background text-muted-foreground transition-transform duration-200 group-open:rotate-180">
+              <ChevronDown className="size-4" />
+            </span>
           </summary>
           <div className="p-3 pt-0">{statisticsContent}</div>
         </details>
