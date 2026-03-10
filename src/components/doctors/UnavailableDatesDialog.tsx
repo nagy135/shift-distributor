@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { CalendarSkeleton } from "@/components/ui/calendar-skeleton";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -142,15 +143,21 @@ export function UnavailableDatesDialog({
           <div className="space-y-4">
             <div className="flex flex-col gap-2 items-center">
               <Label>Dienstwünsche für diesen Arzt auswählen:</Label>
-              <Calendar
-                mode="multiple"
-                selected={selectedDates}
-                onSelect={(dates) => setSelectedDates(dates || [])}
-                month={month}
-                onMonthChange={setMonth}
-                showOutsideDays={false}
-                className="mt-2 rounded-md border"
-              />
+              {isFetching ? (
+                <div className="mt-2 w-full rounded-md border flex justify-center">
+                  <CalendarSkeleton size="sm" />
+                </div>
+              ) : (
+                <Calendar
+                  mode="multiple"
+                  selected={selectedDates}
+                  onSelect={(dates) => setSelectedDates(dates || [])}
+                  month={month}
+                  onMonthChange={setMonth}
+                  showOutsideDays={false}
+                  className="mt-2 rounded-md border"
+                />
+              )}
             </div>
             <div className="flex justify-between gap-2">
               <Button
@@ -183,7 +190,11 @@ export function UnavailableDatesDialog({
               </Button>
             )}
             <div className="flex gap-2">
-              <Button onClick={handleSave} className="flex-1" disabled={isSaving}>
+              <Button
+                onClick={handleSave}
+                className="flex-1"
+                disabled={isSaving}
+              >
                 {isSaving ? "Wird gespeichert..." : "Änderungen speichern"}
               </Button>
               <Button
@@ -223,7 +234,9 @@ export function UnavailableDatesDialog({
                     <div key={log.id} className="rounded-lg border p-4">
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <div className="font-medium">{formatLogTimestamp(log.createdAt)}</div>
+                          <div className="font-medium">
+                            {formatLogTimestamp(log.createdAt)}
+                          </div>
                           <div className="text-sm text-muted-foreground">
                             Bearbeitet von {log.userEmail}
                           </div>
@@ -234,13 +247,19 @@ export function UnavailableDatesDialog({
                       </div>
                       <div className="mt-3 space-y-2 text-sm">
                         <div>
-                          <span className="font-medium text-emerald-700">Hinzugefuegt:</span>{" "}
+                          <span className="font-medium text-emerald-700">
+                            Hinzugefuegt:
+                          </span>{" "}
                           {added.length > 0
-                            ? added.map((change) => formatLogDate(change.date)).join(", ")
+                            ? added
+                                .map((change) => formatLogDate(change.date))
+                                .join(", ")
                             : "-"}
                         </div>
                         <div>
-                          <span className="font-medium text-rose-700">Entfernt:</span>{" "}
+                          <span className="font-medium text-rose-700">
+                            Entfernt:
+                          </span>{" "}
                           {removed.length > 0
                             ? removed
                                 .map((change) => formatLogDate(change.date))

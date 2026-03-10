@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
+import { CalendarSkeleton } from "@/components/ui/calendar-skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-client";
@@ -63,30 +64,6 @@ const getDayColors = (entries: VacationDay[]) => {
   });
   return map;
 };
-
-function CalendarSkeleton() {
-  return (
-    <div className="w-full animate-pulse p-3">
-      <div className="ml-12 mb-4 h-7 w-28 rounded-md bg-muted" />
-      <div className="mb-3 grid grid-cols-7 gap-1">
-        {Array.from({ length: 7 }).map((_, index) => (
-          <div
-            key={`weekday-${index}`}
-            className="mx-auto h-3 w-6 rounded bg-muted/80"
-          />
-        ))}
-      </div>
-      <div className="grid min-h-[15rem] grid-cols-7 gap-1">
-        {Array.from({ length: 42 }).map((_, index) => (
-          <div
-            key={`day-${index}`}
-            className="aspect-square rounded-md bg-muted/80"
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default function VacationsPage() {
   const { user, isLoading } = useAuth();
