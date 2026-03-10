@@ -57,6 +57,13 @@
       "when": 1773139200000,
       "tag": "0014_add_user_last_online",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1773139500000,
+      "tag": "0015_add_unavailable_date_logs",
+      "breakpoints": true
     }
   ]
 }

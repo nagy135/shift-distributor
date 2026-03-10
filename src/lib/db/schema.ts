@@ -42,6 +42,41 @@ export const unavailableDates = sqliteTable("unavailable_dates", {
   ),
 });
 
+export const unavailableDateChangeLogs = sqliteTable(
+  "unavailable_date_change_logs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    doctorId: integer("doctor_id")
+      .references(() => doctors.id)
+      .notNull(),
+    userId: integer("user_id")
+      .references(() => users.id)
+      .notNull(),
+    addedCount: integer("added_count").default(0).notNull(),
+    removedCount: integer("removed_count").default(0).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+  },
+);
+
+export type UnavailableDateChangeType = "added" | "removed";
+
+export const unavailableDateChangeLogEntries = sqliteTable(
+  "unavailable_date_change_log_entries",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    logId: integer("log_id")
+      .references(() => unavailableDateChangeLogs.id)
+      .notNull(),
+    month: text("month").notNull(), // YYYY-MM format
+    dayInMonth: integer("day_in_month").notNull(),
+    changeType: text("change_type")
+      .$type<UnavailableDateChangeType>()
+      .notNull(),
+  },
+);
+
 export const vacationDays = sqliteTable("vacation_days", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   doctorId: integer("doctor_id")
@@ -89,6 +124,14 @@ export type Shift = typeof shifts.$inferSelect;
 export type NewShift = typeof shifts.$inferInsert;
 export type UnavailableDate = typeof unavailableDates.$inferSelect;
 export type NewUnavailableDate = typeof unavailableDates.$inferInsert;
+export type UnavailableDateChangeLog =
+  typeof unavailableDateChangeLogs.$inferSelect;
+export type NewUnavailableDateChangeLog =
+  typeof unavailableDateChangeLogs.$inferInsert;
+export type UnavailableDateChangeLogEntry =
+  typeof unavailableDateChangeLogEntries.$inferSelect;
+export type NewUnavailableDateChangeLogEntry =
+  typeof unavailableDateChangeLogEntries.$inferInsert;
 export type VacationDay = typeof vacationDays.$inferSelect;
 export type NewVacationDay = typeof vacationDays.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
+import { de } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
@@ -11,8 +12,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckSquare, Square } from "lucide-react";
-import type { Doctor, UnavailableDate } from "@/lib/api";
+import { CheckSquare, History, Square } from "lucide-react";
+import type {
+  Doctor,
+  UnavailableDate,
+  UnavailableDateChangeLog,
+} from "@/lib/api";
 import { getAllDatesInMonth } from "@/components/doctors/utils";
 
 type UnavailableDatesDialogProps = {
@@ -20,26 +25,47 @@ type UnavailableDatesDialogProps = {
   onOpenChange: (open: boolean) => void;
   doctor: Doctor | null;
   unavailableDates?: UnavailableDate[];
+  unavailableDateLogs?: UnavailableDateChangeLog[];
   isFetching: boolean;
+  isLogsFetching: boolean;
   month: Date;
   setMonth: (month: Date) => void;
   onSave: (dates: string[]) => Promise<void>;
   isSaving: boolean;
+  canViewLogs: boolean;
 };
+
+function formatLogTimestamp(value: number | string) {
+  const date = typeof value === "number" ? new Date(value) : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "-";
+  }
+
+  return format(date, "d. MMMM yyyy, HH:mm", { locale: de });
+}
+
+function formatLogDate(date: string) {
+  return format(new Date(date), "d. MMMM yyyy", { locale: de });
+}
 
 export function UnavailableDatesDialog({
   open,
   onOpenChange,
   doctor,
   unavailableDates,
+  unavailableDateLogs,
   isFetching,
+  isLogsFetching,
   month,
   setMonth,
   onSave,
   isSaving,
+  canViewLogs,
 }: UnavailableDatesDialogProps) {
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [isLogDialogOpen, setIsLogDialogOpen] = useState(false);
 
   const computedSelectedDates = useMemo(() => {
     if (!open || !doctor) return [];
@@ -57,6 +83,7 @@ export function UnavailableDatesDialog({
     if (!open) {
       setSelectedDates([]);
       setHasInitialized(false);
+      setIsLogDialogOpen(false);
     }
   }, [open]);
 
@@ -99,65 +126,140 @@ export function UnavailableDatesDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            <div className="flex-col items-center gap-2">
-              <h1>Dienstwünsche</h1>
-              <span className="text-sm text-muted-foreground">
-                {doctor?.name}
-              </span>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              <div className="flex-col items-center gap-2">
+                <h1>Dienstwünsche</h1>
+                <span className="text-sm text-muted-foreground">
+                  {doctor?.name}
+                </span>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2 items-center">
+              <Label>Dienstwünsche für diesen Arzt auswählen:</Label>
+              <Calendar
+                mode="multiple"
+                selected={selectedDates}
+                onSelect={(dates) => setSelectedDates(dates || [])}
+                month={month}
+                onMonthChange={setMonth}
+                showOutsideDays={false}
+                className="mt-2 rounded-md border"
+              />
             </div>
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="flex flex-col gap-2 items-center">
-            <Label>Dienstwünsche für diesen Arzt auswählen:</Label>
-            <Calendar
-              mode="multiple"
-              selected={selectedDates}
-              onSelect={(dates) => setSelectedDates(dates || [])}
-              month={month}
-              onMonthChange={setMonth}
-              showOutsideDays={false}
-              className="rounded-md border mt-2"
-            />
+            <div className="flex justify-between gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSelectAllMonth}
+                title="Alle Tage in diesem Monat auswählen"
+              >
+                <CheckSquare className="h-4 w-4" />
+                Alle
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeselectAllMonth}
+                title="Alle Tage in diesem Monat abwählen"
+              >
+                <Square className="h-4 w-4" />
+                Keine
+              </Button>
+            </div>
+            {canViewLogs && (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setIsLogDialogOpen(true)}
+              >
+                <History className="h-4 w-4" />
+                Aenderungsprotokoll anzeigen
+              </Button>
+            )}
+            <div className="flex gap-2">
+              <Button onClick={handleSave} className="flex-1" disabled={isSaving}>
+                {isSaving ? "Wird gespeichert..." : "Änderungen speichern"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="flex-1"
+              >
+                Abbrechen
+              </Button>
+            </div>
           </div>
-          <div className="flex justify-between gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSelectAllMonth}
-               title="Alle Tage in diesem Monat auswählen"
-            >
-              <CheckSquare className="w-4 h-4" />
-              Alle
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDeselectAllMonth}
-               title="Alle Tage in diesem Monat abwählen"
-            >
-              <Square className="w-4 h-4" />
-              Keine
-            </Button>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isLogDialogOpen} onOpenChange={setIsLogDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Aenderungsprotokoll</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">{doctor?.name}</p>
+            <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+              {isLogsFetching ? (
+                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                  Protokoll wird geladen...
+                </div>
+              ) : unavailableDateLogs && unavailableDateLogs.length > 0 ? (
+                unavailableDateLogs.map((log) => {
+                  const added = log.changes.filter(
+                    (change) => change.changeType === "added",
+                  );
+                  const removed = log.changes.filter(
+                    (change) => change.changeType === "removed",
+                  );
+
+                  return (
+                    <div key={log.id} className="rounded-lg border p-4">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="font-medium">{formatLogTimestamp(log.createdAt)}</div>
+                          <div className="text-sm text-muted-foreground">
+                            Bearbeitet von {log.userEmail}
+                          </div>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          +{log.addedCount} / -{log.removedCount}
+                        </div>
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm">
+                        <div>
+                          <span className="font-medium text-emerald-700">Hinzugefuegt:</span>{" "}
+                          {added.length > 0
+                            ? added.map((change) => formatLogDate(change.date)).join(", ")
+                            : "-"}
+                        </div>
+                        <div>
+                          <span className="font-medium text-rose-700">Entfernt:</span>{" "}
+                          {removed.length > 0
+                            ? removed
+                                .map((change) => formatLogDate(change.date))
+                                .join(", ")
+                            : "-"}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                  Noch keine Aenderungen protokolliert.
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={handleSave} className="flex-1" disabled={isSaving}>
-              {isSaving ? "Wird gespeichert..." : "Änderungen speichern"}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              className="flex-1"
-            >
-              Abbrechen
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

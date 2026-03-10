@@ -32,6 +32,22 @@ export interface UnavailableDate {
   date: string;
 }
 
+export interface UnavailableDateChange {
+  date: string;
+  changeType: "added" | "removed";
+}
+
+export interface UnavailableDateChangeLog {
+  id: number;
+  doctorId: number;
+  userId: number;
+  userEmail: string;
+  addedCount: number;
+  removedCount: number;
+  createdAt: number | string;
+  changes: UnavailableDateChange[];
+}
+
 export interface VacationDay {
   id?: number;
   doctorId?: number;
@@ -154,6 +170,13 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     getByDoctor: async (doctorId: number): Promise<UnavailableDate[]> => {
       const response = await apiFetch(`/api/doctors/${doctorId}/unavailable-dates`);
       return readJson(response, "Failed to fetch unavailable dates");
+    },
+
+    getLogs: async (doctorId: number): Promise<UnavailableDateChangeLog[]> => {
+      const response = await apiFetch(
+        `/api/doctors/${doctorId}/unavailable-dates/logs`,
+      );
+      return readJson(response, "Failed to fetch unavailable date logs");
     },
 
     update: async (

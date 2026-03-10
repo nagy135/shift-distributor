@@ -28,21 +28,24 @@ export default function DoctorsPage() {
   const [isColorDialogOpen, setIsColorDialogOpen] = useState(false);
   const [oaOnly, setOaOnly] = useState(false);
   const { month: selectedMonth, setMonth } = useMonthStore();
+  const isShiftAssigner = user?.role === "shift_assigner";
   const {
     doctors,
     unavailableDates,
+    unavailableDateLogs,
     isUnavailableDatesFetching,
+    isUnavailableDateLogsFetching,
     allShifts,
     createDoctorMutation,
     updateUnavailableDatesMutation,
     updateDoctorMutation,
   } = useDoctorsQueries({
     selectedDoctorId: selectedDoctor?.id,
+    canViewUnavailableLogs: isShiftAssigner,
     onDoctorCreated: () => setIsAddDialogOpen(false),
     onUnavailableUpdated: () => setIsUnavailableDialogOpen(false),
     onDoctorUpdated: () => setIsColorDialogOpen(false),
   });
-  const isShiftAssigner = user?.role === "shift_assigner";
   const currentDoctorId = user?.doctorId ?? null;
 
   const openUnavailableDialog = (doctor: Doctor) => {
@@ -284,11 +287,14 @@ export default function DoctorsPage() {
         onOpenChange={setIsUnavailableDialogOpen}
         doctor={selectedDoctor}
         unavailableDates={unavailableDates}
+        unavailableDateLogs={unavailableDateLogs}
         isFetching={isUnavailableDatesFetching}
+        isLogsFetching={isUnavailableDateLogsFetching}
         month={selectedMonth}
         setMonth={setMonth}
         onSave={handleUpdateUnavailableDates}
         isSaving={updateUnavailableDatesMutation.isPending}
+        canViewLogs={isShiftAssigner}
       />
 
       <ShiftDetailsDialog

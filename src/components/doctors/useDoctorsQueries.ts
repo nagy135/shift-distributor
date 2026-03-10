@@ -3,11 +3,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   type UnavailableDate,
+  type UnavailableDateChangeLog,
 } from "@/lib/api";
 import { useApiClient } from "@/lib/use-api-client";
 
 type UseDoctorsQueriesOptions = {
   selectedDoctorId?: number;
+  canViewUnavailableLogs?: boolean;
   onDoctorCreated?: () => void;
   onUnavailableUpdated?: () => void;
   onDoctorUpdated?: () => void;
@@ -15,6 +17,7 @@ type UseDoctorsQueriesOptions = {
 
 export function useDoctorsQueries({
   selectedDoctorId,
+  canViewUnavailableLogs = false,
   onDoctorCreated,
   onUnavailableUpdated,
   onDoctorUpdated,
@@ -37,6 +40,18 @@ export function useDoctorsQueries({
       enabled: !!selectedDoctorId,
     });
 
+  const {
+    data: unavailableDateLogs = [],
+    isFetching: isUnavailableDateLogsFetching,
+  } = useQuery({
+    queryKey: ["unavailable-date-logs", selectedDoctorId],
+    queryFn: () =>
+      selectedDoctorId
+        ? unavailableDatesApi.getLogs(selectedDoctorId)
+        : Promise.resolve([] as UnavailableDateChangeLog[]),
+    enabled: !!selectedDoctorId && canViewUnavailableLogs,
+  });
+
   const { data: allShifts = [] } = useQuery({
     queryKey: ["shifts"],
     queryFn: shiftsApi.getAll,
@@ -57,6 +72,9 @@ export function useDoctorsQueries({
       if (selectedDoctorId) {
         queryClient.invalidateQueries({
           queryKey: ["unavailable-dates", selectedDoctorId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["unavailable-date-logs", selectedDoctorId],
         });
       }
       queryClient.invalidateQueries({ queryKey: ["unavailable-by-doctor"] });
@@ -98,7 +116,9 @@ export function useDoctorsQueries({
   return {
     doctors,
     unavailableDates,
+    unavailableDateLogs,
     isUnavailableDatesFetching,
+    isUnavailableDateLogsFetching,
     allShifts,
     createDoctorMutation,
     updateUnavailableDatesMutation,
