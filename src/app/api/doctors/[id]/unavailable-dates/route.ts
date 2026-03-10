@@ -2,14 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { unavailableDates } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { getUserFromAuthHeader } from "@/lib/authz";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const user = await getUserFromAuthHeader(
+      request.headers.get("authorization"),
+    );
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
     const doctorId = parseInt(id);
+
     const dates = await db
       .select()
       .from(unavailableDates)
@@ -30,9 +39,23 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const user = await getUserFromAuthHeader(
+      request.headers.get("authorization"),
+    );
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
     const doctorId = parseInt(id);
     const { dates } = await request.json();
+
+    if (
+      user.role !== "shift_assigner" &&
+      (!user.doctorId || user.doctorId !== doctorId)
+    ) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     if (!dates || !Array.isArray(dates)) {
       return NextResponse.json(

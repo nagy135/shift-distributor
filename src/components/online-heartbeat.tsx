@@ -4,9 +4,9 @@ import { useAuth } from "@/lib/auth-client";
 import { useOnlineHeartbeat } from "@/lib/use-online-heartbeat";
 
 export function OnlineHeartbeat() {
-  const { accessToken } = useAuth();
+  const { user } = useAuth();
 
-  useOnlineHeartbeat(accessToken);
+  useOnlineHeartbeat(!!user);
 
   return null;
 }

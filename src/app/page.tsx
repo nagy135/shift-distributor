@@ -34,16 +34,24 @@ import { useCalendarQueries } from "@/components/calendar/useCalendarQueries";
 import { useMonthStore } from "@/lib/month-store";
 import { useDistributeLockStore } from "@/lib/distribute-lock-store";
 import { generateAssignmentsForMonth } from "@/lib/scheduler";
-import { AUTO_DISTRIBUTE_SHIFT_TYPES, SHIFT_TYPES } from "@/lib/shifts";
-import { shiftsApi, unavailableDatesApi } from "@/lib/api";
+import {
+  ALL_CALENDAR_SHIFT_TYPES,
+  AUTO_DISTRIBUTE_SHIFT_TYPES,
+  SHIFT_TYPES,
+  doesCalendarShiftUnavailableDateClash,
+  isDayDutyShiftType,
+  isShiftType,
+} from "@/lib/shifts";
 import { useAuth } from "@/lib/auth-client";
+import { useApiClient } from "@/lib/use-api-client";
 
 type ShiftAssignment = CalendarShiftTarget & {
   doctorIds: number[];
 };
 
 export default function CalendarPage() {
-  const { user, accessToken } = useAuth();
+  const { user } = useAuth();
+  const { shiftsApi, unavailableDatesApi } = useApiClient();
   const isShiftAssigner = user?.role === "shift_assigner";
   const [assignmentMode, setAssignmentMode] = useState<"quick" | "slow">(
     "slow",
@@ -60,6 +68,8 @@ export default function CalendarPage() {
   const [quickAssignHighlightedIndex, setQuickAssignHighlightedIndex] =
     useState(0);
   const [quickAssignDoctorIds, setQuickAssignDoctorIds] = useState<string[]>([]);
+  const [quickAssignShowAvailableOnly, setQuickAssignShowAvailableOnly] =
+    useState(false);
   const [selectedShiftType, setSelectedShiftType] = useState<string | null>(
     null,
   );
@@ -78,7 +88,7 @@ export default function CalendarPage() {
     approvedVacationsByDate,
     assignShiftMutation,
     invalidateShifts,
-  } = useCalendarQueries(month, accessToken);
+  } = useCalendarQueries(month);
 
   const clearSelectedTargets = useCallback(() => {
     setSelectedTargets([]);
@@ -102,28 +112,127 @@ export default function CalendarPage() {
   );
 
   const quickAssignOptions = useMemo<QuickAssignOption[]>(
-    () =>
-      doctors
+    () => {
+      const selectedTargetKeys = new Set(
+        selectedTargets.map((target) => getShiftTargetKey(target)),
+      );
+
+      const isDoctorAllowed = (doctor: (typeof doctors)[number]) =>
+        selectedTargets.every((target) =>
+          target.shiftType === "oa" ? doctor.oa : !doctor.oa,
+        );
+
+      const isDoctorAssignedToTarget = (
+        doctorId: number,
+        target: CalendarShiftTarget,
+      ) => {
+        if (selectedTargetKeys.has(getShiftTargetKey(target))) {
+          return true;
+        }
+
+        const shift = getShiftForType({
+          date: target.date,
+          shiftType: target.shiftType,
+          allShifts,
+        });
+
+        return Array.isArray(shift?.doctorIds)
+          ? shift.doctorIds.includes(doctorId)
+          : false;
+      };
+
+      const hasDoctorConflict = (doctorId: number) => {
+        const doctor = doctors.find((entry) => entry.id === doctorId);
+
+        if (!doctor) {
+          return false;
+        }
+
+        return selectedTargets.some((target) => {
+          const dateKey = format(target.date, "yyyy-MM-dd");
+          const dateConflict = doesCalendarShiftUnavailableDateClash(
+            target.shiftType,
+          )
+            ? (unavailableByDoctor[doctorId]?.has(dateKey) ?? false)
+            : false;
+          const shiftTypeConflict =
+            isShiftType(target.shiftType) &&
+            doctor.unavailableShiftTypes &&
+            Array.isArray(doctor.unavailableShiftTypes)
+              ? doctor.unavailableShiftTypes.includes(target.shiftType)
+              : false;
+          const vacationConflict = (approvedVacationsByDate[dateKey] ?? []).includes(
+            doctor.name,
+          );
+          const nightOverlapConflict =
+            target.shiftType === "night"
+              ? ALL_CALENDAR_SHIFT_TYPES.some(
+                  (shiftType) =>
+                    isDayDutyShiftType(shiftType) &&
+                    isDoctorAssignedToTarget(doctorId, {
+                      date: target.date,
+                      shiftType,
+                    }),
+                )
+              : isDayDutyShiftType(target.shiftType) &&
+                isDoctorAssignedToTarget(doctorId, {
+                  date: target.date,
+                  shiftType: "night",
+                });
+
+          return (
+            dateConflict ||
+            shiftTypeConflict ||
+            vacationConflict ||
+            nightOverlapConflict
+          );
+        });
+      };
+
+      return doctors
         .filter((doctor) => !doctor.disabled)
+        .filter(isDoctorAllowed)
         .map((doctor) => ({
           value: doctor.id.toString(),
           label: doctor.name,
           color: doctor.color ?? undefined,
-        })),
-    [doctors],
+          hasConflict: hasDoctorConflict(doctor.id),
+        }));
+    },
+    [
+      allShifts,
+      approvedVacationsByDate,
+      doctors,
+      selectedTargets,
+      unavailableByDoctor,
+    ],
   );
 
   const filteredQuickAssignOptions = useMemo(() => {
     const normalizedTerm = quickAssignSearchTerm.trim().toLowerCase();
 
-    if (!normalizedTerm) {
-      return quickAssignOptions;
-    }
+    return quickAssignOptions.filter((doctor) => {
+      if (quickAssignShowAvailableOnly && doctor.hasConflict) {
+        return false;
+      }
 
-    return quickAssignOptions.filter((doctor) =>
-      doctor.label.toLowerCase().includes(normalizedTerm),
+      return !normalizedTerm
+        ? true
+        : doctor.label.toLowerCase().includes(normalizedTerm);
+    });
+  }, [
+    quickAssignOptions,
+    quickAssignSearchTerm,
+    quickAssignShowAvailableOnly,
+  ]);
+
+  useEffect(() => {
+    setQuickAssignHighlightedIndex((current) =>
+      filteredQuickAssignOptions.length === 0
+        ? 0
+        : Math.min(current, filteredQuickAssignOptions.length - 1),
     );
-  }, [quickAssignOptions, quickAssignSearchTerm]);
+  }, [filteredQuickAssignOptions]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(min-width: 768px)");
@@ -312,14 +421,14 @@ export default function CalendarPage() {
         if (payload.length === 1) {
           await assignShiftMutation.mutateAsync(payload[0]);
         } else {
-          await shiftsApi.assignBatch(payload, accessToken);
+          await shiftsApi.assignBatch(payload);
           await invalidateShifts();
         }
       } catch (error) {
         console.error("Error assigning shifts:", error);
       }
     },
-    [accessToken, assignShiftMutation, invalidateShifts, isShiftAssigner],
+    [assignShiftMutation, invalidateShifts, isShiftAssigner, shiftsApi],
   );
 
   const handleQuickAssignToggle = useCallback((doctorId: string) => {
@@ -549,7 +658,7 @@ export default function CalendarPage() {
       });
 
       // Use batch endpoint for all assignments in a single request
-      await shiftsApi.assignBatch(assignments, accessToken);
+      await shiftsApi.assignBatch(assignments);
 
       // Ensure fresh data when done
       await invalidateShifts();
@@ -606,6 +715,7 @@ export default function CalendarPage() {
         quickAssignHighlightedIndex={quickAssignHighlightedIndex}
         quickAssignOptions={quickAssignOptions}
         quickAssignSelectedValues={quickAssignDoctorIds}
+        quickAssignShowAvailableOnly={quickAssignShowAvailableOnly}
         onQuickAssignOptionClick={(value, additive) => {
           void handleQuickAssignOptionClick(value, additive);
         }}
@@ -615,6 +725,7 @@ export default function CalendarPage() {
         }}
         onQuickAssignClose={closeQuickAssign}
         onQuickAssignHighlightChange={setQuickAssignHighlightedIndex}
+        onQuickAssignShowAvailableOnlyChange={setQuickAssignShowAvailableOnly}
       />
 
       {/* Reusable shift assignment modal for table rows */}

@@ -1,22 +1,23 @@
 "use client";
 
 import { useEffect } from "react";
+import { AuthRedirectError } from "@/lib/auth-client";
+import { useAuthorizedFetch } from "@/lib/use-authorized-fetch";
 
 const HEARTBEAT_INTERVAL_MS = 15 * 1000;
 
-export function useOnlineHeartbeat(accessToken: string | null) {
+export function useOnlineHeartbeat(enabled: boolean) {
+  const authorizedFetch = useAuthorizedFetch();
+
   useEffect(() => {
-    if (!accessToken) return;
+    if (!enabled) return;
 
     let isDisposed = false;
 
     const sendHeartbeat = async () => {
       try {
-        const response = await fetch("/api/auth/alive", {
+        const response = await authorizedFetch("/api/auth/alive", {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
           cache: "no-store",
           keepalive: true,
         });
@@ -25,6 +26,9 @@ export function useOnlineHeartbeat(accessToken: string | null) {
           console.error("Alive request failed", response.status);
         }
       } catch (error) {
+        if (error instanceof AuthRedirectError) {
+          return;
+        }
         if (!isDisposed) {
           console.error("Alive request failed", error);
         }
@@ -41,5 +45,5 @@ export function useOnlineHeartbeat(accessToken: string | null) {
       isDisposed = true;
       window.clearInterval(interval);
     };
-  }, [accessToken]);
+  }, [authorizedFetch, enabled]);
 }

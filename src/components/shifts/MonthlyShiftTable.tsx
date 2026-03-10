@@ -46,11 +46,13 @@ interface MonthlyShiftTableProps {
   quickAssignHighlightedIndex?: number;
   quickAssignOptions?: readonly QuickAssignOption[];
   quickAssignSelectedValues?: readonly string[];
+  quickAssignShowAvailableOnly?: boolean;
   onQuickAssignOptionClick?: (value: string, additive: boolean) => void;
   onQuickAssignToggle?: (value: string) => void;
   onQuickAssignApply?: () => void;
   onQuickAssignClose?: () => void;
   onQuickAssignHighlightChange?: (index: number) => void;
+  onQuickAssignShowAvailableOnlyChange?: (value: boolean) => void;
 }
 
 export function MonthlyShiftTable({
@@ -71,11 +73,13 @@ export function MonthlyShiftTable({
   quickAssignHighlightedIndex = 0,
   quickAssignOptions = [],
   quickAssignSelectedValues = [],
+  quickAssignShowAvailableOnly = false,
   onQuickAssignOptionClick,
   onQuickAssignToggle,
   onQuickAssignApply,
   onQuickAssignClose,
   onQuickAssignHighlightChange,
+  onQuickAssignShowAvailableOnlyChange,
 }: MonthlyShiftTableProps) {
   const wrapperRef = React.useRef<HTMLDivElement | null>(null);
   const days = React.useMemo(() => {
@@ -626,6 +630,7 @@ export function MonthlyShiftTable({
         filterText={quickAssignFilterText}
         highlightedIndex={quickAssignHighlightedIndex}
         selectedValues={quickAssignSelectedValues}
+        showAvailableOnly={quickAssignShowAvailableOnly}
         onOptionClick={(value, additive) =>
           onQuickAssignOptionClick?.(value, additive)
         }
@@ -633,6 +638,9 @@ export function MonthlyShiftTable({
         onApply={() => onQuickAssignApply?.()}
         onClose={() => onQuickAssignClose?.()}
         onHighlightChange={(index) => onQuickAssignHighlightChange?.(index)}
+        onShowAvailableOnlyChange={(value) =>
+          onQuickAssignShowAvailableOnlyChange?.(value)
+        }
       />
     </div>
   );

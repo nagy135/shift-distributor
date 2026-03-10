@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-client";
+import { useAuthorizedFetch } from "@/lib/use-authorized-fetch";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -51,6 +52,7 @@ const formatDate = (value?: number | string | null) => {
 
 export default function AdminUsersPage() {
   const { user, accessToken, isLoading } = useAuth();
+  const authorizedFetch = useAuthorizedFetch();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [doctors, setDoctors] = useState<DoctorOption[]>([]);
   const [isFetching, setIsFetching] = useState(false);
@@ -68,9 +70,8 @@ export default function AdminUsersPage() {
     setIsFetching(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/users", {
+      const res = await authorizedFetch("/api/admin/users", {
         cache: "no-store",
-        headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!res.ok) {
         throw new Error(await res.text());
@@ -83,7 +84,7 @@ export default function AdminUsersPage() {
     } finally {
       setIsFetching(false);
     }
-  }, [accessToken]);
+  }, [accessToken, authorizedFetch]);
 
   const loadDoctors = useCallback(async () => {
     setIsDoctorsFetching(true);
@@ -135,11 +136,10 @@ export default function AdminUsersPage() {
     setBusyUserId(userId);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/users/${userId}`, {
+      const res = await authorizedFetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ role }),
       });
@@ -167,9 +167,8 @@ export default function AdminUsersPage() {
     setBusyUserId(userId);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/users/${userId}`, {
+      const res = await authorizedFetch(`/api/admin/users/${userId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!res.ok) {
         throw new Error(await res.text());
@@ -195,11 +194,10 @@ export default function AdminUsersPage() {
     setBusyUserId(selectedUser.id);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/users/${selectedUser.id}`, {
+      const res = await authorizedFetch(`/api/admin/users/${selectedUser.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ doctorId: Number(selectedDoctorId) }),
       });

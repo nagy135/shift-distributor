@@ -13,6 +13,8 @@ type DoctorListProps = {
   onOpenShiftDetails: (doctor: Doctor) => void;
   onOpenUnavailable: (doctor: Doctor) => void;
   onOpenSettings: (doctor: Doctor) => void;
+  showSettings?: boolean;
+  emptyMessage?: string;
 };
 
 export function DoctorList({
@@ -22,6 +24,8 @@ export function DoctorList({
   onOpenShiftDetails,
   onOpenUnavailable,
   onOpenSettings,
+  showSettings = true,
+  emptyMessage = "Noch keine Ärzte hinzugefügt. Fügen Sie den ersten Arzt hinzu.",
 }: DoctorListProps) {
   return (
     <div className="grid gap-4 justify-items-center">
@@ -41,8 +45,8 @@ export function DoctorList({
                 <div className="flex items-center gap-2">
                   <Pill
                     color={doctor.color || undefined}
-                    className="cursor-pointer"
-                    onClick={() => onOpenSettings(doctor)}
+                    className={showSettings ? "cursor-pointer" : undefined}
+                    onClick={showSettings ? () => onOpenSettings(doctor) : undefined}
                   >
                     {doctor.name}
                   </Pill>
@@ -100,7 +104,7 @@ export function DoctorList({
 
       {doctors.length === 0 && (
         <div className="text-center py-8 text-muted-foreground">
-          Noch keine Ärzte hinzugefügt. Fügen Sie den ersten Arzt hinzu.
+          {emptyMessage}
         </div>
       )}
     </div>

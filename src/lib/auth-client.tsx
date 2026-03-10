@@ -10,6 +10,13 @@ import React, {
 } from "react";
 import type { UserRole } from "@/lib/roles";
 
+export class AuthRedirectError extends Error {
+  constructor() {
+    super("Authentication required");
+    this.name = "AuthRedirectError";
+  }
+}
+
 type User = {
   id: number;
   email: string;
@@ -21,6 +28,8 @@ type AuthContextValue = {
   user: User;
   accessToken: string | null;
   isLoading: boolean;
+  refreshAccessToken: () => Promise<string | null>;
+  clearAuth: () => void;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -71,6 +80,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [loadMe]);
 
+  const clearAuth = useCallback(() => {
+    setUser(null);
+    setAccessToken(null);
+  }, []);
+
   useEffect(() => {
     // Attempt to refresh on mount
     (async () => {
@@ -79,15 +93,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [refreshAccessToken]);
 
-  // Token refresh loop (optional)
   useEffect(() => {
     if (!accessToken) return;
     const interval = setInterval(
       () => {
         refreshAccessToken().catch(() => {});
       },
-      1000 * 60 * 10,
-    ); // every 10 minutes
+      1000 * 60 * 4,
+    );
     return () => clearInterval(interval);
   }, [accessToken, refreshAccessToken]);
 
@@ -121,13 +134,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await fetchJson("/api/auth/logout", { method: "POST" });
-    setUser(null);
-    setAccessToken(null);
-  }, []);
+    clearAuth();
+  }, [clearAuth]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, accessToken, isLoading, login, register, logout }),
-    [user, accessToken, isLoading, login, register, logout],
+    () => ({
+      user,
+      accessToken,
+      isLoading,
+      refreshAccessToken,
+      clearAuth,
+      login,
+      register,
+      logout,
+    }),
+    [
+      user,
+      accessToken,
+      isLoading,
+      refreshAccessToken,
+      clearAuth,
+      login,
+      register,
+      logout,
+    ],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

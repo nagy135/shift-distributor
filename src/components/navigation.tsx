@@ -7,7 +7,7 @@ import { Bell } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { notificationsApi } from "@/lib/api";
+import { useApiClient } from "@/lib/use-api-client";
 import {
   Popover,
   PopoverTrigger,
@@ -18,16 +18,17 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export function Navigation() {
   const pathname = usePathname();
-  const { user, logout, accessToken } = useAuth();
+  const { user, logout } = useAuth();
+  const { notificationsApi } = useApiClient();
   const queryClient = useQueryClient();
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications", "unread"],
-    queryFn: () => notificationsApi.getUnread(accessToken),
-    enabled: !!accessToken && !!user,
+    queryFn: () => notificationsApi.getUnread(),
+    enabled: !!user,
   });
   const unreadCount = notifications.length;
   const markNotificationsMutation = useMutation({
-    mutationFn: () => notificationsApi.markAllRead(accessToken),
+    mutationFn: () => notificationsApi.markAllRead(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications", "unread"] });
     },

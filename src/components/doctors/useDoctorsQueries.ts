@@ -2,11 +2,9 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  doctorsApi,
-  unavailableDatesApi,
-  shiftsApi,
   type UnavailableDate,
 } from "@/lib/api";
+import { useApiClient } from "@/lib/use-api-client";
 
 type UseDoctorsQueriesOptions = {
   selectedDoctorId?: number;
@@ -22,6 +20,7 @@ export function useDoctorsQueries({
   onDoctorUpdated,
 }: UseDoctorsQueriesOptions) {
   const queryClient = useQueryClient();
+  const { doctorsApi, unavailableDatesApi, shiftsApi } = useApiClient();
 
   const { data: doctors = [] } = useQuery({
     queryKey: ["doctors"],

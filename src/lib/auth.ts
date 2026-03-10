@@ -5,8 +5,8 @@ export type JwtUserPayload = {
   email: string;
 };
 
-const ACCESS_TOKEN_TTL_SEC = 60 * 15; // 15 minutes
-const REFRESH_TOKEN_TTL_SEC = 60 * 60 * 24 * 7; // 7 days
+const ACCESS_TOKEN_TTL_SEC = 60 * 5; // 5 minutes
+const REFRESH_TOKEN_TTL_SEC = 60 * 60 * 24; // 24 hours
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET || process.env.NEXT_PUBLIC_JWT_SECRET;

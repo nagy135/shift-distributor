@@ -7,7 +7,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-client";
-import { vacationsApi, type VacationDay } from "@/lib/api";
+import { type VacationDay } from "@/lib/api";
+import { useApiClient } from "@/lib/use-api-client";
 import {
   VACATION_COLORS,
   VACATION_COLOR_STYLES,
@@ -88,7 +89,8 @@ function CalendarSkeleton() {
 }
 
 export default function VacationsPage() {
-  const { user, accessToken, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();
+  const { vacationsApi } = useApiClient();
   const queryClient = useQueryClient();
   const doctorId = user?.doctorId ?? null;
   const isApprover = user?.role === "secretary";
@@ -96,8 +98,8 @@ export default function VacationsPage() {
 
   const { data, isLoading: isVacationsLoading } = useQuery({
     queryKey: ["vacations", isApprover ? "all" : doctorId, year],
-    queryFn: () => vacationsApi.getByYear(year, accessToken),
-    enabled: !!accessToken && (isApprover || !!doctorId),
+    queryFn: () => vacationsApi.getByYear(year),
+    enabled: isApprover || !!doctorId,
   });
   const vacationDays = data ?? EMPTY_VACATION_DAYS;
 
@@ -122,8 +124,7 @@ export default function VacationsPage() {
   const colorCounts = useMemo(() => countColors(dayColors), [dayColors]);
 
   const updateMutation = useMutation({
-    mutationFn: (days: VacationDay[]) =>
-      vacationsApi.updateYear(year, days, accessToken),
+    mutationFn: (days: VacationDay[]) => vacationsApi.updateYear(year, days),
   });
 
   const invalidateVacationsQueries = useCallback(() => {
@@ -135,14 +136,14 @@ export default function VacationsPage() {
 
   const approvalMutation = useMutation({
     mutationFn: ({ id, approved }: { id: number; approved: boolean }) =>
-      vacationsApi.updateApproval(id, approved, accessToken),
+      vacationsApi.updateApproval(id, approved),
     onSuccess: () => {
       invalidateVacationsQueries();
     },
   });
 
   const denyMutation = useMutation({
-    mutationFn: (id: number) => vacationsApi.deny(id, accessToken),
+    mutationFn: (id: number) => vacationsApi.deny(id),
     onSuccess: () => {
       invalidateVacationsQueries();
     },
@@ -150,13 +151,12 @@ export default function VacationsPage() {
 
   const persistDays = useCallback(
     (nextMap: Record<string, VacationColor>) => {
-      if (!accessToken) return;
       const payload: VacationDay[] = Object.entries(nextMap).map(
         ([date, color]) => ({ date, color }),
       );
       updateMutation.mutate(payload);
     },
-    [accessToken, updateMutation],
+    [updateMutation],
   );
 
   const handleDayClick = useCallback(

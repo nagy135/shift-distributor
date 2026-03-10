@@ -3,7 +3,11 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { signAccessToken, signRefreshToken } from "@/lib/auth";
+import {
+  REFRESH_TOKEN_TTL_SECONDS,
+  signAccessToken,
+  signRefreshToken,
+} from "@/lib/auth";
 import { cookies } from "next/headers";
 
 export async function POST(req: NextRequest) {
@@ -44,10 +48,10 @@ export async function POST(req: NextRequest) {
     const cookieStore = await cookies();
     cookieStore.set("refresh_token", refreshToken, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: REFRESH_TOKEN_TTL_SECONDS,
     });
 
     return new Response(JSON.stringify({ accessToken }), { status: 200 });

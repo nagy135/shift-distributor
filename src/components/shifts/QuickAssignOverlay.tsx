@@ -4,12 +4,14 @@ import React from "react";
 import { Check, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/ui/pill";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 export type QuickAssignOption = {
   value: string;
   label: string;
   color?: string | null;
+  hasConflict?: boolean;
 };
 
 type QuickAssignOverlayProps = {
@@ -23,11 +25,13 @@ type QuickAssignOverlayProps = {
   filterText: string;
   highlightedIndex: number;
   selectedValues: readonly string[];
+  showAvailableOnly: boolean;
   onOptionClick: (value: string, additive: boolean) => void;
   onToggleSelect: (value: string) => void;
   onApply: () => void;
   onClose: () => void;
   onHighlightChange: (index: number) => void;
+  onShowAvailableOnlyChange: (value: boolean) => void;
 };
 
 export function QuickAssignOverlay({
@@ -37,25 +41,29 @@ export function QuickAssignOverlay({
   filterText,
   highlightedIndex,
   selectedValues,
+  showAvailableOnly,
   onOptionClick,
   onToggleSelect,
   onApply,
   onClose,
   onHighlightChange,
+  onShowAvailableOnlyChange,
 }: QuickAssignOverlayProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
 
   const filteredOptions = React.useMemo(() => {
     const normalizedTerm = filterText.trim().toLowerCase();
 
-    if (!normalizedTerm) {
-      return options;
-    }
+    return options.filter((option) => {
+      if (showAvailableOnly && option.hasConflict) {
+        return false;
+      }
 
-    return options.filter((option) =>
-      option.label.toLowerCase().includes(normalizedTerm),
-    );
-  }, [filterText, options]);
+      return !normalizedTerm
+        ? true
+        : option.label.toLowerCase().includes(normalizedTerm);
+    });
+  }, [filterText, options, showAvailableOnly]);
 
   React.useEffect(() => {
     if (!open) {
@@ -126,6 +134,17 @@ export function QuickAssignOverlay({
             <Save className="size-4" />
           </Button>
         </div>
+        <label className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-muted-foreground">
+          <span>Alle</span>
+          <Switch
+            checked={showAvailableOnly}
+            onCheckedChange={onShowAvailableOnlyChange}
+            onMouseDown={(event) => event.preventDefault()}
+            aria-label="Nur verfuegbare Aerzte anzeigen"
+            className="scale-75"
+          />
+          <span>Verfuegbar</span>
+        </label>
         {selectedValues.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-1">
             {selectedValues.map((value) => {
@@ -144,6 +163,7 @@ export function QuickAssignOverlay({
                 >
                   <Pill
                     color={option.color ?? undefined}
+                    showX={option.hasConflict ?? false}
                     className="inline-flex items-center gap-1 text-xs"
                   >
                     <span>{option.label}</span>
@@ -176,14 +196,20 @@ export function QuickAssignOverlay({
                 onOptionClick(option.value, event.metaKey || event.ctrlKey)
               }
             >
-              <Pill color={option.color ?? undefined} className="text-xs">
+              <Pill
+                color={option.color ?? undefined}
+                showX={option.hasConflict ?? false}
+                className="text-xs"
+              >
                 {option.label}
               </Pill>
-              {selectedValues.includes(option.value) ? (
-                <Check className="size-4" />
-              ) : index === highlightedIndex ? (
-                <div className="size-4 rounded-full border" />
-              ) : null}
+              <div className="flex items-center gap-2">
+                {selectedValues.includes(option.value) ? (
+                  <Check className="size-4" />
+                ) : index === highlightedIndex ? (
+                  <div className="size-4 rounded-full border" />
+                ) : null}
+              </div>
             </button>
           ))
         )}

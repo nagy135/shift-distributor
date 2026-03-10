@@ -1,5 +1,6 @@
-// API service functions for data operations
 import type { VacationColor } from "@/lib/vacations";
+
+type ApiFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export interface Doctor {
   id: number;
@@ -46,246 +47,205 @@ export interface Notification {
   createdAt?: number | string | null;
 }
 
-// Doctors API
-export const doctorsApi = {
-  getAll: async (): Promise<Doctor[]> => {
-    const response = await fetch("/api/doctors");
-    if (!response.ok) {
-      throw new Error("Failed to fetch doctors");
-    }
-    return response.json();
-  },
+async function readError(response: Response, fallback: string) {
+  try {
+    const text = await response.text();
+    return text || fallback;
+  } catch {
+    return fallback;
+  }
+}
 
-  create: async (data: {
-    name: string;
-    unavailableDates?: string[];
-  }): Promise<Doctor> => {
-    const response = await fetch("/api/doctors", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      throw new Error("Failed to create doctor");
-    }
-    return response.json();
-  },
-  updateColor: async (id: number, color: string | null): Promise<Doctor> => {
-    const response = await fetch("/api/doctors", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, color }),
-    });
-    if (!response.ok) {
-      throw new Error("Failed to update doctor color");
-    }
-    return response.json();
-  },
-  update: async (
-    id: number,
-    payload: Partial<
-      Pick<
-        Doctor,
-        "name" | "color" | "unavailableShiftTypes" | "disabled" | "oa"
-      >
-    >,
-  ): Promise<Doctor> => {
-    const response = await fetch("/api/doctors", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, ...payload }),
-    });
-    if (!response.ok) {
-      throw new Error("Failed to update doctor");
-    }
-    return response.json();
-  },
-};
+async function readJson<T>(response: Response, fallback: string): Promise<T> {
+  if (!response.ok) {
+    throw new Error(await readError(response, fallback));
+  }
 
-// Shifts API
-export const shiftsApi = {
-  getAll: async (): Promise<Shift[]> => {
-    const response = await fetch("/api/shifts");
-    if (!response.ok) {
-      throw new Error("Failed to fetch shifts");
-    }
-    return response.json();
-  },
+  return response.json();
+}
 
-  getByDate: async (date: string): Promise<Shift[]> => {
-    const response = await fetch(`/api/shifts?date=${date}`);
-    if (!response.ok) {
-      throw new Error("Failed to fetch shifts for date");
-    }
-    return response.json();
-  },
+export function createApiClient(apiFetch: ApiFetch = fetch) {
+  const doctorsApi = {
+    getAll: async (): Promise<Doctor[]> => {
+      const response = await apiFetch("/api/doctors");
+      return readJson(response, "Failed to fetch doctors");
+    },
 
-  assign: async (
-    data: {
+    create: async (data: {
+      name: string;
+      unavailableDates?: string[];
+    }): Promise<Doctor> => {
+      const response = await apiFetch("/api/doctors", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+      return readJson(response, "Failed to create doctor");
+    },
+    updateColor: async (id: number, color: string | null): Promise<Doctor> => {
+      const response = await apiFetch("/api/doctors", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, color }),
+      });
+      return readJson(response, "Failed to update doctor color");
+    },
+    update: async (
+      id: number,
+      payload: Partial<
+        Pick<
+          Doctor,
+          "name" | "color" | "unavailableShiftTypes" | "disabled" | "oa"
+        >
+      >,
+    ): Promise<Doctor> => {
+      const response = await apiFetch("/api/doctors", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...payload }),
+      });
+      return readJson(response, "Failed to update doctor");
+    },
+  };
+
+  const shiftsApi = {
+    getAll: async (): Promise<Shift[]> => {
+      const response = await apiFetch("/api/shifts");
+      return readJson(response, "Failed to fetch shifts");
+    },
+
+    getByDate: async (date: string): Promise<Shift[]> => {
+      const response = await apiFetch(`/api/shifts?date=${date}`);
+      return readJson(response, "Failed to fetch shifts for date");
+    },
+
+    assign: async (data: {
       date: string;
       shiftType: string;
       doctorIds: number[];
+    }): Promise<Shift> => {
+      const response = await apiFetch("/api/shifts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+      return readJson(response, "Failed to assign shift");
     },
-    accessToken?: string | null,
-  ): Promise<Shift> => {
-    const response = await fetch("/api/shifts", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      throw new Error("Failed to assign shift");
-    }
-    return response.json();
-  },
 
-  assignBatch: async (
-    shifts: { date: string; shiftType: string; doctorIds: number[] }[],
-    accessToken?: string | null,
-  ): Promise<Shift[]> => {
-    const response = await fetch("/api/shifts", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify({ shifts }),
-    });
-    if (!response.ok) {
-      throw new Error("Failed to batch assign shifts");
-    }
-    return response.json();
-  },
-};
+    assignBatch: async (
+      shifts: { date: string; shiftType: string; doctorIds: number[] }[],
+    ): Promise<Shift[]> => {
+      const response = await apiFetch("/api/shifts", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ shifts }),
+      });
+      return readJson(response, "Failed to batch assign shifts");
+    },
+  };
 
-// Unavailable Dates API
-export const unavailableDatesApi = {
-  getByDoctor: async (doctorId: number): Promise<UnavailableDate[]> => {
-    const response = await fetch(`/api/doctors/${doctorId}/unavailable-dates`);
-    if (!response.ok) {
-      throw new Error("Failed to fetch unavailable dates");
-    }
-    return response.json();
-  },
+  const unavailableDatesApi = {
+    getByDoctor: async (doctorId: number): Promise<UnavailableDate[]> => {
+      const response = await apiFetch(`/api/doctors/${doctorId}/unavailable-dates`);
+      return readJson(response, "Failed to fetch unavailable dates");
+    },
 
-  update: async (
-    doctorId: number,
-    dates: string[],
-  ): Promise<{ success: boolean }> => {
-    const response = await fetch(`/api/doctors/${doctorId}/unavailable-dates`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ dates }),
-    });
-    if (!response.ok) {
-      throw new Error("Failed to update unavailable dates");
-    }
-    return response.json();
-  },
-};
+    update: async (
+      doctorId: number,
+      dates: string[],
+    ): Promise<{ success: boolean }> => {
+      const response = await apiFetch(
+        `/api/doctors/${doctorId}/unavailable-dates`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ dates }),
+        },
+      );
+      return readJson(response, "Failed to update unavailable dates");
+    },
+  };
 
-export const vacationsApi = {
-  getByYear: async (
-    year: number,
-    accessToken?: string | null,
-  ): Promise<VacationDay[]> => {
-    const response = await fetch(`/api/vacations?year=${year}`, {
-      headers: {
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-    });
-    if (!response.ok) {
-      throw new Error("Failed to fetch vacation days");
-    }
-    return response.json();
-  },
-  updateYear: async (
-    year: number,
-    days: VacationDay[],
-    accessToken?: string | null,
-  ): Promise<{ success: boolean }> => {
-    const response = await fetch("/api/vacations", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify({ year, days }),
-    });
-    if (!response.ok) {
-      throw new Error("Failed to update vacation days");
-    }
-    return response.json();
-  },
-  updateApproval: async (
-    id: number,
-    approved: boolean,
-    accessToken?: string | null,
-  ): Promise<{ success: boolean }> => {
-    const response = await fetch("/api/vacations", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify({ id, approved }),
-    });
-    if (!response.ok) {
-      throw new Error("Failed to update vacation approval");
-    }
-    return response.json();
-  },
-  deny: async (
-    id: number,
-    accessToken?: string | null,
-  ): Promise<{ success: boolean }> => {
-    const response = await fetch("/api/vacations", {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify({ id }),
-    });
-    if (!response.ok) {
-      throw new Error("Failed to deny vacation");
-    }
-    return response.json();
-  },
-};
+  const vacationsApi = {
+    getByYear: async (year: number): Promise<VacationDay[]> => {
+      const response = await apiFetch(`/api/vacations?year=${year}`);
+      return readJson(response, "Failed to fetch vacation days");
+    },
+    updateYear: async (
+      year: number,
+      days: VacationDay[],
+    ): Promise<{ success: boolean }> => {
+      const response = await apiFetch("/api/vacations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ year, days }),
+      });
+      return readJson(response, "Failed to update vacation days");
+    },
+    updateApproval: async (
+      id: number,
+      approved: boolean,
+    ): Promise<{ success: boolean }> => {
+      const response = await apiFetch("/api/vacations", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id, approved }),
+      });
+      return readJson(response, "Failed to update vacation approval");
+    },
+    deny: async (id: number): Promise<{ success: boolean }> => {
+      const response = await apiFetch("/api/vacations", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id }),
+      });
+      return readJson(response, "Failed to deny vacation");
+    },
+  };
 
-export const notificationsApi = {
-  getUnread: async (accessToken?: string | null): Promise<Notification[]> => {
-    const response = await fetch("/api/notifications", {
-      headers: {
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-    });
-    if (!response.ok) {
-      throw new Error("Failed to fetch notifications");
-    }
-    return response.json();
-  },
-  markAllRead: async (
-    accessToken?: string | null,
-  ): Promise<{ success: boolean }> => {
-    const response = await fetch("/api/notifications", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-    });
-    if (!response.ok) {
-      throw new Error("Failed to update notifications");
-    }
-    return response.json();
-  },
-};
+  const notificationsApi = {
+    getUnread: async (): Promise<Notification[]> => {
+      const response = await apiFetch("/api/notifications");
+      return readJson(response, "Failed to fetch notifications");
+    },
+    markAllRead: async (): Promise<{ success: boolean }> => {
+      const response = await apiFetch("/api/notifications", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      return readJson(response, "Failed to update notifications");
+    },
+  };
+
+  return {
+    doctorsApi,
+    shiftsApi,
+    unavailableDatesApi,
+    vacationsApi,
+    notificationsApi,
+  };
+}
+
+export const {
+  doctorsApi,
+  shiftsApi,
+  unavailableDatesApi,
+  vacationsApi,
+  notificationsApi,
+} = createApiClient();

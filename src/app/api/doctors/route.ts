@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { doctors, unavailableDates } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { getUserFromAuthHeader } from "@/lib/authz";
 
 export async function GET() {
   try {
@@ -27,6 +28,16 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getUserFromAuthHeader(
+      request.headers.get("authorization"),
+    );
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (user.role !== "shift_assigner") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const {
       name,
       color,
@@ -67,6 +78,16 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    const user = await getUserFromAuthHeader(
+      request.headers.get("authorization"),
+    );
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (user.role !== "shift_assigner") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { id, color, name, unavailableShiftTypes, disabled, oa } =
       await request.json();
     if (!id) {

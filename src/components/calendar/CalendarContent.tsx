@@ -50,11 +50,13 @@ type CalendarContentProps = {
   quickAssignHighlightedIndex?: number;
   quickAssignOptions?: readonly QuickAssignOption[];
   quickAssignSelectedValues?: readonly string[];
+  quickAssignShowAvailableOnly?: boolean;
   onQuickAssignOptionClick?: (value: string, additive: boolean) => void;
   onQuickAssignToggle?: (value: string) => void;
   onQuickAssignApply?: () => void;
   onQuickAssignClose?: () => void;
   onQuickAssignHighlightChange?: (index: number) => void;
+  onQuickAssignShowAvailableOnlyChange?: (value: boolean) => void;
 };
 
 export function CalendarContent({
@@ -75,11 +77,13 @@ export function CalendarContent({
   quickAssignHighlightedIndex,
   quickAssignOptions,
   quickAssignSelectedValues,
+  quickAssignShowAvailableOnly,
   onQuickAssignOptionClick,
   onQuickAssignToggle,
   onQuickAssignApply,
   onQuickAssignClose,
   onQuickAssignHighlightChange,
+  onQuickAssignShowAvailableOnlyChange,
 }: CalendarContentProps) {
   const [tableView, setTableView] = React.useState<CalendarTableView>("shifts");
   const [statisticsVisible, setStatisticsVisible] = React.useState(true);
@@ -235,11 +239,15 @@ export function CalendarContent({
                 quickAssignHighlightedIndex={quickAssignHighlightedIndex}
                 quickAssignOptions={quickAssignOptions}
                 quickAssignSelectedValues={quickAssignSelectedValues}
+                quickAssignShowAvailableOnly={quickAssignShowAvailableOnly}
                 onQuickAssignOptionClick={onQuickAssignOptionClick}
                 onQuickAssignToggle={onQuickAssignToggle}
                 onQuickAssignApply={onQuickAssignApply}
                 onQuickAssignClose={onQuickAssignClose}
                 onQuickAssignHighlightChange={onQuickAssignHighlightChange}
+                onQuickAssignShowAvailableOnlyChange={
+                  onQuickAssignShowAvailableOnlyChange
+                }
               />
             )}
           </ClientOnly>

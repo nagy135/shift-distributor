@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MonthSelector } from "@/components/MonthSelector";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -14,8 +14,12 @@ import { DoctorSettingsDialog } from "@/components/doctors/DoctorSettingsDialog"
 import { UnavailableDatesDialog } from "@/components/doctors/UnavailableDatesDialog";
 import { ShiftDetailsDialog } from "@/components/doctors/ShiftDetailsDialog";
 import { exportDoctorShifts } from "@/components/doctors/export-doctor-shifts";
+import { getDoctorShiftCount } from "@/components/doctors/utils";
+import { useAuth } from "@/lib/auth-client";
+import { SHIFT_TYPES } from "@/lib/shifts";
 
 export default function DoctorsPage() {
+  const { user } = useAuth();
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isUnavailableDialogOpen, setIsUnavailableDialogOpen] = useState(false);
@@ -38,6 +42,8 @@ export default function DoctorsPage() {
     onUnavailableUpdated: () => setIsUnavailableDialogOpen(false),
     onDoctorUpdated: () => setIsColorDialogOpen(false),
   });
+  const isShiftAssigner = user?.role === "shift_assigner";
+  const currentDoctorId = user?.doctorId ?? null;
 
   const openUnavailableDialog = (doctor: Doctor) => {
     setSelectedDoctor(doctor);
@@ -94,13 +100,65 @@ export default function DoctorsPage() {
     await exportDoctorShifts({
       doctor: selectedDoctor,
       month: selectedMonth,
-      shifts: allShifts,
+      shifts: doctorPageShifts,
     });
   };
 
-  const filteredDoctors = doctors.filter((doctor) =>
-    oaOnly ? doctor.oa : !doctor.oa,
+  const filteredDoctors = doctors.filter((doctor) => {
+    if (!isShiftAssigner && doctor.disabled) {
+      return false;
+    }
+
+    return oaOnly ? doctor.oa : !doctor.oa;
+  });
+  const doctorPageShifts = allShifts.filter((shift) =>
+    SHIFT_TYPES.includes(shift.shiftType as (typeof SHIFT_TYPES)[number]),
   );
+
+  const currentDoctor = useMemo(
+    () => {
+      const doctor = doctors.find((entry) => entry.id === currentDoctorId) ?? null;
+
+      if (!isShiftAssigner && doctor?.disabled) {
+        return null;
+      }
+
+      return doctor;
+    },
+    [currentDoctorId, doctors, isShiftAssigner],
+  );
+
+  const doctorsByShiftCount = useMemo(
+    () => {
+      const list = [...filteredDoctors];
+
+      if (
+        currentDoctor &&
+        !list.some((doctor) => doctor.id === currentDoctor.id)
+      ) {
+        list.push(currentDoctor);
+      }
+
+      return list.sort((left, right) => {
+        const countDifference =
+          getDoctorShiftCount(right.id, doctorPageShifts, selectedMonth) -
+          getDoctorShiftCount(left.id, doctorPageShifts, selectedMonth);
+
+        if (countDifference !== 0) {
+          return countDifference;
+        }
+
+        return left.name.localeCompare(right.name);
+      });
+    },
+    [currentDoctor, doctorPageShifts, filteredDoctors, selectedMonth],
+  );
+
+  useEffect(() => {
+    if (!isShiftAssigner) {
+      setSelectedDoctor(currentDoctor);
+    }
+  }, [currentDoctor, isShiftAssigner]);
 
   return (
     <div className="space-y-6">
@@ -117,12 +175,14 @@ export default function DoctorsPage() {
                 onCheckedChange={setOaOnly}
               />
             </div>
-             <Button onClick={() => setIsAddDialogOpen(true)}>
-               Arzt hinzufügen
-             </Button>
-           </div>
-         }
-       />
+            {isShiftAssigner && (
+              <Button onClick={() => setIsAddDialogOpen(true)}>
+                Arzt hinzufügen
+              </Button>
+            )}
+          </div>
+          }
+        />
       <AddDoctorDialog
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
@@ -130,14 +190,86 @@ export default function DoctorsPage() {
         isSaving={createDoctorMutation.isPending}
       />
 
-      <DoctorList
-        doctors={filteredDoctors}
-        shifts={allShifts}
-        month={selectedMonth}
-        onOpenShiftDetails={openShiftDetailsDialog}
-        onOpenUnavailable={openUnavailableDialog}
-        onOpenSettings={openColorDialog}
-      />
+      {isShiftAssigner ? (
+        <DoctorList
+          doctors={filteredDoctors}
+          shifts={doctorPageShifts}
+          month={selectedMonth}
+          onOpenShiftDetails={openShiftDetailsDialog}
+          onOpenUnavailable={openUnavailableDialog}
+          onOpenSettings={openColorDialog}
+        />
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <section className="rounded-lg border bg-card p-4">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold">Ärzteliste</h2>
+              <p className="text-sm text-muted-foreground">
+                Die meisten Dienste stehen oben. Ihr Eintrag ist hervorgehoben.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {doctorsByShiftCount.map((doctor, index) => {
+                const isCurrentDoctor = doctor.id === currentDoctorId;
+                const shiftCount = getDoctorShiftCount(
+                  doctor.id,
+                  doctorPageShifts,
+                  selectedMonth,
+                );
+
+                return (
+                  <div
+                    key={doctor.id}
+                    className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${isCurrentDoctor ? "border-primary bg-primary/10" : "bg-background"}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="w-5 text-xs text-muted-foreground">
+                        {index + 1}.
+                      </span>
+                      <div>
+                        <div className="font-medium">{doctor.name}</div>
+                        {isCurrentDoctor && (
+                          <div className="text-xs text-primary">Sie</div>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-sm text-muted-foreground">
+                      {shiftCount}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold">Meine Angaben</h2>
+              <p className="text-sm text-muted-foreground">
+                Hier pflegen Sie Ihre eigenen Dienstwünsche.
+              </p>
+            </div>
+
+            {currentDoctor ? (
+              <DoctorList
+                doctors={[currentDoctor]}
+                shifts={doctorPageShifts}
+                month={selectedMonth}
+                onOpenShiftDetails={openShiftDetailsDialog}
+                onOpenUnavailable={openUnavailableDialog}
+                onOpenSettings={openColorDialog}
+                showSettings={false}
+                emptyMessage=""
+              />
+            ) : (
+              <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                Ihrem Benutzer ist aktuell kein Arzt zugeordnet.
+              </div>
+            )}
+          </section>
+        </div>
+      )}
 
       <DoctorSettingsDialog
         open={isColorDialogOpen}
@@ -164,7 +296,7 @@ export default function DoctorsPage() {
         onOpenChange={setIsShiftDetailsDialogOpen}
         doctor={selectedDoctor}
         month={selectedMonth}
-        shifts={allShifts}
+        shifts={doctorPageShifts}
         onExport={handleExportDoctorShifts}
       />
     </div>

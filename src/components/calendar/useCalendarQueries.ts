@@ -3,16 +3,15 @@
 import { useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  doctorsApi,
-  shiftsApi,
-  unavailableDatesApi,
-  vacationsApi,
   type UnavailableDate,
   type VacationDay,
 } from "@/lib/api";
+import { useApiClient } from "@/lib/use-api-client";
 
-export function useCalendarQueries(month: Date, accessToken?: string | null) {
+export function useCalendarQueries(month: Date) {
   const queryClient = useQueryClient();
+  const { doctorsApi, shiftsApi, unavailableDatesApi, vacationsApi } =
+    useApiClient();
   const normalizedMonth = month instanceof Date ? month : new Date(month);
   const year = Number.isNaN(normalizedMonth.getTime())
     ? new Date().getFullYear()
@@ -56,12 +55,11 @@ export function useCalendarQueries(month: Date, accessToken?: string | null) {
     queryKey: ["vacations", "calendar", year],
     queryFn: async (): Promise<VacationDay[]> => {
       try {
-        return await vacationsApi.getByYear(year, accessToken);
+        return await vacationsApi.getByYear(year);
       } catch {
         return [];
       }
     },
-    enabled: !!accessToken,
   });
 
   const approvedVacationsByDate = useMemo(() => {
@@ -94,7 +92,7 @@ export function useCalendarQueries(month: Date, accessToken?: string | null) {
       date: string;
       shiftType: string;
       doctorIds: number[];
-    }) => shiftsApi.assign(data, accessToken),
+    }) => shiftsApi.assign(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shifts"] });
     },
