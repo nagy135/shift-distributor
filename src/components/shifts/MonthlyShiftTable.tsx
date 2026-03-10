@@ -611,6 +611,9 @@ export function MonthlyShiftTable({
                         (canRowClick || canCellClick) &&
                         "hover:bg-muted/30",
                     )}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                    }}
                   >
                     {vacationDoctors.length > 0
                       ? vacationDoctors.join("/")
