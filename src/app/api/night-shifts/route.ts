@@ -113,9 +113,9 @@ export async function GET(request: NextRequest) {
     }
     const canManage =
       user.role === "secretary" || user.role === "shift_assigner";
-    const canViewOwn = user.role === "doctor" && user.doctorId != null;
+    const canView = canManage || user.role === "doctor";
 
-    if (!canManage && !canViewOwn) {
+    if (!canView) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -137,33 +137,7 @@ export async function GET(request: NextRequest) {
 
     const hydratedRows = await hydrateNightShifts(rows);
 
-    if (canManage) {
-      return NextResponse.json(hydratedRows);
-    }
-
-    const doctorId = user.doctorId;
-    if (doctorId == null) {
-      return NextResponse.json({ error: "Doctor assignment required" }, { status: 403 });
-    }
-
-    return NextResponse.json(
-      hydratedRows
-        .map((row) => {
-          const doctorIds = row.doctorIds.filter((entry) => entry === doctorId);
-          const rowDoctors = row.doctors.filter((doctor) => doctor.id === doctorId);
-
-          if (doctorIds.length === 0) {
-            return null;
-          }
-
-          return {
-            ...row,
-            doctorIds,
-            doctors: rowDoctors,
-          };
-        })
-        .filter((row): row is ApiNightShift => row !== null),
-    );
+    return NextResponse.json(hydratedRows);
   } catch (error) {
     console.error("Error fetching night shifts:", error);
     return NextResponse.json(

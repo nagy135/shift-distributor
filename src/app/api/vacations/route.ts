@@ -53,43 +53,27 @@ export async function GET(request: NextRequest) {
       parseYear(searchParams.get("year")) ?? new Date().getFullYear();
     const { start, end } = toYearRange(year);
 
-    const isApprover = user.role === "secretary";
+    const canView =
+      user.role === "secretary" ||
+      user.role === "shift_assigner" ||
+      user.role === "doctor";
 
-    if (!isApprover && !user.doctorId) {
-      return NextResponse.json({ error: "Doctor required" }, { status: 403 });
+    if (!canView) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const rows = isApprover
-      ? await db
-          .select({
-            id: vacationDays.id,
-            doctorId: vacationDays.doctorId,
-            date: vacationDays.date,
-            color: vacationDays.color,
-            approved: vacationDays.approved,
-            doctorName: doctors.name,
-          })
-          .from(vacationDays)
-          .leftJoin(doctors, eq(vacationDays.doctorId, doctors.id))
-          .where(
-            and(gte(vacationDays.date, start), lte(vacationDays.date, end)),
-          )
-      : await db
-          .select({
-            id: vacationDays.id,
-            doctorId: vacationDays.doctorId,
-            date: vacationDays.date,
-            color: vacationDays.color,
-            approved: vacationDays.approved,
-          })
-          .from(vacationDays)
-          .where(
-            and(
-              eq(vacationDays.doctorId, user.doctorId as number),
-              gte(vacationDays.date, start),
-              lte(vacationDays.date, end),
-            ),
-          );
+    const rows = await db
+      .select({
+        id: vacationDays.id,
+        doctorId: vacationDays.doctorId,
+        date: vacationDays.date,
+        color: vacationDays.color,
+        approved: vacationDays.approved,
+        doctorName: doctors.name,
+      })
+      .from(vacationDays)
+      .leftJoin(doctors, eq(vacationDays.doctorId, doctors.id))
+      .where(and(gte(vacationDays.date, start), lte(vacationDays.date, end)));
 
     return NextResponse.json(rows, { status: 200 });
   } catch (error) {
@@ -109,15 +93,29 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (user.role === "secretary") {
+    const canEditAll = user.role === "shift_assigner";
+    const canEditOwn = user.role === "doctor";
+
+    if (!canEditAll && !canEditOwn) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    if (!user.doctorId) {
-      return NextResponse.json({ error: "Doctor required" }, { status: 403 });
-    }
-    const doctorId = user.doctorId;
 
     const body = await request.json();
+    const requestedDoctorId = Number(body?.doctorId);
+    const hasRequestedDoctorId = Number.isInteger(requestedDoctorId) && requestedDoctorId > 0;
+    const doctorId = canEditAll
+      ? hasRequestedDoctorId
+        ? requestedDoctorId
+        : user.doctorId
+      : user.doctorId;
+
+    if (!canEditAll && body?.doctorId != null && requestedDoctorId !== user.doctorId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (!doctorId) {
+      return NextResponse.json({ error: "Doctor required" }, { status: 403 });
+    }
+
     const year = parseYear(String(body?.year ?? ""));
     if (!year) {
       return NextResponse.json({ error: "Invalid year" }, { status: 400 });

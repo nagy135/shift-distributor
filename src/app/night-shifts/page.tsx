@@ -9,12 +9,17 @@ import {
   type ComponentProps,
 } from "react";
 import { flushSync } from "react-dom";
-import { Check, Loader2, Search, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarSkeleton } from "@/components/ui/calendar-skeleton";
 import { Button } from "@/components/ui/button";
+import { Pill } from "@/components/ui/pill";
+import {
+  DoctorPicker,
+  type DoctorPickerOption,
+} from "@/components/doctor-picker";
 import {
   Dialog,
   DialogContent,
@@ -22,8 +27,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Pill } from "@/components/ui/pill";
 import {
   Select,
   SelectContent,
@@ -46,142 +49,13 @@ const ALL_DOCTORS_VALUE = "all";
 
 const dayToKey = (day: Date) => format(day, "yyyy-MM-dd");
 
-type DoctorOption = {
-  id: string;
-  name: string;
-  color: string;
-};
-
-type NightShiftPickerProps = {
-  open: boolean;
-  doctors: DoctorOption[];
-  searchTerm: string;
-  selectedDoctorIds: readonly string[];
-  onSearchTermChange: (value: string) => void;
-  onToggleDoctor: (doctorId: string) => void;
-};
-
-function NightShiftPicker({
-  open,
-  doctors,
-  searchTerm,
-  selectedDoctorIds,
-  onSearchTermChange,
-  onToggleDoctor,
-}: NightShiftPickerProps) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    window.setTimeout(() => inputRef.current?.focus(), 0);
-  }, [open]);
-
-  const selectedIdSet = useMemo(
-    () => new Set(selectedDoctorIds),
-    [selectedDoctorIds],
-  );
-
-  const filteredDoctors = useMemo(() => {
-    const normalizedTerm = searchTerm.trim().toLowerCase();
-
-    return doctors.filter((doctor) =>
-      normalizedTerm.length === 0
-        ? true
-        : doctor.name.toLowerCase().includes(normalizedTerm),
-    );
-  }, [doctors, searchTerm]);
-
-  return (
-    <div className="space-y-3">
-      <div className="space-y-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            ref={inputRef}
-            value={searchTerm}
-            onChange={(event) => onSearchTermChange(event.target.value)}
-            placeholder="Arzt suchen"
-            className="pl-9"
-          />
-        </div>
-        {selectedDoctorIds.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {selectedDoctorIds.map((doctorId) => {
-              const doctor = doctors.find((entry) => entry.id === doctorId);
-
-              if (!doctor) {
-                return null;
-              }
-
-              return (
-                <button
-                  key={doctor.id}
-                  type="button"
-                  onClick={() => onToggleDoctor(doctor.id)}
-                  className="cursor-pointer rounded-full"
-                >
-                  <Pill
-                    color={doctor.color}
-                    className="inline-flex cursor-pointer items-center gap-1 text-xs"
-                  >
-                    <span>{doctor.name}</span>
-                    <Trash2 className="size-3" />
-                  </Pill>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Noch kein Arzt ausgewahlt.
-          </p>
-        )}
-      </div>
-
-      <div className="max-h-64 space-y-1 overflow-auto">
-        {filteredDoctors.length === 0 ? (
-          <div className="rounded-md px-3 py-2 text-sm text-muted-foreground">
-            Keine passenden Arzte gefunden.
-          </div>
-        ) : (
-          filteredDoctors.map((doctor) => {
-            const isSelected = selectedIdSet.has(doctor.id);
-
-            return (
-              <button
-                key={doctor.id}
-                type="button"
-                className={cn(
-                  "flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-accent",
-                  isSelected && "bg-accent/70",
-                )}
-                onClick={() => onToggleDoctor(doctor.id)}
-              >
-                <Pill color={doctor.color} className="text-xs">
-                  {doctor.name}
-                </Pill>
-                <span className="flex h-4 w-4 items-center justify-center rounded-sm border">
-                  {isSelected ? <Check className="size-3" /> : null}
-                </span>
-              </button>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
-
 type NightShiftsMonthCalendarProps = {
   month: Date;
   doctorsByDate: Map<string, ShiftDoctor[]>;
   canManage: boolean;
   isMobile: boolean;
   isUpdating: boolean;
-  availableDoctors: DoctorOption[];
+  availableDoctors: DoctorPickerOption[];
   openDate: string | null;
   pickerSearchTerm: string;
   selectedDoctorIdsByDate: Map<string, string[]>;
@@ -352,13 +226,16 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
               {format(new Date(`${openDate}T00:00:00`), "dd.MM.yyyy")}
             </div>
           </div>
-          <NightShiftPicker
+          <DoctorPicker
             open={openDate != null}
             doctors={availableDoctors}
             searchTerm={pickerSearchTerm}
             selectedDoctorIds={selectedDoctorIdsByDate.get(openDate) ?? []}
             onSearchTermChange={onPickerSearchTermChange}
-            onToggleDoctor={(doctorId) => onToggleDoctor(openDate, doctorId)}
+            onToggleDoctor={(doctorId) => {
+              onToggleDoctor(openDate, doctorId);
+              onOpenDateChange(null);
+            }}
           />
         </div>
       ) : null}
@@ -379,13 +256,16 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
                 {isUpdating ? (
                   <Loader2 className="absolute right-0 top-0 size-4 animate-spin text-muted-foreground" />
                 ) : null}
-                <NightShiftPicker
+                <DoctorPicker
                   open={openDate != null}
                   doctors={availableDoctors}
                   searchTerm={pickerSearchTerm}
                   selectedDoctorIds={selectedDoctorIdsByDate.get(openDate) ?? []}
                   onSearchTermChange={onPickerSearchTermChange}
-                  onToggleDoctor={(doctorId) => onToggleDoctor(openDate, doctorId)}
+                  onToggleDoctor={(doctorId) => {
+                    onToggleDoctor(openDate, doctorId);
+                    onOpenDateChange(null);
+                  }}
                 />
               </div>
             ) : null}
@@ -404,17 +284,17 @@ export default function NightShiftsPage() {
   const canManage =
     user?.role === "secretary" || user?.role === "shift_assigner";
   const doctorId = user?.doctorId ?? null;
-  const canViewOwnNightShifts = user?.role === "doctor" && doctorId != null;
-  const canViewNightShifts = canManage || canViewOwnNightShifts;
+  const canViewNightShifts =
+    canManage || user?.role === "doctor";
   const nightShiftsQueryKey = useMemo(
-    () => ["night-shifts", year, canManage ? ALL_DOCTORS_VALUE : doctorId],
-    [canManage, doctorId, year],
+    () => ["night-shifts", year, ALL_DOCTORS_VALUE],
+    [year],
   );
 
   const { data: doctors = [], isLoading: isDoctorsLoading } = useQuery({
     queryKey: ["doctors"],
     queryFn: doctorsApi.getAll,
-    enabled: canManage,
+    enabled: canViewNightShifts,
   });
 
   const {
@@ -435,6 +315,7 @@ export default function NightShiftsPage() {
   const [pickerSearchTerm, setPickerSearchTerm] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const [mobileInfoDate, setMobileInfoDate] = useState<string | null>(null);
+  const hasInitializedDoctorSelection = useRef(false);
   const nightShifts = optimisticNightShifts ?? data ?? EMPTY_NIGHT_SHIFTS;
 
   useEffect(() => {
@@ -444,6 +325,22 @@ export default function NightShiftsPage() {
   useEffect(() => {
     setPickerSearchTerm("");
   }, [openDate]);
+
+  useEffect(() => {
+    if (user?.role !== "doctor" || doctorId == null) {
+      hasInitializedDoctorSelection.current = false;
+      return;
+    }
+
+    if (hasInitializedDoctorSelection.current) {
+      return;
+    }
+
+    hasInitializedDoctorSelection.current = true;
+    if (selectedDoctorId === ALL_DOCTORS_VALUE) {
+      setSelectedDoctorId(String(doctorId));
+    }
+  }, [doctorId, selectedDoctorId, user?.role]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 767px)");
@@ -462,7 +359,7 @@ export default function NightShiftsPage() {
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, []);
 
-  const availableDoctors = useMemo<DoctorOption[]>(() => {
+  const availableDoctors = useMemo<DoctorPickerOption[]>(() => {
     return doctors
       .filter((doctor) => !doctor.disabled && !doctor.oa)
       .map((doctor) => ({
@@ -477,7 +374,10 @@ export default function NightShiftsPage() {
   }, [doctors]);
 
   useEffect(() => {
-    if (!canManage) {
+    if (!canViewNightShifts) {
+      return;
+    }
+    if (isDoctorsLoading || availableDoctors.length === 0) {
       return;
     }
 
@@ -489,15 +389,10 @@ export default function NightShiftsPage() {
     if (!exists) {
       setSelectedDoctorId(ALL_DOCTORS_VALUE);
     }
-  }, [availableDoctors, canManage, selectedDoctorId]);
+  }, [availableDoctors, canViewNightShifts, isDoctorsLoading, selectedDoctorId]);
 
-  const visibleDoctorId = canManage
-    ? selectedDoctorId === ALL_DOCTORS_VALUE
-      ? null
-      : selectedDoctorId
-    : doctorId != null
-      ? String(doctorId)
-      : null;
+  const visibleDoctorId =
+    selectedDoctorId === ALL_DOCTORS_VALUE ? null : selectedDoctorId;
 
   const updateMutation = useMutation({
     mutationFn: ({ date, doctorIds }: { date: string; doctorIds: number[] }) =>
@@ -583,8 +478,8 @@ export default function NightShiftsPage() {
     const existingShift = nightShiftByDate.get(date);
     const currentDoctorIds = existingShift?.doctorIds ?? [];
     const nextDoctorIds = currentDoctorIds.includes(parsedDoctorId)
-      ? currentDoctorIds.filter((doctorId) => doctorId !== parsedDoctorId)
-      : [...currentDoctorIds, parsedDoctorId].sort((left, right) => left - right);
+      ? []
+      : [parsedDoctorId];
 
     const nextNightShifts = (() => {
       const optimisticShift: NightShift = {
@@ -648,7 +543,7 @@ export default function NightShiftsPage() {
           </p>
         </div>
 
-        {canManage ? (
+        {canViewNightShifts ? (
           <div className="flex flex-wrap items-center gap-2">
             <Select value={selectedDoctorId} onValueChange={setSelectedDoctorId}>
               <SelectTrigger className="w-full sm:w-72">
@@ -700,7 +595,7 @@ export default function NightShiftsPage() {
         )}
       </div>
 
-      {(isNightShiftsLoading || (canManage && isDoctorsLoading)) && (
+      {(isNightShiftsLoading || isDoctorsLoading) && (
         <p className="text-sm text-muted-foreground">
           Nachtdienstdaten werden geladen...
         </p>

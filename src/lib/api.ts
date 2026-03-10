@@ -233,13 +233,14 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     updateYear: async (
       year: number,
       days: VacationDay[],
+      doctorId?: number,
     ): Promise<{ success: boolean }> => {
       const response = await apiFetch("/api/vacations", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ year, days }),
+        body: JSON.stringify({ year, days, doctorId }),
       });
       return readJson(response, "Failed to update vacation days");
     },

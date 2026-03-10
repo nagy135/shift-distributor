@@ -1,12 +1,25 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { flushSync } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
+import { CircleHelp, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarSkeleton } from "@/components/ui/calendar-skeleton";
 import { Button } from "@/components/ui/button";
+import {
+  DoctorPicker,
+  type DoctorPickerOption,
+} from "@/components/doctor-picker";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-client";
 import { type VacationDay } from "@/lib/api";
@@ -20,6 +33,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -37,6 +51,8 @@ import {
 } from "react-day-picker";
 
 const EMPTY_VACATION_DAYS: VacationDay[] = [];
+const ALL_DOCTORS_VALUE = "all";
+const DEFAULT_DOCTOR_COLOR = "#64748b";
 
 const createColorCountMap = (): Record<VacationColor, number> =>
   VACATION_COLORS.reduce(
@@ -68,34 +84,110 @@ const getDayColors = (entries: VacationDay[]) => {
 
 type VacationMonthCalendarProps = {
   month: Date;
-  isApprover: boolean;
+  showVacationOverview: boolean;
+  canManageWithPicker: boolean;
   isMobile: boolean;
+  isUpdating: boolean;
+  availableDoctors: DoctorPickerOption[];
+  openDate: string | null;
+  pickerSearchTerm: string;
+  selectedDoctorIdsByDate: Map<string, string[]>;
   modifiers?: Record<VacationColor, Date[]>;
   modifierClasses?: Record<VacationColor, string>;
   vacationsByDate: Map<string, VacationDay[]>;
   hasPendingByDate: Map<string, boolean>;
+  onOpenDateChange: (date: string | null) => void;
+  onPickerSearchTermChange: (value: string) => void;
+  onToggleDoctor: (date: string, doctorId: string) => void;
   onDayClick: (day: Date) => void;
+  pickerEnabled: boolean;
 };
 
 const VacationMonthCalendar = memo(function VacationMonthCalendar({
   month,
-  isApprover,
+  showVacationOverview,
+  canManageWithPicker,
   isMobile,
+  isUpdating,
+  availableDoctors,
+  openDate,
+  pickerSearchTerm,
+  selectedDoctorIdsByDate,
   modifiers,
   modifierClasses,
   vacationsByDate,
   hasPendingByDate,
+  onOpenDateChange,
+  onPickerSearchTermChange,
+  onToggleDoctor,
   onDayClick,
+  pickerEnabled,
 }: VacationMonthCalendarProps) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const cellRefs = useRef(new Map<string, HTMLButtonElement>());
+  const [pickerPosition, setPickerPosition] = useState<{
+    top: number;
+    left: number;
+    minWidth: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!canManageWithPicker || !openDate) {
+      setPickerPosition(null);
+      return;
+    }
+
+    const wrapper = wrapperRef.current;
+    const anchor = cellRefs.current.get(openDate);
+
+    if (!wrapper || !anchor) {
+      setPickerPosition(null);
+      return;
+    }
+
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const anchorRect = anchor.getBoundingClientRect();
+
+    setPickerPosition({
+      top: anchorRect.bottom - wrapperRect.top + 6,
+      left: anchorRect.left - wrapperRect.left,
+      minWidth: Math.max(anchorRect.width, 280),
+    });
+  }, [canManageWithPicker, openDate, pickerSearchTerm, selectedDoctorIdsByDate]);
+
+  useEffect(() => {
+    if (!canManageWithPicker || !openDate || isMobile) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (wrapperRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      onOpenDateChange(null);
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    return () => window.removeEventListener("mousedown", handlePointerDown);
+  }, [canManageWithPicker, isMobile, onOpenDateChange, openDate]);
+
   return (
-    <div className="rounded-md border">
+    <div ref={wrapperRef} className="relative rounded-md border">
       <Calendar
         month={month}
         disableNavigation
         showOutsideDays={false}
         modifiers={modifiers}
         modifiersClassNames={modifierClasses}
-        onDayClick={onDayClick}
+        onDayClick={(day) => {
+          if (canManageWithPicker) {
+            onOpenDateChange(dayToKey(day));
+            return;
+          }
+
+          onDayClick(day);
+        }}
         components={{
           DayButton: (props: React.ComponentProps<typeof RdpDayButton>) => {
             const { day, modifiers, className, children, ...rest } = props;
@@ -112,13 +204,25 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
               new Set(entries.map((entry: VacationDay) => entry.color)),
             ) as VacationColor[];
             const hasPendingApproval = hasPendingByDate.get(dayKey) ?? false;
+            const pendingQuestionMarkClass =
+              colors.length > 0
+                ? VACATION_COLOR_STYLES[colors[0]].questionMark
+                : "text-blue-600";
 
             const defaultClassNames = getDefaultClassNames();
             return (
               <Button
+                ref={(node) => {
+                  if (node) {
+                    cellRefs.current.set(dayKey, node);
+                  } else {
+                    cellRefs.current.delete(dayKey);
+                  }
+                }}
                 variant="ghost"
                 size="icon"
                 data-day={day.date.toLocaleDateString()}
+                data-open={openDate === dayKey}
                 data-selected-single={
                   modifiers.selected &&
                   !modifiers.range_start &&
@@ -131,63 +235,43 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
                 title={!isMobile ? tooltip || undefined : undefined}
                 className={cn(
                   "relative data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 hover:bg-transparent dark:hover:text-inherit flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
+                  canManageWithPicker && "cursor-pointer",
+                  openDate === dayKey && "ring-2 ring-sky-500 ring-offset-1",
                   defaultClassNames.day,
                   className,
                 )}
                 {...rest}
               >
-                {isApprover && colors.length > 0 && (
+                {showVacationOverview && colors.length > 0 && (
                   <span className="absolute inset-0 overflow-hidden rounded-md">
-                    {colors.length === 1 && (
-                      <span
-                        className={cn(
-                          "absolute inset-0 opacity-80",
-                          VACATION_COLOR_STYLES[colors[0]].classes,
-                        )}
-                      />
-                    )}
-                    {colors.length === 2 && (
-                      <>
+                    {colors.map((color, index) => {
+                      const segmentHeight = 100 / colors.length;
+
+                      return (
                         <span
+                          key={`${dayKey}-${color}`}
                           className={cn(
-                            "absolute inset-x-0 top-0 h-1/2 opacity-80",
-                            VACATION_COLOR_STYLES[colors[0]].classes,
+                            "absolute inset-x-0 opacity-80",
+                            VACATION_COLOR_STYLES[color].classes,
                           )}
+                          style={{
+                            top: `${index * segmentHeight}%`,
+                            height: `${segmentHeight}%`,
+                          }}
                         />
-                        <span
-                          className={cn(
-                            "absolute inset-x-0 bottom-0 h-1/2 opacity-80",
-                            VACATION_COLOR_STYLES[colors[1]].classes,
-                          )}
-                        />
-                      </>
-                    )}
-                    {colors.length >= 3 && (
-                      <>
-                        <span
-                          className={cn(
-                            "absolute inset-x-0 top-0 h-1/3 opacity-80",
-                            VACATION_COLOR_STYLES[colors[0]].classes,
-                          )}
-                        />
-                        <span
-                          className={cn(
-                            "absolute inset-x-0 top-1/3 h-1/3 opacity-80",
-                            VACATION_COLOR_STYLES[colors[1]].classes,
-                          )}
-                        />
-                        <span
-                          className={cn(
-                            "absolute inset-x-0 bottom-0 h-1/3 opacity-80",
-                            VACATION_COLOR_STYLES[colors[2]].classes,
-                          )}
-                        />
-                      </>
-                    )}
+                      );
+                    })}
                   </span>
                 )}
                 {hasPendingApproval && (
-                  <span className="absolute top-1 right-1 z-20 h-2.5 w-2.5 rounded-full bg-blue-500 ring-1 ring-background" />
+                  <span
+                    className={cn(
+                      "absolute right-0.5 top-0.5 z-20",
+                      pendingQuestionMarkClass,
+                    )}
+                  >
+                    <CircleHelp className="h-3 w-3" />
+                  </span>
                 )}
                 <span className="relative z-10">{children}</span>
               </Button>
@@ -196,35 +280,188 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
         }}
         className="w-full"
       />
+
+      {canManageWithPicker && !isMobile && openDate && pickerPosition ? (
+        <div
+          className="pointer-events-auto absolute z-30 overflow-hidden rounded-lg border bg-background p-3 shadow-xl"
+          style={{
+            top: pickerPosition.top,
+            left: pickerPosition.left,
+            minWidth: pickerPosition.minWidth,
+          }}
+          onMouseDown={(event) => {
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          {isUpdating ? (
+            <Loader2 className="absolute right-3 top-3 size-4 animate-spin text-muted-foreground" />
+          ) : null}
+          <div className="mb-3">
+            <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+              Urlaub
+            </div>
+            <div className="mt-1 text-sm font-medium">
+              {format(new Date(`${openDate}T00:00:00`), "dd.MM.yyyy")}
+            </div>
+          </div>
+          {pickerEnabled ? (
+            <DoctorPicker
+              open={openDate != null}
+              doctors={availableDoctors}
+              searchTerm={pickerSearchTerm}
+              selectedDoctorIds={selectedDoctorIdsByDate.get(openDate) ?? []}
+              onSearchTermChange={onPickerSearchTermChange}
+              onToggleDoctor={(doctorId) => {
+                onToggleDoctor(openDate, doctorId);
+                onOpenDateChange(null);
+              }}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Wählen Sie zuerst eine Farbe.
+            </p>
+          )}
+        </div>
+      ) : null}
+
+      {canManageWithPicker && isMobile ? (
+        <Dialog
+          open={openDate != null}
+          onOpenChange={(isOpen) => !isOpen && onOpenDateChange(null)}
+        >
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Urlaub</DialogTitle>
+              <DialogDescription>
+                {openDate
+                  ? `Arzte fur ${format(new Date(`${openDate}T00:00:00`), "dd.MM.yyyy")} auswahlen oder entfernen.`
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+            {openDate ? (
+              <div className="relative">
+                {isUpdating ? (
+                  <Loader2 className="absolute right-0 top-0 size-4 animate-spin text-muted-foreground" />
+                ) : null}
+                {pickerEnabled ? (
+                  <DoctorPicker
+                    open={openDate != null}
+                    doctors={availableDoctors}
+                    searchTerm={pickerSearchTerm}
+                    selectedDoctorIds={selectedDoctorIdsByDate.get(openDate) ?? []}
+                    onSearchTermChange={onPickerSearchTermChange}
+                    onToggleDoctor={(doctorId) => {
+                      onToggleDoctor(openDate, doctorId);
+                      onOpenDateChange(null);
+                    }}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Wählen Sie zuerst eine Farbe.
+                  </p>
+                )}
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 });
 
 export default function VacationsPage() {
   const { user, isLoading } = useAuth();
-  const { vacationsApi } = useApiClient();
+  const { doctorsApi, vacationsApi } = useApiClient();
   const queryClient = useQueryClient();
   const doctorId = user?.doctorId ?? null;
-  const isApprover = user?.role === "secretary";
+  const canApprove = user?.role === "secretary";
+  const canViewAllVacations =
+    canApprove ||
+    user?.role === "shift_assigner" ||
+    user?.role === "doctor";
+  const canEditAllVacations = user?.role === "shift_assigner";
+  const canEditOwnVacations = user?.role === "doctor" && doctorId != null;
+  const canEditVacations = canEditAllVacations || canEditOwnVacations;
+  const canViewVacations = canViewAllVacations;
   const year = new Date().getFullYear();
   const vacationsQueryKey = useMemo(
-    () => ["vacations", isApprover ? "all" : doctorId, year],
-    [doctorId, isApprover, year],
+    () => [
+      "vacations",
+      canViewAllVacations ? ALL_DOCTORS_VALUE : doctorId,
+      year,
+    ],
+    [canViewAllVacations, doctorId, year],
   );
+
+  const { data: doctors = [], isLoading: isDoctorsLoading } = useQuery({
+    queryKey: ["doctors"],
+    queryFn: doctorsApi.getAll,
+    enabled: canViewVacations,
+  });
 
   const { data, isLoading: isVacationsLoading } = useQuery({
     queryKey: vacationsQueryKey,
     queryFn: () => vacationsApi.getByYear(year),
-    enabled: isApprover || !!doctorId,
+    enabled: canViewVacations,
   });
-  const vacationDays = data ?? EMPTY_VACATION_DAYS;
+  const [optimisticVacationDays, setOptimisticVacationDays] = useState<
+    VacationDay[] | null
+  >(null);
+  const vacationDays = optimisticVacationDays ?? data ?? EMPTY_VACATION_DAYS;
 
   const [dayColors, setDayColors] = useState<Record<string, VacationColor>>({});
   const [activeColor, setActiveColor] = useState<VacationColor | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string>("all");
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
+    ALL_DOCTORS_VALUE,
+  );
+  const [openDate, setOpenDate] = useState<string | null>(null);
+  const [pickerSearchTerm, setPickerSearchTerm] = useState("");
   const [isMobile, setIsMobile] = useState(false);
+  const hasInitializedDoctorSelection = useRef(false);
+
+  const filteredDoctorId =
+    selectedDoctorId === ALL_DOCTORS_VALUE ? null : Number(selectedDoctorId);
+
+  const editableDoctorId =
+    canEditAllVacations
+      ? filteredDoctorId
+      : canEditOwnVacations && filteredDoctorId === doctorId
+        ? doctorId
+        : null;
+  const canUseVacationEditor = canEditAllVacations || editableDoctorId != null;
+  const isPickerMode =
+    canEditAllVacations && selectedDoctorId === ALL_DOCTORS_VALUE;
+
+  const isOverviewMode = canApprove || editableDoctorId == null;
+
+  useEffect(() => {
+    setOptimisticVacationDays(null);
+  }, [data]);
+
+  useEffect(() => {
+    setPickerSearchTerm("");
+  }, [openDate]);
+
+  useEffect(() => {
+    if (user?.role !== "doctor" || doctorId == null) {
+      hasInitializedDoctorSelection.current = false;
+      return;
+    }
+
+    if (hasInitializedDoctorSelection.current) {
+      return;
+    }
+
+    hasInitializedDoctorSelection.current = true;
+    if (selectedDoctorId === ALL_DOCTORS_VALUE) {
+      setSelectedDoctorId(String(doctorId));
+    }
+  }, [doctorId, selectedDoctorId, user?.role]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 767px)");
@@ -244,33 +481,51 @@ export default function VacationsPage() {
   }, []);
 
   useEffect(() => {
-    if (isApprover) return;
+    if (editableDoctorId == null) {
+      setDayColors({});
+      return;
+    }
+
     const next = vacationDays.reduce<Record<string, VacationColor>>(
       (acc, entry) => {
+        if (entry.doctorId !== editableDoctorId) {
+          return acc;
+        }
+
         acc[entry.date] = entry.color;
         return acc;
       },
       {},
     );
     setDayColors(next);
-  }, [vacationDays, isApprover]);
+  }, [editableDoctorId, vacationDays]);
 
   const colorCounts = useMemo(() => countColors(dayColors), [dayColors]);
 
   const updateMutation = useMutation({
-    mutationFn: (days: VacationDay[]) => vacationsApi.updateYear(year, days),
+    mutationFn: ({
+      doctorId,
+      days,
+    }: {
+      doctorId: number;
+      days: VacationDay[];
+    }) => vacationsApi.updateYear(year, days, doctorId),
     onSuccess: () => {
       console.log("synced");
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: vacationsQueryKey });
-      queryClient.invalidateQueries({ queryKey: ["vacations", "calendar", year] });
+      queryClient.invalidateQueries({
+        queryKey: ["vacations", "calendar", year],
+      });
     },
   });
 
   const invalidateVacationsQueries = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: vacationsQueryKey });
-    queryClient.invalidateQueries({ queryKey: ["vacations", "calendar", year] });
+    queryClient.invalidateQueries({
+      queryKey: ["vacations", "calendar", year],
+    });
   }, [queryClient, vacationsQueryKey, year]);
 
   const approvalMutation = useMutation({
@@ -293,7 +548,10 @@ export default function VacationsPage() {
     },
     onError: (_error, _variables, context) => {
       if (context?.previousVacationDays) {
-        queryClient.setQueryData(vacationsQueryKey, context.previousVacationDays);
+        queryClient.setQueryData(
+          vacationsQueryKey,
+          context.previousVacationDays,
+        );
       }
     },
     onSuccess: () => {
@@ -321,7 +579,10 @@ export default function VacationsPage() {
     },
     onError: (_error, _variables, context) => {
       if (context?.previousVacationDays) {
-        queryClient.setQueryData(vacationsQueryKey, context.previousVacationDays);
+        queryClient.setQueryData(
+          vacationsQueryKey,
+          context.previousVacationDays,
+        );
       }
     },
     onSuccess: () => {
@@ -334,25 +595,36 @@ export default function VacationsPage() {
 
   const persistDays = useCallback(
     (nextMap: Record<string, VacationColor>) => {
+      if (editableDoctorId == null) {
+        return;
+      }
+
       const payload: VacationDay[] = Object.entries(nextMap).map(
         ([date, color]) => ({ date, color }),
       );
-      updateMutation.mutate(payload);
+      updateMutation.mutate({ doctorId: editableDoctorId, days: payload });
     },
-    [updateMutation],
+    [editableDoctorId, updateMutation],
   );
 
   const handleDayClick = useCallback(
     (day: Date) => {
-      if (!activeColor) return;
+      if (!activeColor || editableDoctorId == null) return;
       const key = dayToKey(day);
 
       const existing = dayColors[key];
       const counts = countColors(dayColors);
       const yearlyLimit = VACATION_DAYS_PER_YEAR[activeColor];
-      const remaining =
-        yearlyLimit - counts[activeColor] + (existing === activeColor ? 1 : 0);
+      const isUnlimited = !Number.isFinite(yearlyLimit);
+      const remaining = isUnlimited
+        ? Number.POSITIVE_INFINITY
+        : yearlyLimit -
+          counts[activeColor] +
+          (existing === activeColor ? 1 : 0);
       if (existing !== activeColor && remaining <= 0) {
+        toast.error(
+          `${VACATION_COLOR_STYLES[activeColor].label} ist bereits vollständig verbraucht.`,
+        );
         return;
       }
 
@@ -371,27 +643,135 @@ export default function VacationsPage() {
         persistDays(next);
       });
     },
-    [activeColor, dayColors, persistDays],
+    [activeColor, dayColors, editableDoctorId, persistDays],
   );
 
-  const vacationsByDate = useMemo(() => {
-    if (!isApprover) {
-      return new Map<string, VacationDay[]>();
+  const handleToggleDoctor = useCallback(
+    (date: string, doctorIdToToggle: string) => {
+      if (!canEditAllVacations || !activeColor) {
+        return;
+      }
+
+      const parsedDoctorId = Number(doctorIdToToggle);
+      if (!Number.isInteger(parsedDoctorId)) {
+        return;
+      }
+
+      const existingEntry = vacationDays.find(
+        (entry) =>
+          entry.date === date &&
+          entry.doctorId === parsedDoctorId &&
+          entry.color === activeColor,
+      );
+      const activeColorEntriesForDate = vacationDays.filter(
+        (entry) => entry.date === date && entry.color === activeColor,
+      );
+      const yearlyLimit = VACATION_DAYS_PER_YEAR[activeColor];
+      const isUnlimited = !Number.isFinite(yearlyLimit);
+      const usedDays = vacationDays.reduce((count, entry) => {
+        if (
+          entry.doctorId === parsedDoctorId &&
+          entry.color === activeColor &&
+          entry.date !== date
+        ) {
+          return count + 1;
+        }
+
+        return count;
+      }, 0);
+
+      if (!isUnlimited && existingEntry?.color !== activeColor && usedDays >= yearlyLimit) {
+        toast.error(
+          `${VACATION_COLOR_STYLES[activeColor].label} ist für diesen Arzt bereits vollständig verbraucht.`,
+        );
+        return;
+      }
+
+      const doctor = doctors.find((entry) => String(entry.id) === doctorIdToToggle);
+      const affectedDoctorIds = Array.from(
+        new Set(
+          activeColorEntriesForDate
+            .map((entry) => entry.doctorId)
+            .filter((entry): entry is number => typeof entry === "number")
+            .concat(parsedDoctorId),
+        ),
+      );
+      const nextVacationDays = (() => {
+        if (existingEntry) {
+          return vacationDays.filter(
+            (entry) =>
+              !(
+                entry.date === date &&
+                entry.doctorId === parsedDoctorId &&
+                entry.color === activeColor
+              ),
+          );
+        }
+
+        const nextEntry: VacationDay = {
+          doctorId: parsedDoctorId,
+          doctorName: doctor?.name ?? `Arzt #${parsedDoctorId}`,
+          date,
+          color: activeColor,
+          approved: false,
+        };
+
+        const filtered = vacationDays.filter(
+          (entry) =>
+            !(entry.date === date && entry.color === activeColor),
+        );
+
+        return [...filtered, nextEntry].sort((left, right) => {
+          const dateComparison = left.date.localeCompare(right.date);
+          if (dateComparison !== 0) {
+            return dateComparison;
+          }
+
+          return (left.doctorId ?? 0) - (right.doctorId ?? 0);
+        });
+      })();
+
+      flushSync(() => {
+        setOptimisticVacationDays(nextVacationDays);
+      });
+
+      requestAnimationFrame(() => {
+        affectedDoctorIds.forEach((affectedDoctorId) => {
+          const affectedPayload = nextVacationDays
+            .filter((entry) => entry.doctorId === affectedDoctorId)
+            .map(({ date: vacationDate, color }) => ({
+              date: vacationDate,
+              color,
+            }));
+
+          updateMutation.mutate({
+            doctorId: affectedDoctorId,
+            days: affectedPayload,
+          });
+        });
+      });
+    },
+    [activeColor, canEditAllVacations, doctors, updateMutation, vacationDays],
+  );
+
+  const visibleVacationDays = useMemo(() => {
+    if (selectedDoctorId === ALL_DOCTORS_VALUE) {
+      return vacationDays;
     }
 
-    const filtered = vacationDays.filter(
-      (entry) =>
-        selectedDoctorId === "all" ||
-        String(entry.doctorId ?? "unknown") === selectedDoctorId,
+    return vacationDays.filter(
+      (entry) => String(entry.doctorId ?? "unknown") === selectedDoctorId,
     );
+  }, [selectedDoctorId, vacationDays]);
 
-    return getDayColors(filtered);
-  }, [isApprover, selectedDoctorId, vacationDays]);
+  const vacationsByDate = useMemo(() => {
+    return getDayColors(visibleVacationDays);
+  }, [visibleVacationDays]);
 
   const selectedVacations = useMemo<VacationDay[]>(() => {
-    if (!selectedDate || !isApprover) return [] as VacationDay[];
+    if (!selectedDate || !canApprove) return [] as VacationDay[];
     return vacationsByDate.get(selectedDate) ?? [];
-  }, [isApprover, selectedDate, vacationsByDate]);
+  }, [canApprove, selectedDate, vacationsByDate]);
 
   const hasPendingByDate = useMemo(() => {
     const next = new Map<string, boolean>();
@@ -402,24 +782,80 @@ export default function VacationsPage() {
     return next;
   }, [vacationsByDate]);
 
-  const availableDoctors = useMemo(() => {
-    const next = new Map<string, { id: string; name: string }>();
+  const availableDoctors = useMemo<DoctorPickerOption[]>(() => {
+    const next = new Map<string, DoctorPickerOption>();
+
+    doctors.forEach((doctor) => {
+      next.set(String(doctor.id), {
+        id: String(doctor.id),
+        name: doctor.name,
+        color:
+          typeof doctor.color === "string" && doctor.color.trim() !== ""
+            ? doctor.color
+            : DEFAULT_DOCTOR_COLOR,
+      });
+    });
 
     vacationDays.forEach((entry) => {
       const doctorId = String(entry.doctorId ?? "unknown");
       const doctorName = entry.doctorName ?? `Arzt #${entry.doctorId ?? "?"}`;
       if (!next.has(doctorId)) {
-        next.set(doctorId, { id: doctorId, name: doctorName });
+        next.set(doctorId, {
+          id: doctorId,
+          name: doctorName,
+          color: DEFAULT_DOCTOR_COLOR,
+        });
       }
     });
 
     return Array.from(next.values()).sort((a, b) =>
       a.name.localeCompare(b.name),
     );
-  }, [vacationDays]);
+  }, [doctors, vacationDays]);
+
+  useEffect(() => {
+    if (!canViewVacations) {
+      return;
+    }
+    if (isDoctorsLoading || availableDoctors.length === 0) {
+      return;
+    }
+
+    if (selectedDoctorId === ALL_DOCTORS_VALUE) {
+      return;
+    }
+
+    const exists = availableDoctors.some((doctor) => doctor.id === selectedDoctorId);
+    if (!exists) {
+      setSelectedDoctorId(ALL_DOCTORS_VALUE);
+    }
+  }, [availableDoctors, canViewVacations, isDoctorsLoading, selectedDoctorId]);
+
+  const selectedDoctorIdsByDate = useMemo(() => {
+    const next = new Map<string, string[]>();
+
+    if (!activeColor) {
+      return next;
+    }
+
+    vacationDays.forEach((entry) => {
+      if (entry.color !== activeColor || typeof entry.doctorId !== "number") {
+        return;
+      }
+
+      const current = next.get(entry.date) ?? [];
+      const doctorId = String(entry.doctorId);
+      if (!current.includes(doctorId)) {
+        current.push(doctorId);
+      }
+      next.set(entry.date, current.sort((left, right) => left.localeCompare(right)));
+    });
+
+    return next;
+  }, [activeColor, vacationDays]);
 
   const approverStats = useMemo(() => {
-    if (!isApprover) {
+    if (!canApprove) {
       return {
         approved: 0,
         unapproved: 0,
@@ -482,7 +918,7 @@ export default function VacationsPage() {
       unapproved,
       doctors,
     };
-  }, [isApprover, vacationDays]);
+  }, [canApprove, vacationDays]);
 
   const modifiers = useMemo(() => {
     const byColor = VACATION_COLORS.reduce(
@@ -516,7 +952,7 @@ export default function VacationsPage() {
   );
 
   const monthSpecificModifiers = useMemo(() => {
-    if (isApprover) {
+    if (isOverviewMode) {
       return months.map(() => undefined);
     }
 
@@ -532,7 +968,7 @@ export default function VacationsPage() {
         {} as Record<VacationColor, Date[]>,
       );
     });
-  }, [isApprover, modifiers, months]);
+  }, [isOverviewMode, modifiers, months]);
 
   const vacationsByMonth = useMemo(() => {
     return months.map((month) => {
@@ -568,7 +1004,7 @@ export default function VacationsPage() {
     return <div className="text-center">Lädt...</div>;
   }
 
-  if (!doctorId && !isApprover) {
+  if (!canViewVacations) {
     return (
       <div className="space-y-3">
         <h2 className="text-xl font-semibold">Urlaub</h2>
@@ -585,71 +1021,75 @@ export default function VacationsPage() {
         <div>
           <h2 className="text-2xl font-semibold">Urlaub</h2>
           <p className="text-sm text-muted-foreground">
-            {isApprover
+            {canApprove
               ? "Klicken Sie auf einen Tag, um Urlaubsfreigaben zu prüfen."
-              : `Wählen Sie eine Farbe und klicken Sie dann auf Tage, um Urlaub für ${year} zu markieren.`}
+              : isPickerMode
+                ? "Wählen Sie eine Farbe, klicken Sie auf einen Tag und wählen Sie dann Ärzte aus."
+                : editableDoctorId == null
+                  ? "Wählen Sie einen Arzt aus, um Urlaub zu sehen. Zum Bearbeiten wählen Sie sich selbst aus."
+                : `Wählen Sie eine Farbe und klicken Sie dann auf Tage, um Urlaub für ${year} zu markieren.`}
           </p>
         </div>
-        {isApprover && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={selectedDoctorId}
-              onValueChange={setSelectedDoctorId}
-              disabled={availableDoctors.length === 0}
-            >
-              <SelectTrigger className="w-full sm:w-72">
-                <SelectValue placeholder="Arzt auswählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle Ärzte</SelectItem>
-                {availableDoctors.map((doctor) => (
-                  <SelectItem key={doctor.id} value={doctor.id}>
-                    {doctor.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-        {!isApprover && (
+        {canEditVacations && (
           <>
-            <div className="flex flex-wrap gap-3">
-              {VACATION_COLORS.map((color) => {
-                const style = VACATION_COLOR_STYLES[color];
-                const used = colorCounts[color];
-                const yearlyLimit = VACATION_DAYS_PER_YEAR[color];
-                const remaining = Math.max(0, yearlyLimit - used);
-                const isActive = activeColor === color;
-                return (
-                  <Button
-                    key={color}
-                    type="button"
-                    className={cn(
-                      style.classes,
-                      "min-w-[88px] justify-between",
-                      isActive ? `ring-2 ring-offset-2 ${style.ring}` : "",
-                    )}
-                    disabled={remaining === 0 && !isActive}
-                    onClick={() => setActiveColor(color)}
-                  >
-                    <span>{style.label}</span>
-                    <span className="text-xs opacity-90">
-                      {remaining}/{yearlyLimit}
-                    </span>
-                  </Button>
-                );
-              })}
-            </div>
-            {!activeColor && (
+            {canUseVacationEditor ? (
+              <>
+                <div className="flex flex-wrap gap-3">
+                  {VACATION_COLORS.map((color) => {
+                    const style = VACATION_COLOR_STYLES[color];
+                    const used = colorCounts[color];
+                    const yearlyLimit = VACATION_DAYS_PER_YEAR[color];
+                    const isUnlimited = !Number.isFinite(yearlyLimit);
+                    const remaining = isUnlimited
+                      ? Number.POSITIVE_INFINITY
+                      : Math.max(0, yearlyLimit - used);
+                    const isActive = activeColor === color;
+                    const showCounts = !canEditAllVacations;
+
+                    return (
+                      <Button
+                        key={color}
+                        type="button"
+                        className={cn(
+                          style.classes,
+                          showCounts
+                            ? "min-w-[88px] justify-between"
+                            : "min-w-[88px]",
+                          isActive ? `ring-2 ring-offset-2 ${style.ring}` : "",
+                        )}
+                        disabled={
+                          showCounts && !isUnlimited && remaining === 0 && !isActive
+                        }
+                        onClick={() => setActiveColor(color)}
+                      >
+                        <span>{style.label}</span>
+                        {showCounts ? (
+                          <span className="text-xs opacity-90">
+                            {isUnlimited ? "∞" : `${remaining}/${yearlyLimit}`}
+                          </span>
+                        ) : null}
+                      </Button>
+                    );
+                  })}
+                </div>
+                {!activeColor && (
+                  <p className="text-xs text-muted-foreground">
+                    {canEditAllVacations
+                      ? "Wählen Sie eine Farbe und klicken Sie dann auf einen Tag."
+                      : "Wählen Sie eine Farbe, um Tage zu markieren."}
+                  </p>
+                )}
+              </>
+            ) : (
               <p className="text-xs text-muted-foreground">
-                Wählen Sie eine Farbe, um Tage zu markieren.
+                Wählen Sie sich selbst aus, um Urlaubstage zu bearbeiten.
               </p>
             )}
           </>
         )}
       </div>
 
-      {isApprover && (
+      {canApprove && (
         <details className="max-w-sm rounded-md border">
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
             Genehmigt: {approverStats.approved} | Nicht genehmigt:{" "}
@@ -704,20 +1144,51 @@ export default function VacationsPage() {
         </details>
       )}
 
+      {canViewVacations && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={selectedDoctorId}
+            onValueChange={setSelectedDoctorId}
+            disabled={availableDoctors.length === 0}
+          >
+            <SelectTrigger className="w-full sm:w-72">
+              <SelectValue placeholder="Arzt auswählen" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_DOCTORS_VALUE}>Alle Ärzte</SelectItem>
+              {availableDoctors.map((doctor) => (
+                <SelectItem key={doctor.id} value={doctor.id}>
+                  {doctor.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {months.map((month, index) =>
           !isVacationsLoading ? (
             <VacationMonthCalendar
               key={month.toISOString()}
               month={month}
-              isApprover={isApprover}
+              showVacationOverview={isOverviewMode}
+              canManageWithPicker={isPickerMode}
               isMobile={isMobile}
+              isUpdating={updateMutation.isPending}
+              availableDoctors={availableDoctors}
+              openDate={openDate}
+              pickerSearchTerm={pickerSearchTerm}
+              selectedDoctorIdsByDate={selectedDoctorIdsByDate}
               modifiers={monthSpecificModifiers[index]}
               modifierClasses={modifierClasses}
               vacationsByDate={vacationsByMonth[index] ?? new Map()}
               hasPendingByDate={pendingByMonth[index] ?? new Map()}
+              onOpenDateChange={setOpenDate}
+              onPickerSearchTermChange={setPickerSearchTerm}
+              onToggleDoctor={handleToggleDoctor}
               onDayClick={(day) => {
-                if (isApprover) {
+                if (canApprove) {
                   const key = dayToKey(day);
                   setSelectedDate(key);
                   setIsDialogOpen(true);
@@ -725,6 +1196,7 @@ export default function VacationsPage() {
                   handleDayClick(day);
                 }
               }}
+              pickerEnabled={activeColor != null}
             />
           ) : (
             <div key={month.toISOString()} className="rounded-md border">
@@ -739,22 +1211,27 @@ export default function VacationsPage() {
           Urlaubsdaten werden geladen...
         </p>
       )}
+      {isDoctorsLoading && (
+        <p className="text-sm text-muted-foreground">
+          Ärztedaten werden geladen...
+        </p>
+      )}
       {updateMutation.isPending && (
         <p className="text-sm text-muted-foreground">
           Änderungen werden gespeichert...
         </p>
       )}
-      {approvalMutation.isPending && (
+      {canApprove && approvalMutation.isPending && (
         <p className="text-sm text-muted-foreground">
           Freigabe wird aktualisiert...
         </p>
       )}
-      {denyMutation.isPending && (
+      {canApprove && denyMutation.isPending && (
         <p className="text-sm text-muted-foreground">
           Urlaub wird abgelehnt...
         </p>
       )}
-      {isApprover && (
+      {canApprove && (
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
