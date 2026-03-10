@@ -142,7 +142,7 @@ export function CalendarContent({
             onClick={() => setTableView("departments")}
           >
             <Building2 className="size-4" />
-            Abteilungen
+            Station
           </Button>
         </div>
       </div>
