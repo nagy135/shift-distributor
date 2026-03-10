@@ -133,7 +133,7 @@ export function DoctorShiftCounts({
             <th className="text-left px-1 py-0.5 whitespace-nowrap border-r border-gray-300 md:px-1.5">
               Arzt
             </th>
-            <th className="text-center px-0.5 py-0.5 border-r border-gray-300 md:px-1 md:py-0.5">
+            <th className="text-center px-0.5 py-0.5 border-x-2 border-gray-300 md:px-1 md:py-0.5">
               Gesamt
             </th>
             {displayColumns.map((column) => (
@@ -162,7 +162,7 @@ export function DoctorShiftCounts({
               <td className="px-1 py-0.5 font-medium whitespace-nowrap border-r border-gray-300 md:px-1.5 md:py-0.5">
                 {doctor.name}
               </td>
-              <td className="px-0.5 py-0.5 text-center tabular-nums border-r border-gray-300 font-medium md:px-1 md:py-0.5">
+              <td className="px-0.5 py-0.5 text-center tabular-nums border-x-2 border-gray-300 md:px-1 md:py-0.5 font-bold">
                 {total}
               </td>
               {displayColumns.map((column) => (

@@ -9,6 +9,7 @@ import {
   isSameMonth,
 } from "date-fns";
 import { de } from "date-fns/locale";
+import { toast } from "sonner";
 import { MonthSelector } from "@/components/MonthSelector";
 import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
 import type { QuickAssignOption } from "@/components/shifts/QuickAssignOverlay";
@@ -92,6 +93,10 @@ export default function CalendarPage() {
 
   const clearSelectedTargets = useCallback(() => {
     setSelectedTargets([]);
+  }, []);
+
+  const notifyLocked = useCallback(() => {
+    toast.error("Tabelle ist gesperrt und kann nicht bearbeitet werden.");
   }, []);
 
   const closeQuickAssign = useCallback(() => {
@@ -258,13 +263,17 @@ export default function CalendarPage() {
 
   const openAssignModalForSelection = useCallback(() => {
     if (!isShiftAssigner || selectedTargets.length === 0) return;
+    if (isLocked) {
+      notifyLocked();
+      return;
+    }
     setSelectedDate(undefined);
     setSelectedShiftType(null);
     setSelectedShiftTypes(
       Array.from(new Set(selectedTargets.map((target) => target.shiftType))),
     );
     setIsAssignModalOpen(true);
-  }, [isShiftAssigner, selectedTargets]);
+  }, [isLocked, isShiftAssigner, notifyLocked, selectedTargets]);
 
   useEffect(() => {
     if (
@@ -368,6 +377,10 @@ export default function CalendarPage() {
     shiftTypes: readonly string[],
   ) => {
     if (!isShiftAssigner) return;
+    if (isLocked) {
+      notifyLocked();
+      return;
+    }
     closeQuickAssign();
     clearSelectedTargets();
     setSelectedDate(date);
@@ -383,6 +396,10 @@ export default function CalendarPage() {
     options: CalendarCellClickOptions,
   ) => {
     if (!isShiftAssigner) return;
+    if (isLocked) {
+      notifyLocked();
+      return;
+    }
 
     if (options.additive) {
       const nextTarget = { date, shiftType };
@@ -421,6 +438,10 @@ export default function CalendarPage() {
   const handleShiftAssignments = useCallback(
     async (assignments: ShiftAssignment[]) => {
       if (!isShiftAssigner) return;
+      if (isLocked) {
+        notifyLocked();
+        return;
+      }
 
       if (assignments.length === 0) return;
 
@@ -441,19 +462,36 @@ export default function CalendarPage() {
         console.error("Error assigning shifts:", error);
       }
     },
-    [assignShiftMutation, invalidateShifts, isShiftAssigner, shiftsApi],
+    [
+      assignShiftMutation,
+      invalidateShifts,
+      isLocked,
+      isShiftAssigner,
+      notifyLocked,
+      shiftsApi,
+    ],
   );
 
   const handleQuickAssignToggle = useCallback((doctorId: string) => {
+    if (isLocked) {
+      notifyLocked();
+      return;
+    }
+
     setQuickAssignDoctorIds((current) =>
       current.includes(doctorId)
         ? current.filter((entry) => entry !== doctorId)
         : [...current, doctorId],
     );
-  }, []);
+  }, [isLocked, notifyLocked]);
 
   const handleQuickAssignOptionClick = useCallback(
     async (doctorId: string, additive: boolean) => {
+      if (isLocked) {
+        notifyLocked();
+        return;
+      }
+
       if (additive) {
         setQuickAssignDoctorIds((current) =>
           current.includes(doctorId) ? current : [...current, doctorId],
@@ -484,12 +522,19 @@ export default function CalendarPage() {
       clearSelectedTargets,
       closeQuickAssign,
       handleShiftAssignments,
+      isLocked,
       isShiftAssigner,
+      notifyLocked,
       selectedTargets,
     ],
   );
 
   const handleQuickAssignApply = useCallback(async () => {
+    if (isLocked) {
+      notifyLocked();
+      return;
+    }
+
     if (!isShiftAssigner || selectedTargets.length === 0) {
       return;
     }
@@ -510,10 +555,23 @@ export default function CalendarPage() {
     clearSelectedTargets,
     closeQuickAssign,
     handleShiftAssignments,
+    isLocked,
     isShiftAssigner,
+    notifyLocked,
     quickAssignDoctorIds,
     selectedTargets,
   ]);
+
+  useEffect(() => {
+    if (!isLocked) {
+      return;
+    }
+
+    setIsAssignModalOpen(false);
+    setIsQuickAssignOpen(false);
+    setIsSelectionInteractionActive(false);
+    clearSelectedTargets();
+  }, [clearSelectedTargets, isLocked]);
 
   useEffect(() => {
     if (
@@ -719,7 +777,18 @@ export default function CalendarPage() {
         selectedCellKeys={selectedCellKeys}
         onRowClick={isShiftAssigner ? openAssignModalForDate : undefined}
         onCellClick={isShiftAssigner ? openAssignModalForCell : undefined}
-        onSelectionChange={isShiftAssigner ? setSelectedTargets : undefined}
+        onSelectionChange={
+          isShiftAssigner
+            ? (targets) => {
+                if (isLocked) {
+                  notifyLocked();
+                  return;
+                }
+
+                setSelectedTargets(targets);
+              }
+            : undefined
+        }
         onSelectionInteractionChange={
           isShiftAssigner ? setIsSelectionInteractionActive : undefined
         }

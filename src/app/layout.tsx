@@ -6,6 +6,7 @@ import { Navigation } from "@/components/navigation";
 import { ThemeScript } from "@/components/theme-script";
 import { AuthProvider } from "@/lib/auth-client";
 import { AuthGate } from "@/components/auth-gate";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -36,6 +37,7 @@ export default function RootLayout({
               <main className="container mx-auto px-4 py-8">
                 <AuthGate>{children}</AuthGate>
               </main>
+              <Toaster richColors position="top-right" />
             </div>
           </AuthProvider>
         </QueryProvider>

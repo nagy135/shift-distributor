@@ -86,7 +86,7 @@ export function CalendarContent({
   onQuickAssignShowAvailableOnlyChange,
 }: CalendarContentProps) {
   const [tableView, setTableView] = React.useState<CalendarTableView>("shifts");
-  const [statisticsVisible, setStatisticsVisible] = React.useState(true);
+  const [statisticsVisible, setStatisticsVisible] = React.useState(false);
 
   const activeColumns =
     tableView === "shifts" ? SHIFT_TABLE_COLUMNS : DEPARTMENT_SHIFT_COLUMNS;
