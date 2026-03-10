@@ -98,7 +98,7 @@ export default function CalendarPage() {
     setIsQuickAssignOpen(false);
     setQuickAssignSearchTerm("");
     setQuickAssignHighlightedIndex(0);
-    setQuickAssignDoctorIds([]);
+    setQuickAssignDoctorIds((current) => (current.length === 0 ? current : []));
   }, []);
 
   const selectedCellKeys = useMemo(
@@ -227,12 +227,14 @@ export default function CalendarPage() {
   ]);
 
   useEffect(() => {
-    setQuickAssignHighlightedIndex((current) =>
-      filteredQuickAssignOptions.length === 0
-        ? 0
-        : Math.min(current, filteredQuickAssignOptions.length - 1),
-    );
-  }, [filteredQuickAssignOptions]);
+    const maxHighlightedIndex = Math.max(filteredQuickAssignOptions.length - 1, 0);
+
+    if (quickAssignHighlightedIndex <= maxHighlightedIndex) {
+      return;
+    }
+
+    setQuickAssignHighlightedIndex(maxHighlightedIndex);
+  }, [filteredQuickAssignOptions.length, quickAssignHighlightedIndex]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(min-width: 768px)");
@@ -314,7 +316,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     if (assignmentMode !== "quick" || selectedTargets.length === 0) {
-      setQuickAssignDoctorIds([]);
+      setQuickAssignDoctorIds((current) => (current.length === 0 ? current : []));
       return;
     }
 
@@ -337,7 +339,18 @@ export default function CalendarPage() {
         doctorIds.every((doctorId, index) => doctorId === firstDoctorList[index]),
     );
 
-    setQuickAssignDoctorIds(hasSameAssignments ? firstDoctorList : []);
+    const nextDoctorIds = hasSameAssignments ? firstDoctorList : [];
+
+    setQuickAssignDoctorIds((current) => {
+      if (
+        current.length === nextDoctorIds.length &&
+        current.every((doctorId, index) => doctorId === nextDoctorIds[index])
+      ) {
+        return current;
+      }
+
+      return nextDoctorIds;
+    });
   }, [allShifts, assignmentMode, selectedTargets]);
 
   const handleAssignModalOpenChange = useCallback(
