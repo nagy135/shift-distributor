@@ -32,5 +32,11 @@ export async function getUserFromAuthHeader(
     .get();
 
   if (!user) return null;
+
+  await db
+    .update(users)
+    .set({ lastOnlineAt: new Date() })
+    .where(eq(users.id, user.id));
+
   return user;
 }
