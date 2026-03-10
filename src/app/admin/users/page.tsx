@@ -32,6 +32,8 @@ type AdminUser = {
   role: UserRole;
   doctorId?: number | null;
   doctorName?: string | null;
+  lastOnlineAt?: number | string | null;
+  isOnline?: boolean;
   createdAt?: number | string | null;
 };
 
@@ -67,6 +69,7 @@ export default function AdminUsersPage() {
     setError(null);
     try {
       const res = await fetch("/api/admin/users", {
+        cache: "no-store",
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!res.ok) {
@@ -106,6 +109,26 @@ export default function AdminUsersPage() {
       loadDoctors();
     }
   }, [canManage, accessToken, loadUsers, loadDoctors]);
+
+  useEffect(() => {
+    if (!canManage || !accessToken) return;
+
+    const interval = window.setInterval(() => {
+      void loadUsers();
+    }, 15_000);
+
+    return () => window.clearInterval(interval);
+  }, [canManage, accessToken, loadUsers]);
+
+  const formatLastOnline = useCallback((value?: number | string | null) => {
+    if (!value) return "Nie aktiv";
+    const date = typeof value === "number" ? new Date(value) : new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleString("de-DE", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+  }, []);
 
   const handleRoleChange = async (userId: number, role: UserRole) => {
     if (!accessToken) return;
@@ -242,6 +265,7 @@ export default function AdminUsersPage() {
               <th className="px-4 py-3 text-left font-medium">Email</th>
               <th className="px-4 py-3 text-left font-medium">Rolle</th>
               <th className="px-4 py-3 text-left font-medium">Arzt</th>
+              <th className="px-4 py-3 text-left font-medium">Status</th>
               <th className="px-4 py-3 text-left font-medium">Erstellt</th>
               <th className="px-4 py-3 text-right font-medium">Aktionen</th>
             </tr>
@@ -293,6 +317,29 @@ export default function AdminUsersPage() {
                       </Button>
                     )}
                   </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col gap-1">
+                      <span
+                        className={`inline-flex w-fit items-center gap-2 rounded-full px-2 py-1 text-xs font-medium ${
+                          row.isOnline
+                            ? "bg-emerald-500/15 text-emerald-700"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            row.isOnline ? "bg-emerald-500" : "bg-muted-foreground/50"
+                          }`}
+                        />
+                        {row.isOnline ? "Online" : "Offline"}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {row.isOnline
+                          ? "In den letzten 30 Sek. aktiv"
+                          : formatLastOnline(row.lastOnlineAt)}
+                      </span>
+                    </div>
+                  </td>
                   <td className="px-4 py-3">{formatDate(row.createdAt)}</td>
                   <td className="px-4 py-3 text-right">
                     <Button
@@ -311,7 +358,7 @@ export default function AdminUsersPage() {
               <tr>
                 <td
                   className="px-4 py-6 text-center text-muted-foreground"
-                  colSpan={5}
+                  colSpan={6}
                 >
                   Keine Benutzer gefunden.
                 </td>
@@ -321,7 +368,7 @@ export default function AdminUsersPage() {
               <tr>
                 <td
                   className="px-4 py-6 text-center text-muted-foreground"
-                  colSpan={5}
+                  colSpan={6}
                 >
                   Benutzer werden geladen...
                 </td>

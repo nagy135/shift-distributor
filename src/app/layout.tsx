@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/lib/providers";
 import { Navigation } from "@/components/navigation";
+import { OnlineHeartbeat } from "@/components/online-heartbeat";
 import { ThemeScript } from "@/components/theme-script";
 import { AuthProvider } from "@/lib/auth-client";
 import { AuthGate } from "@/components/auth-gate";
@@ -27,6 +28,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <QueryProvider>
           <AuthProvider>
+            <OnlineHeartbeat />
             <div className="min-h-screen bg-background">
               <header className="border-b">
                 <div className="container mx-auto px-4 py-4">

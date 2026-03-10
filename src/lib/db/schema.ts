@@ -66,6 +66,7 @@ export const users = sqliteTable("users", {
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
     () => new Date(),
   ),
+  lastOnlineAt: integer("last_online_at", { mode: "timestamp" }),
 });
 
 export const notifications = sqliteTable("notifications", {

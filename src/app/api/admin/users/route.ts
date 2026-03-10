@@ -4,6 +4,8 @@ import { doctors, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getUserFromAuthHeader } from "@/lib/authz";
 
+const ONLINE_WINDOW_MS = 30 * 1000;
+
 export async function GET(request: NextRequest) {
   const user = await getUserFromAuthHeader(
     request.headers.get("authorization"),
@@ -15,6 +17,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const now = Date.now();
   const rows = await db
     .select({
       id: users.id,
@@ -22,10 +25,23 @@ export async function GET(request: NextRequest) {
       role: users.role,
       doctorId: users.doctorId,
       doctorName: doctors.name,
+      lastOnlineAt: users.lastOnlineAt,
       createdAt: users.createdAt,
     })
     .from(users)
     .leftJoin(doctors, eq(users.doctorId, doctors.id));
 
-  return NextResponse.json(rows, { status: 200 });
+  return NextResponse.json(
+    rows.map((row) => {
+      const lastOnlineAt = row.lastOnlineAt ? new Date(row.lastOnlineAt) : null;
+
+      return {
+        ...row,
+        isOnline:
+          lastOnlineAt !== null &&
+          now - lastOnlineAt.getTime() <= ONLINE_WINDOW_MS,
+      };
+    }),
+    { status: 200 },
+  );
 }
