@@ -130,10 +130,10 @@ export function DoctorShiftCounts({
       <table className="w-max min-w-full text-[11px] border-collapse md:text-xs">
         <thead className="bg-muted/50 border-b border-gray-400">
           <tr>
-            <th className="text-left px-1 py-0.5 whitespace-nowrap border-r border-gray-300 md:px-1.5">
+            <th className="text-left px-1 py-0.5 whitespace-nowrap border-gray-300 md:px-1.5">
               Arzt
             </th>
-            <th className="text-center px-0.5 py-0.5 border-x-2 border-gray-300 md:px-1 md:py-0.5">
+            <th className="text-center px-0.5 py-0.5 border-x-1 border-black md:px-1 md:py-0.5">
               Gesamt
             </th>
             {displayColumns.map((column) => (
@@ -141,7 +141,7 @@ export function DoctorShiftCounts({
                 key={column.id}
                 className={cn(
                   "text-center px-0.5 py-0.5 md:px-1 md:py-0.5",
-                  "border-r border-gray-300",
+                  "border-r last:border-r-0 border-gray-300",
                 )}
               >
                 <span className="flex min-w-[42px] flex-col items-center leading-none md:min-w-[48px]">
@@ -159,10 +159,10 @@ export function DoctorShiftCounts({
         <tbody className="divide-y divide-gray-400">
           {shiftCounts.map(({ doctor, counts, total }) => (
             <tr key={doctor.id}>
-              <td className="px-1 py-0.5 font-medium whitespace-nowrap border-r border-gray-300 md:px-1.5 md:py-0.5">
+              <td className="px-1 py-0.5 font-medium whitespace-nowrap md:px-1.5 md:py-0.5">
                 {doctor.name}
               </td>
-              <td className="px-0.5 py-0.5 text-center tabular-nums border-x-2 border-gray-300 md:px-1 md:py-0.5 font-bold">
+              <td className="px-0.5 py-0.5 text-center tabular-nums border-x-1 border-black md:px-1 md:py-0.5 font-bold">
                 {total}
               </td>
               {displayColumns.map((column) => (
@@ -170,10 +170,12 @@ export function DoctorShiftCounts({
                   key={column.id}
                   className={cn(
                     "px-0.5 py-0.5 text-center tabular-nums md:px-1 md:py-0.5",
-                    "border-r border-gray-300",
+                    "border-r last:border-r-0 border-gray-300",
                   )}
                 >
-                  {counts[column.id]}
+                  {column.id === "ITS" && counts[column.id] !== 0
+                    ? `(${counts[column.id]})`
+                    : counts[column.id]}
                 </td>
               ))}
             </tr>
