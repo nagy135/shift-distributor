@@ -14,7 +14,9 @@ type ExportMonthTableParams = {
   allShifts: Shift[];
 };
 
-type BorderStyle = { style: "thin"; color: { argb: string } };
+type BorderLineStyle = "thin" | "medium";
+type BorderStyle = { style: BorderLineStyle; color: { argb: string } };
+type BorderSide = "top" | "left" | "bottom" | "right";
 type ExcelCell = {
   border?: {
     top: BorderStyle;
@@ -121,12 +123,24 @@ export async function exportMonthTable({
     ...SHIFT_TYPES.map(() => ({ width: 16 })),
   ];
 
-  const applyBorder = (cell: ExcelCell) => {
+  const gridBorder: BorderStyle = {
+    style: "thin",
+    color: { argb: "FFBFBFBF" },
+  };
+  const outlineBorder: BorderStyle = {
+    style: "medium",
+    color: { argb: "FF4A4A4A" },
+  };
+
+  const applyBorder = (
+    cell: ExcelCell,
+    overrides: Partial<Record<BorderSide, BorderStyle>> = {},
+  ) => {
     cell.border = {
-      top: { style: "thin", color: { argb: "FFBFBFBF" } },
-      left: { style: "thin", color: { argb: "FFBFBFBF" } },
-      bottom: { style: "thin", color: { argb: "FFBFBFBF" } },
-      right: { style: "thin", color: { argb: "FFBFBFBF" } },
+      top: overrides.top ?? gridBorder,
+      left: overrides.left ?? gridBorder,
+      bottom: overrides.bottom ?? gridBorder,
+      right: overrides.right ?? gridBorder,
     };
   };
 
@@ -189,7 +203,12 @@ export async function exportMonthTable({
   for (let r = tableStartRow; r <= tableEndRow; r++) {
     for (let c = 1; c <= header.length; c++) {
       const cell = worksheet.getCell(r, c);
-      applyBorder(cell);
+      applyBorder(cell, {
+        top: r === tableStartRow ? outlineBorder : undefined,
+        bottom: r === tableEndRow ? outlineBorder : undefined,
+        left: c === 1 ? outlineBorder : undefined,
+        right: c === header.length ? outlineBorder : undefined,
+      });
     }
   }
 
