@@ -69,6 +69,7 @@ const getDayColors = (entries: VacationDay[]) => {
 type VacationMonthCalendarProps = {
   month: Date;
   isApprover: boolean;
+  isMobile: boolean;
   modifiers?: Record<VacationColor, Date[]>;
   modifierClasses?: Record<VacationColor, string>;
   vacationsByDate: Map<string, VacationDay[]>;
@@ -79,6 +80,7 @@ type VacationMonthCalendarProps = {
 const VacationMonthCalendar = memo(function VacationMonthCalendar({
   month,
   isApprover,
+  isMobile,
   modifiers,
   modifierClasses,
   vacationsByDate,
@@ -126,7 +128,7 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
                 data-range-start={modifiers.range_start}
                 data-range-end={modifiers.range_end}
                 data-range-middle={modifiers.range_middle}
-                title={tooltip || undefined}
+                title={!isMobile ? tooltip || undefined : undefined}
                 className={cn(
                   "relative data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 hover:bg-transparent dark:hover:text-inherit flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
                   defaultClassNames.day,
@@ -222,6 +224,24 @@ export default function VacationsPage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("all");
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+
+    const updateIsMobile = (matches: boolean) => {
+      setIsMobile(matches);
+    };
+
+    updateIsMobile(mediaQuery.matches);
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      updateIsMobile(event.matches);
+    };
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
 
   useEffect(() => {
     if (isApprover) return;
@@ -691,6 +711,7 @@ export default function VacationsPage() {
               key={month.toISOString()}
               month={month}
               isApprover={isApprover}
+              isMobile={isMobile}
               modifiers={monthSpecificModifiers[index]}
               modifierClasses={modifierClasses}
               vacationsByDate={vacationsByMonth[index] ?? new Map()}

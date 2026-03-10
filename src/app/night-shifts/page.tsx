@@ -15,6 +15,13 @@ import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarSkeleton } from "@/components/ui/calendar-skeleton";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Pill } from "@/components/ui/pill";
 import {
@@ -172,6 +179,7 @@ type NightShiftsMonthCalendarProps = {
   month: Date;
   doctorsByDate: Map<string, ShiftDoctor[]>;
   canManage: boolean;
+  isMobile: boolean;
   isUpdating: boolean;
   availableDoctors: DoctorOption[];
   openDate: string | null;
@@ -186,6 +194,7 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
   month,
   doctorsByDate,
   canManage,
+  isMobile,
   isUpdating,
   availableDoctors,
   openDate,
@@ -228,7 +237,7 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
   }, [canManage, openDate, pickerSearchTerm, selectedDoctorIdsByDate]);
 
   useEffect(() => {
-    if (!canManage || !openDate) {
+    if (!canManage || !openDate || isMobile) {
       return;
     }
 
@@ -242,7 +251,7 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
 
     window.addEventListener("mousedown", handlePointerDown);
     return () => window.removeEventListener("mousedown", handlePointerDown);
-  }, [canManage, onOpenDateChange, openDate]);
+  }, [canManage, isMobile, onOpenDateChange, openDate]);
 
   return (
     <div ref={wrapperRef} className="relative rounded-md border">
@@ -251,7 +260,7 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
         disableNavigation
         showOutsideDays={false}
         onDayClick={(day) => {
-          if (!canManage) {
+          if (!canManage && !isMobile) {
             return;
           }
 
@@ -278,7 +287,7 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
                 size="icon"
                 data-day={day.date.toLocaleDateString()}
                 data-open={openDate === dayKey}
-                title={tooltip || undefined}
+                title={!isMobile ? tooltip || undefined : undefined}
                 className={cn(
                   "relative flex aspect-square size-auto w-full min-w-(--cell-size) items-start justify-start overflow-hidden rounded-md px-1 py-0.5 text-left font-normal hover:bg-transparent",
                   canManage && "cursor-pointer",
@@ -317,7 +326,7 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
         className="w-full"
       />
 
-      {canManage && openDate && pickerPosition ? (
+      {canManage && !isMobile && openDate && pickerPosition ? (
         <div
           className="pointer-events-auto absolute z-30 overflow-hidden rounded-lg border bg-background p-3 shadow-xl"
           style={{
@@ -352,6 +361,36 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
             onToggleDoctor={(doctorId) => onToggleDoctor(openDate, doctorId)}
           />
         </div>
+      ) : null}
+
+      {canManage && isMobile ? (
+        <Dialog open={openDate != null} onOpenChange={(open) => !open && onOpenDateChange(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Nachtdienst</DialogTitle>
+              <DialogDescription>
+                {openDate
+                  ? `Aerzte fur ${format(new Date(`${openDate}T00:00:00`), "dd.MM.yyyy")} suchen, auswahlen oder entfernen.`
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+            {openDate ? (
+              <div className="relative">
+                {isUpdating ? (
+                  <Loader2 className="absolute right-0 top-0 size-4 animate-spin text-muted-foreground" />
+                ) : null}
+                <NightShiftPicker
+                  open={openDate != null}
+                  doctors={availableDoctors}
+                  searchTerm={pickerSearchTerm}
+                  selectedDoctorIds={selectedDoctorIdsByDate.get(openDate) ?? []}
+                  onSearchTermChange={onPickerSearchTermChange}
+                  onToggleDoctor={(doctorId) => onToggleDoctor(openDate, doctorId)}
+                />
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
       ) : null}
     </div>
   );
@@ -394,6 +433,8 @@ export default function NightShiftsPage() {
   const [selectedDoctorId, setSelectedDoctorId] = useState(ALL_DOCTORS_VALUE);
   const [openDate, setOpenDate] = useState<string | null>(null);
   const [pickerSearchTerm, setPickerSearchTerm] = useState("");
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileInfoDate, setMobileInfoDate] = useState<string | null>(null);
   const nightShifts = optimisticNightShifts ?? data ?? EMPTY_NIGHT_SHIFTS;
 
   useEffect(() => {
@@ -403,6 +444,23 @@ export default function NightShiftsPage() {
   useEffect(() => {
     setPickerSearchTerm("");
   }, [openDate]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+
+    const updateIsMobile = (matches: boolean) => {
+      setIsMobile(matches);
+    };
+
+    updateIsMobile(mediaQuery.matches);
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      updateIsMobile(event.matches);
+    };
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
 
   const availableDoctors = useMemo<DoctorOption[]>(() => {
     return doctors
@@ -487,6 +545,10 @@ export default function NightShiftsPage() {
 
     return next;
   }, [nightShifts]);
+
+  const mobileInfoDoctors = mobileInfoDate
+    ? visibleDoctorsByDate.get(mobileInfoDate) ?? []
+    : [];
 
   const months = useMemo(
     () => Array.from({ length: 12 }, (_, index) => new Date(year, index, 1)),
@@ -613,12 +675,20 @@ export default function NightShiftsPage() {
               month={month}
               doctorsByDate={visibleDoctorsByMonth[index] ?? new Map()}
               canManage={canManage}
+              isMobile={isMobile}
               isUpdating={updateMutation.isPending || isNightShiftsFetching}
               availableDoctors={availableDoctors}
               openDate={openDate}
               pickerSearchTerm={pickerSearchTerm}
               selectedDoctorIdsByDate={selectedDoctorIdsByDate}
-              onOpenDateChange={setOpenDate}
+              onOpenDateChange={(date) => {
+                if (!canManage && isMobile) {
+                  setMobileInfoDate(date);
+                  return;
+                }
+
+                setOpenDate(date);
+              }}
               onPickerSearchTermChange={setPickerSearchTerm}
               onToggleDoctor={handleToggleDoctor}
             />
@@ -645,6 +715,44 @@ export default function NightShiftsPage() {
           Keine aktiven Arzte fur Nachtdienste verfugbar.
         </p>
       )}
+      {!canManage ? (
+        <Dialog
+          open={mobileInfoDate != null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setMobileInfoDate(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Nachtdienst</DialogTitle>
+              <DialogDescription>
+                {mobileInfoDate
+                  ? `Aerzte am ${format(new Date(`${mobileInfoDate}T00:00:00`), "dd.MM.yyyy")}`
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+            {mobileInfoDoctors.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {mobileInfoDoctors.map((doctor) => (
+                  <Pill
+                    key={doctor.id}
+                    color={doctor.color ?? DEFAULT_DOCTOR_COLOR}
+                    className="text-xs"
+                  >
+                    {doctor.name}
+                  </Pill>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Kein Nachtdienst an diesem Tag.
+              </p>
+            )}
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </div>
   );
 }
