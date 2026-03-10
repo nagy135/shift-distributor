@@ -73,12 +73,14 @@ export function DoctorSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-md min-w-0">
         <DialogHeader>
-          <DialogTitle>Ärzteeinstellungen - {doctor?.name}</DialogTitle>
+          <DialogTitle className="break-words pr-8">
+            Ärzteeinstellungen - {doctor?.name}
+          </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
+        <div className="min-w-0 space-y-4">
+          <div className="min-w-0 space-y-2">
             <Label htmlFor="edit-name">Name</Label>
             <Input
               id="edit-name"
@@ -86,7 +88,7 @@ export function DoctorSettingsDialog({
               onChange={(event) => setPendingName(event.target.value)}
             />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="min-w-0 flex flex-wrap items-center gap-3">
             <Pill color={pendingColor || undefined}>Vorschau</Pill>
             <input
               type="color"
@@ -95,9 +97,10 @@ export function DoctorSettingsDialog({
               className="h-10 w-16 p-1 border rounded"
             />
           </div>
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             <Label>Nicht verfügbare Diensttypen</Label>
             <MultiSelect
+              className="min-w-0"
               options={SHIFT_TYPES.map((shiftType) => ({
                 value: shiftType,
                 label: SHIFT_DEFS[shiftType].label,
@@ -109,7 +112,7 @@ export function DoctorSettingsDialog({
           </div>
           <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
             <Label htmlFor="disabled-toggle" className="cursor-pointer">
-               Deaktiviert
+              Deaktiviert
             </Label>
             <Switch
               id="disabled-toggle"
@@ -127,14 +130,18 @@ export function DoctorSettingsDialog({
               onCheckedChange={setPendingOa}
             />
           </div>
-          <div className="flex gap-2">
-            <Button onClick={handleSave} className="flex-1" disabled={isSaving}>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              onClick={handleSave}
+              className="w-full sm:flex-1"
+              disabled={isSaving}
+            >
               {isSaving ? "Wird gespeichert..." : "Speichern"}
             </Button>
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="flex-1"
+              className="w-full sm:flex-1"
             >
               Abbrechen
             </Button>

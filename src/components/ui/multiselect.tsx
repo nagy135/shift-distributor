@@ -78,11 +78,13 @@ export function MultiSelect({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full justify-between min-h-10 h-auto"
+            className="h-auto min-h-10 w-full justify-between whitespace-normal"
           >
-            <div className="flex flex-wrap gap-1 flex-1">
+            <div className="flex min-w-0 flex-1 flex-wrap gap-1 text-left">
               {selected.length === 0 ? (
-                <span className="text-muted-foreground">{placeholder}</span>
+                <span className="block min-w-0 truncate text-muted-foreground">
+                  {placeholder}
+                </span>
               ) : (
                 selected.map((value) => {
                   const option = optionsByValue.get(value);

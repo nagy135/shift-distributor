@@ -294,7 +294,7 @@ export default function AdminUsersPage() {
                       </SelectContent>
                     </Select>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-0 py-3">
                     {row.doctorName ? (
                       <Button
                         variant="link"
@@ -326,7 +326,9 @@ export default function AdminUsersPage() {
                       >
                         <span
                           className={`h-2 w-2 rounded-full ${
-                            row.isOnline ? "bg-emerald-500" : "bg-muted-foreground/50"
+                            row.isOnline
+                              ? "bg-emerald-500"
+                              : "bg-muted-foreground/50"
                           }`}
                         />
                         {row.isOnline ? "Online" : "Offline"}
