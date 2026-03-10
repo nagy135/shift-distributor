@@ -102,11 +102,22 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
 
     const wrapperRect = wrapper.getBoundingClientRect();
     const anchorRect = anchor.getBoundingClientRect();
+    const viewportPadding = 12;
+    const desiredMinWidth = Math.max(anchorRect.width, 280);
+    const wouldOverflowRight =
+      anchorRect.left + desiredMinWidth > window.innerWidth - viewportPadding;
+    const openLeft = wouldOverflowRight;
+    const alignedLeft = openLeft
+      ? anchorRect.right - wrapperRect.left - desiredMinWidth
+      : anchorRect.left - wrapperRect.left;
+    const minLeft = viewportPadding - wrapperRect.left;
+    const maxLeft =
+      window.innerWidth - viewportPadding - desiredMinWidth - wrapperRect.left;
 
     setPickerPosition({
       top: anchorRect.bottom - wrapperRect.top + 6,
-      left: anchorRect.left - wrapperRect.left,
-      minWidth: Math.max(anchorRect.width, 280),
+      left: Math.min(Math.max(alignedLeft, minLeft), maxLeft),
+      minWidth: desiredMinWidth,
     });
   }, [canManage, openDate, pickerSearchTerm, selectedDoctorIdsByDate]);
 
