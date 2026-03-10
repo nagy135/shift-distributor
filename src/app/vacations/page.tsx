@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -65,6 +66,138 @@ const getDayColors = (entries: VacationDay[]) => {
   return map;
 };
 
+type VacationMonthCalendarProps = {
+  month: Date;
+  isApprover: boolean;
+  modifiers?: Record<VacationColor, Date[]>;
+  modifierClasses?: Record<VacationColor, string>;
+  vacationsByDate: Map<string, VacationDay[]>;
+  hasPendingByDate: Map<string, boolean>;
+  onDayClick: (day: Date) => void;
+};
+
+const VacationMonthCalendar = memo(function VacationMonthCalendar({
+  month,
+  isApprover,
+  modifiers,
+  modifierClasses,
+  vacationsByDate,
+  hasPendingByDate,
+  onDayClick,
+}: VacationMonthCalendarProps) {
+  return (
+    <div className="rounded-md border">
+      <Calendar
+        month={month}
+        disableNavigation
+        showOutsideDays={false}
+        modifiers={modifiers}
+        modifiersClassNames={modifierClasses}
+        onDayClick={onDayClick}
+        components={{
+          DayButton: (props: React.ComponentProps<typeof RdpDayButton>) => {
+            const { day, modifiers, className, children, ...rest } = props;
+            const dayKey = dayToKey(day.date);
+            const entries = vacationsByDate.get(dayKey) ?? [];
+            const tooltip = Array.from(
+              new Set(
+                entries
+                  .map((entry) => entry.doctorName?.trim())
+                  .filter((name): name is string => Boolean(name)),
+              ),
+            ).join("\n");
+            const colors = Array.from(
+              new Set(entries.map((entry: VacationDay) => entry.color)),
+            ) as VacationColor[];
+            const hasPendingApproval = hasPendingByDate.get(dayKey) ?? false;
+
+            const defaultClassNames = getDefaultClassNames();
+            return (
+              <Button
+                variant="ghost"
+                size="icon"
+                data-day={day.date.toLocaleDateString()}
+                data-selected-single={
+                  modifiers.selected &&
+                  !modifiers.range_start &&
+                  !modifiers.range_end &&
+                  !modifiers.range_middle
+                }
+                data-range-start={modifiers.range_start}
+                data-range-end={modifiers.range_end}
+                data-range-middle={modifiers.range_middle}
+                title={tooltip || undefined}
+                className={cn(
+                  "relative data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 hover:bg-transparent dark:hover:text-inherit flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
+                  defaultClassNames.day,
+                  className,
+                )}
+                {...rest}
+              >
+                {isApprover && colors.length > 0 && (
+                  <span className="absolute inset-0 overflow-hidden rounded-md">
+                    {colors.length === 1 && (
+                      <span
+                        className={cn(
+                          "absolute inset-0 opacity-80",
+                          VACATION_COLOR_STYLES[colors[0]].classes,
+                        )}
+                      />
+                    )}
+                    {colors.length === 2 && (
+                      <>
+                        <span
+                          className={cn(
+                            "absolute inset-x-0 top-0 h-1/2 opacity-80",
+                            VACATION_COLOR_STYLES[colors[0]].classes,
+                          )}
+                        />
+                        <span
+                          className={cn(
+                            "absolute inset-x-0 bottom-0 h-1/2 opacity-80",
+                            VACATION_COLOR_STYLES[colors[1]].classes,
+                          )}
+                        />
+                      </>
+                    )}
+                    {colors.length >= 3 && (
+                      <>
+                        <span
+                          className={cn(
+                            "absolute inset-x-0 top-0 h-1/3 opacity-80",
+                            VACATION_COLOR_STYLES[colors[0]].classes,
+                          )}
+                        />
+                        <span
+                          className={cn(
+                            "absolute inset-x-0 top-1/3 h-1/3 opacity-80",
+                            VACATION_COLOR_STYLES[colors[1]].classes,
+                          )}
+                        />
+                        <span
+                          className={cn(
+                            "absolute inset-x-0 bottom-0 h-1/3 opacity-80",
+                            VACATION_COLOR_STYLES[colors[2]].classes,
+                          )}
+                        />
+                      </>
+                    )}
+                  </span>
+                )}
+                {hasPendingApproval && (
+                  <span className="absolute top-1 right-1 z-20 h-2.5 w-2.5 rounded-full bg-blue-500 ring-1 ring-background" />
+                )}
+                <span className="relative z-10">{children}</span>
+              </Button>
+            );
+          },
+        }}
+        className="w-full"
+      />
+    </div>
+  );
+});
+
 export default function VacationsPage() {
   const { user, isLoading } = useAuth();
   const { vacationsApi } = useApiClient();
@@ -72,9 +205,13 @@ export default function VacationsPage() {
   const doctorId = user?.doctorId ?? null;
   const isApprover = user?.role === "secretary";
   const year = new Date().getFullYear();
+  const vacationsQueryKey = useMemo(
+    () => ["vacations", isApprover ? "all" : doctorId, year],
+    [doctorId, isApprover, year],
+  );
 
   const { data, isLoading: isVacationsLoading } = useQuery({
-    queryKey: ["vacations", isApprover ? "all" : doctorId, year],
+    queryKey: vacationsQueryKey,
     queryFn: () => vacationsApi.getByYear(year),
     enabled: isApprover || !!doctorId,
   });
@@ -102,26 +239,75 @@ export default function VacationsPage() {
 
   const updateMutation = useMutation({
     mutationFn: (days: VacationDay[]) => vacationsApi.updateYear(year, days),
+    onSuccess: () => {
+      console.log("synced");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: vacationsQueryKey });
+      queryClient.invalidateQueries({ queryKey: ["vacations", "calendar", year] });
+    },
   });
 
   const invalidateVacationsQueries = useCallback(() => {
-    queryClient.invalidateQueries({
-      queryKey: ["vacations", isApprover ? "all" : doctorId, year],
-    });
-    queryClient.invalidateQueries({ queryKey: ["vacations"] });
-  }, [doctorId, isApprover, queryClient, year]);
+    queryClient.invalidateQueries({ queryKey: vacationsQueryKey });
+    queryClient.invalidateQueries({ queryKey: ["vacations", "calendar", year] });
+  }, [queryClient, vacationsQueryKey, year]);
 
   const approvalMutation = useMutation({
     mutationFn: ({ id, approved }: { id: number; approved: boolean }) =>
       vacationsApi.updateApproval(id, approved),
+    onMutate: async ({ id, approved }) => {
+      await queryClient.cancelQueries({ queryKey: vacationsQueryKey });
+
+      const previousVacationDays =
+        queryClient.getQueryData<VacationDay[]>(vacationsQueryKey) ?? [];
+
+      queryClient.setQueryData<VacationDay[]>(
+        vacationsQueryKey,
+        previousVacationDays.map((entry) =>
+          entry.id === id ? { ...entry, approved } : entry,
+        ),
+      );
+
+      return { previousVacationDays };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousVacationDays) {
+        queryClient.setQueryData(vacationsQueryKey, context.previousVacationDays);
+      }
+    },
     onSuccess: () => {
+      console.log("synced");
+    },
+    onSettled: () => {
       invalidateVacationsQueries();
     },
   });
 
   const denyMutation = useMutation({
     mutationFn: (id: number) => vacationsApi.deny(id),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: vacationsQueryKey });
+
+      const previousVacationDays =
+        queryClient.getQueryData<VacationDay[]>(vacationsQueryKey) ?? [];
+
+      queryClient.setQueryData<VacationDay[]>(
+        vacationsQueryKey,
+        previousVacationDays.filter((entry) => entry.id !== id),
+      );
+
+      return { previousVacationDays };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousVacationDays) {
+        queryClient.setQueryData(vacationsQueryKey, context.previousVacationDays);
+      }
+    },
     onSuccess: () => {
+      console.log("synced");
+    },
+    onSettled: () => {
       invalidateVacationsQueries();
     },
   });
@@ -141,30 +327,31 @@ export default function VacationsPage() {
       if (!activeColor) return;
       const key = dayToKey(day);
 
-      setDayColors((current) => {
-        const existing = current[key];
-        const counts = countColors(current);
-        const yearlyLimit = VACATION_DAYS_PER_YEAR[activeColor];
-        const remaining =
-          yearlyLimit -
-          counts[activeColor] +
-          (existing === activeColor ? 1 : 0);
-        if (existing !== activeColor && remaining <= 0) {
-          return current;
-        }
+      const existing = dayColors[key];
+      const counts = countColors(dayColors);
+      const yearlyLimit = VACATION_DAYS_PER_YEAR[activeColor];
+      const remaining =
+        yearlyLimit - counts[activeColor] + (existing === activeColor ? 1 : 0);
+      if (existing !== activeColor && remaining <= 0) {
+        return;
+      }
 
-        const next = { ...current };
-        if (existing === activeColor) {
-          delete next[key];
-        } else {
-          next[key] = activeColor;
-        }
+      const next = { ...dayColors };
+      if (existing === activeColor) {
+        delete next[key];
+      } else {
+        next[key] = activeColor;
+      }
 
+      flushSync(() => {
+        setDayColors(next);
+      });
+
+      requestAnimationFrame(() => {
         persistDays(next);
-        return next;
       });
     },
-    [activeColor, persistDays],
+    [activeColor, dayColors, persistDays],
   );
 
   const vacationsByDate = useMemo(() => {
@@ -308,6 +495,55 @@ export default function VacationsPage() {
     [year],
   );
 
+  const monthSpecificModifiers = useMemo(() => {
+    if (isApprover) {
+      return months.map(() => undefined);
+    }
+
+    return months.map((month) => {
+      const prefix = format(month, "yyyy-MM");
+      return VACATION_COLORS.reduce(
+        (acc, color) => {
+          acc[color] = (modifiers[color] ?? []).filter((date) =>
+            format(date, "yyyy-MM").startsWith(prefix),
+          );
+          return acc;
+        },
+        {} as Record<VacationColor, Date[]>,
+      );
+    });
+  }, [isApprover, modifiers, months]);
+
+  const vacationsByMonth = useMemo(() => {
+    return months.map((month) => {
+      const prefix = format(month, "yyyy-MM");
+      const next = new Map<string, VacationDay[]>();
+
+      vacationsByDate.forEach((entries, date) => {
+        if (date.startsWith(prefix)) {
+          next.set(date, entries);
+        }
+      });
+
+      return next;
+    });
+  }, [months, vacationsByDate]);
+
+  const pendingByMonth = useMemo(() => {
+    return months.map((month) => {
+      const prefix = format(month, "yyyy-MM");
+      const next = new Map<string, boolean>();
+
+      hasPendingByDate.forEach((hasPending, date) => {
+        if (date.startsWith(prefix)) {
+          next.set(date, hasPending);
+        }
+      });
+
+      return next;
+    });
+  }, [hasPendingByDate, months]);
+
   if (isLoading) {
     return <div className="text-center">Lädt...</div>;
   }
@@ -449,125 +685,32 @@ export default function VacationsPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {months.map((month) => (
-          <div key={month.toISOString()} className="rounded-md border">
-            {!isVacationsLoading ? (
-              <Calendar
-                month={month}
-                disableNavigation
-                showOutsideDays={false}
-                modifiers={modifiers}
-                modifiersClassNames={modifierClasses}
-                onDayClick={(day) => {
-                  if (isApprover) {
-                    const key = dayToKey(day);
-                    setSelectedDate(key);
-                    setIsDialogOpen(true);
-                  } else {
-                    handleDayClick(day);
-                  }
-                }}
-                components={{
-                  DayButton: (
-                    props: React.ComponentProps<typeof RdpDayButton>,
-                  ) => {
-                    const { day, modifiers, className, children, ...rest } =
-                      props;
-                    const dayKey = dayToKey(day.date);
-                    const entries = vacationsByDate.get(dayKey) ?? [];
-                    const colors = Array.from(
-                      new Set(entries.map((entry: VacationDay) => entry.color)),
-                    ) as VacationColor[];
-                    const hasPendingApproval =
-                      hasPendingByDate.get(dayKey) ?? false;
-
-                    const defaultClassNames = getDefaultClassNames();
-                    return (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        data-day={day.date.toLocaleDateString()}
-                        data-selected-single={
-                          modifiers.selected &&
-                          !modifiers.range_start &&
-                          !modifiers.range_end &&
-                          !modifiers.range_middle
-                        }
-                        data-range-start={modifiers.range_start}
-                        data-range-end={modifiers.range_end}
-                        data-range-middle={modifiers.range_middle}
-                        className={cn(
-                          "relative data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 dark:hover:text-accent-foreground flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
-                          defaultClassNames.day,
-                          className,
-                        )}
-                        {...rest}
-                      >
-                        {isApprover && colors.length > 0 && (
-                          <span className="absolute inset-0 overflow-hidden rounded-md">
-                            {colors.length === 1 && (
-                              <span
-                                className={cn(
-                                  "absolute inset-0 opacity-80",
-                                  VACATION_COLOR_STYLES[colors[0]].classes,
-                                )}
-                              />
-                            )}
-                            {colors.length === 2 && (
-                              <>
-                                <span
-                                  className={cn(
-                                    "absolute inset-x-0 top-0 h-1/2 opacity-80",
-                                    VACATION_COLOR_STYLES[colors[0]].classes,
-                                  )}
-                                />
-                                <span
-                                  className={cn(
-                                    "absolute inset-x-0 bottom-0 h-1/2 opacity-80",
-                                    VACATION_COLOR_STYLES[colors[1]].classes,
-                                  )}
-                                />
-                              </>
-                            )}
-                            {colors.length >= 3 && (
-                              <>
-                                <span
-                                  className={cn(
-                                    "absolute inset-x-0 top-0 h-1/3 opacity-80",
-                                    VACATION_COLOR_STYLES[colors[0]].classes,
-                                  )}
-                                />
-                                <span
-                                  className={cn(
-                                    "absolute inset-x-0 top-1/3 h-1/3 opacity-80",
-                                    VACATION_COLOR_STYLES[colors[1]].classes,
-                                  )}
-                                />
-                                <span
-                                  className={cn(
-                                    "absolute inset-x-0 bottom-0 h-1/3 opacity-80",
-                                    VACATION_COLOR_STYLES[colors[2]].classes,
-                                  )}
-                                />
-                              </>
-                            )}
-                          </span>
-                        )}
-                        {hasPendingApproval && (
-                          <span className="absolute top-1 right-1 z-20 h-2.5 w-2.5 rounded-full bg-blue-500 ring-1 ring-background" />
-                        )}
-                        <span className="relative z-10">{children}</span>
-                      </Button>
-                    );
-                  },
-                }}
-                className="w-full"
-              />
-            ) : (
+        {months.map((month, index) =>
+          !isVacationsLoading ? (
+            <VacationMonthCalendar
+              key={month.toISOString()}
+              month={month}
+              isApprover={isApprover}
+              modifiers={monthSpecificModifiers[index]}
+              modifierClasses={modifierClasses}
+              vacationsByDate={vacationsByMonth[index] ?? new Map()}
+              hasPendingByDate={pendingByMonth[index] ?? new Map()}
+              onDayClick={(day) => {
+                if (isApprover) {
+                  const key = dayToKey(day);
+                  setSelectedDate(key);
+                  setIsDialogOpen(true);
+                } else {
+                  handleDayClick(day);
+                }
+              }}
+            />
+          ) : (
+            <div key={month.toISOString()} className="rounded-md border">
               <CalendarSkeleton />
-            )}
-          </div>
-        ))}
+            </div>
+          ),
+        )}
       </div>
 
       {isVacationsLoading && (

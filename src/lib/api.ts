@@ -26,6 +26,14 @@ export interface Shift {
   doctors: ShiftDoctor[];
 }
 
+export interface NightShift {
+  id: number;
+  date: string;
+  shiftType: "night";
+  doctorIds: number[];
+  doctors: ShiftDoctor[];
+}
+
 export interface UnavailableDate {
   id: number;
   doctorId: number;
@@ -166,6 +174,26 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     },
   };
 
+  const nightShiftsApi = {
+    getByYear: async (year: number): Promise<NightShift[]> => {
+      const response = await apiFetch(`/api/night-shifts?year=${year}`);
+      return readJson(response, "Failed to fetch night shifts");
+    },
+    update: async (
+      date: string,
+      doctorIds: number[],
+    ): Promise<NightShift> => {
+      const response = await apiFetch("/api/night-shifts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ date, doctorIds }),
+      });
+      return readJson(response, "Failed to update night shifts");
+    },
+  };
+
   const unavailableDatesApi = {
     getByDoctor: async (doctorId: number): Promise<UnavailableDate[]> => {
       const response = await apiFetch(`/api/doctors/${doctorId}/unavailable-dates`);
@@ -259,6 +287,7 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
   return {
     doctorsApi,
     shiftsApi,
+    nightShiftsApi,
     unavailableDatesApi,
     vacationsApi,
     notificationsApi,
@@ -268,6 +297,7 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
 export const {
   doctorsApi,
   shiftsApi,
+  nightShiftsApi,
   unavailableDatesApi,
   vacationsApi,
   notificationsApi,

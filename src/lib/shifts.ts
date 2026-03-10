@@ -57,7 +57,6 @@ export const DEPARTMENT_DEFS: readonly DepartmentDefinition[] = [
   { label: "A3.2", count: 1, headerNote: "GER" },
   { label: "A4.1", count: 1, headerNote: "GER/INN" },
   { label: "A4.2", count: 1, headerNote: "GER/INN" },
-  { label: "ND", count: 1 },
   { label: "ND-frei", count: 1 },
 ];
 
@@ -73,35 +72,41 @@ export const DEPARTMENT_SHIFT_COLUMNS: readonly CalendarShiftColumn[] = (() => {
 
   const usedCountsByLabel = new Map<string, number>();
 
-  return DEPARTMENT_DEFS.flatMap((definition) =>
-    Array.from({ length: definition.count }, (_, slotIndex) => {
-      const nextIndex = (usedCountsByLabel.get(definition.label) ?? 0) + 1;
-      usedCountsByLabel.set(definition.label, nextIndex);
+  return [
+    ...DEPARTMENT_DEFS.flatMap((definition) =>
+      Array.from({ length: definition.count }, (_, slotIndex) => {
+        const nextIndex = (usedCountsByLabel.get(definition.label) ?? 0) + 1;
+        usedCountsByLabel.set(definition.label, nextIndex);
 
-      const hasDuplicates = (totalCountsByLabel.get(definition.label) ?? 0) > 1;
-      const headerNote = Array.isArray(definition.headerNote)
-        ? definition.headerNote[slotIndex]
-        : definition.headerNote;
+        const hasDuplicates = (totalCountsByLabel.get(definition.label) ?? 0) > 1;
+        const headerNote = Array.isArray(definition.headerNote)
+          ? definition.headerNote[slotIndex]
+          : definition.headerNote;
 
-      return {
-        id: hasDuplicates ? `${definition.label}-${nextIndex}` : definition.label,
-        label: definition.label,
-        slotLabel: hasDuplicates
-          ? `${definition.label} ${nextIndex}`
-          : definition.label,
-        headerNote,
-      };
-    }),
-  );
+        return {
+          id: hasDuplicates ? `${definition.label}-${nextIndex}` : definition.label,
+          label: definition.label,
+          slotLabel: hasDuplicates
+            ? `${definition.label} ${nextIndex}`
+            : definition.label,
+          headerNote,
+        };
+      }),
+    ),
+    {
+      id: "night",
+      label: "ND",
+      slotLabel: "ND",
+    },
+  ];
 })();
 
 export const DEPARTMENT_SHIFT_TYPES: readonly string[] =
   DEPARTMENT_SHIFT_COLUMNS.map((column) => column.id);
 
-export const ALL_CALENDAR_SHIFT_TYPES: readonly string[] = [
-  ...SHIFT_TYPES,
-  ...DEPARTMENT_SHIFT_TYPES,
-];
+export const ALL_CALENDAR_SHIFT_TYPES: readonly string[] = Array.from(
+  new Set([...SHIFT_TYPES, ...DEPARTMENT_SHIFT_TYPES]),
+);
 
 const DEPARTMENT_SHIFT_TYPE_SET = new Set<string>(DEPARTMENT_SHIFT_TYPES);
 

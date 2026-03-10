@@ -40,6 +40,11 @@ export function Navigation() {
       label: "Urlaub",
       active: pathname === "/vacations",
     },
+    {
+      href: "/night-shifts",
+      label: "Nachtdienste",
+      active: pathname === "/night-shifts",
+    },
     { href: "/doctors", label: "Ärzte", active: pathname === "/doctors" },
   ];
 
