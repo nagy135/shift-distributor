@@ -145,7 +145,10 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
             const { day, className, children, ...rest } = props;
             const dayKey = dayToKey(day.date);
             const doctorsForDay = doctorsByDate.get(dayKey) ?? [];
-            const tooltip = doctorsForDay.map((doctor) => doctor.name).join("\n");
+            const firstDoctorName = doctorsForDay[0]?.name;
+            const tooltip = doctorsForDay
+              .map((doctor) => doctor.name)
+              .join("\n");
             const defaultClassNames = getDefaultClassNames();
 
             return (
@@ -193,6 +196,11 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
                 <span className="relative z-10 text-xs font-medium leading-none">
                   {children}
                 </span>
+                {firstDoctorName ? (
+                  <span className="pointer-events-none absolute inset-x-1 top-4 z-10 overflow-hidden whitespace-nowrap text-ellipsis text-[10px] leading-none lg:text-[6px] md:text-[7px] sm:text-[8px]">
+                    {firstDoctorName}
+                  </span>
+                ) : null}
               </Button>
             );
           },
@@ -241,7 +249,10 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
       ) : null}
 
       {canManage && isMobile ? (
-        <Dialog open={openDate != null} onOpenChange={(open) => !open && onOpenDateChange(null)}>
+        <Dialog
+          open={openDate != null}
+          onOpenChange={(open) => !open && onOpenDateChange(null)}
+        >
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle>Nachtdienst</DialogTitle>
@@ -260,7 +271,9 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
                   open={openDate != null}
                   doctors={availableDoctors}
                   searchTerm={pickerSearchTerm}
-                  selectedDoctorIds={selectedDoctorIdsByDate.get(openDate) ?? []}
+                  selectedDoctorIds={
+                    selectedDoctorIdsByDate.get(openDate) ?? []
+                  }
                   onSearchTermChange={onPickerSearchTermChange}
                   onToggleDoctor={(doctorId) => {
                     onToggleDoctor(openDate, doctorId);
@@ -284,8 +297,7 @@ export default function NightShiftsPage() {
   const canManage =
     user?.role === "secretary" || user?.role === "shift_assigner";
   const doctorId = user?.doctorId ?? null;
-  const canViewNightShifts =
-    canManage || user?.role === "doctor";
+  const canViewNightShifts = canManage || user?.role === "doctor";
   const nightShiftsQueryKey = useMemo(
     () => ["night-shifts", year, ALL_DOCTORS_VALUE],
     [year],
@@ -385,11 +397,18 @@ export default function NightShiftsPage() {
       return;
     }
 
-    const exists = availableDoctors.some((doctor) => doctor.id === selectedDoctorId);
+    const exists = availableDoctors.some(
+      (doctor) => doctor.id === selectedDoctorId,
+    );
     if (!exists) {
       setSelectedDoctorId(ALL_DOCTORS_VALUE);
     }
-  }, [availableDoctors, canViewNightShifts, isDoctorsLoading, selectedDoctorId]);
+  }, [
+    availableDoctors,
+    canViewNightShifts,
+    isDoctorsLoading,
+    selectedDoctorId,
+  ]);
 
   const visibleDoctorId =
     selectedDoctorId === ALL_DOCTORS_VALUE ? null : selectedDoctorId;
@@ -415,7 +434,9 @@ export default function NightShiftsPage() {
 
     nightShifts.forEach((shift) => {
       const doctorsForDay = visibleDoctorId
-        ? shift.doctors.filter((doctor) => String(doctor.id) === visibleDoctorId)
+        ? shift.doctors.filter(
+            (doctor) => String(doctor.id) === visibleDoctorId,
+          )
         : shift.doctors;
 
       if (doctorsForDay.length > 0) {
@@ -432,9 +453,9 @@ export default function NightShiftsPage() {
     nightShifts.forEach((shift) => {
       next.set(
         shift.date,
-        shift.doctorIds.map((entry) => String(entry)).sort((left, right) =>
-          left.localeCompare(right),
-        ),
+        shift.doctorIds
+          .map((entry) => String(entry))
+          .sort((left, right) => left.localeCompare(right)),
       );
     });
 
@@ -442,7 +463,7 @@ export default function NightShiftsPage() {
   }, [nightShifts]);
 
   const mobileInfoDoctors = mobileInfoDate
-    ? visibleDoctorsByDate.get(mobileInfoDate) ?? []
+    ? (visibleDoctorsByDate.get(mobileInfoDate) ?? [])
     : [];
 
   const months = useMemo(
@@ -545,7 +566,10 @@ export default function NightShiftsPage() {
 
         {canViewNightShifts ? (
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={selectedDoctorId} onValueChange={setSelectedDoctorId}>
+            <Select
+              value={selectedDoctorId}
+              onValueChange={setSelectedDoctorId}
+            >
               <SelectTrigger className="w-full sm:w-72">
                 <SelectValue placeholder="Arzt auswahlen" />
               </SelectTrigger>
