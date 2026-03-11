@@ -1,4 +1,5 @@
 import {
+  AuthConfigurationError,
   REFRESH_TOKEN_TTL_SECONDS,
   signAccessToken,
   signRefreshToken,
@@ -33,7 +34,16 @@ export async function POST() {
     });
 
     return new Response(JSON.stringify({ accessToken }), { status: 200 });
-  } catch {
+  } catch (error) {
+    console.error("Refresh token failed", error);
+
+    if (error instanceof AuthConfigurationError) {
+      return new Response(
+        JSON.stringify({ error: "Authentication is not configured" }),
+        { status: 503 },
+      );
+    }
+
     return new Response(JSON.stringify({ error: "Failed to refresh token" }), {
       status: 500,
     });

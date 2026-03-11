@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle as AlertTriangleIcon } from "lucide-react";
 import {
   format,
   startOfMonth,
@@ -51,6 +52,7 @@ import { useAuth } from "@/lib/auth-client";
 import { useApiClient } from "@/lib/use-api-client";
 import {
   canEditCalendarView,
+  isAssigner,
   isShiftAssigner,
 } from "@/lib/roles";
 
@@ -63,7 +65,9 @@ export default function CalendarPage() {
   const { shiftsApi } = useApiClient();
   const [tableView, setTableView] = useState<CalendarTableView>("shifts");
   const canEditCurrentView = canEditCalendarView(user?.role, tableView);
+  const canManageMonthPublication = isAssigner(user?.role);
   const canDistribute = isShiftAssigner(user?.role) && tableView === "shifts";
+  const isDoctor = user?.role === "doctor";
   const isDesktopQuickAssign = useMediaQuery("(min-width: 768px)");
   const assignmentMode = isDesktopQuickAssign ? "quick" : "slow";
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -98,7 +102,12 @@ export default function CalendarPage() {
     approvedVacationsByDate,
     assignShiftMutation,
     invalidateShifts,
+    monthPublication,
+    monthPublicationLoading,
+    updateMonthPublicationMutation,
   } = useCalendarQueries(month);
+  const isMonthPublished = monthPublication.isPublished;
+  const shouldHideCalendarForDoctor = isDoctor && !monthPublicationLoading && !isMonthPublished;
 
   const clearSelectedTargets = useCallback(() => {
     setSelectedTargets([]);
@@ -751,6 +760,30 @@ export default function CalendarPage() {
     }
   };
 
+  const handleTogglePublished = useCallback(async () => {
+    if (!canManageMonthPublication || updateMonthPublicationMutation.isPending) {
+      return;
+    }
+
+    const nextPublished = !isMonthPublished;
+
+    try {
+      await updateMonthPublicationMutation.mutateAsync(nextPublished);
+      toast.success(
+        nextPublished
+          ? "Monat wurde veroeffentlicht."
+          : "Veroeffentlichung wurde zurueckgezogen.",
+      );
+    } catch (error) {
+      console.error("Error updating month publication:", error);
+      toast.error("Veroeffentlichung konnte nicht aktualisiert werden.");
+    }
+  }, [
+    canManageMonthPublication,
+    isMonthPublished,
+    updateMonthPublicationMutation,
+  ]);
+
   return (
     <div className="space-y-6">
       <MonthSelector
@@ -758,62 +791,82 @@ export default function CalendarPage() {
           <CalendarHeaderActions
             onDistribute={handleDistributeMonth}
             onToggleLocked={toggleLocked}
+            onTogglePublished={() => {
+              void handleTogglePublished();
+            }}
             onExport={handleExportMonthTable}
             isLocked={isLocked}
+            isPublished={isMonthPublished}
             isDistributing={isDistributing}
+            isPublishUpdating={updateMonthPublicationMutation.isPending}
             shiftsLoading={shiftsLoading}
             doctorsCount={doctors.length}
             showDistribute={canDistribute}
             showLockToggle={canEditCurrentView}
+            showPublishToggle={canManageMonthPublication}
           />
         }
       />
 
-      <CalendarContent
-        month={month}
-        tableView={tableView}
-        onTableViewChange={setTableView}
-        shiftsLoading={shiftsLoading}
-        doctors={doctors}
-        allShifts={allShifts}
-        unavailableByDoctor={unavailableByDoctor}
-        approvedVacationsByDate={approvedVacationsByDate}
-        selectedTargets={selectedTargets}
-        selectedCellKeys={selectedCellKeys}
-        onRowClick={canEditCurrentView ? openAssignModalForDate : undefined}
-        onCellClick={canEditCurrentView ? openAssignModalForCell : undefined}
-        onSelectionChange={
-          canEditCurrentView
-            ? (targets) => {
-                if (isLocked) {
-                  notifyLocked();
-                  return;
-                }
+      {shouldHideCalendarForDoctor ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-6 text-amber-950">
+          <div className="flex items-start gap-3">
+            <AlertTriangleIcon className="mt-0.5 size-5 shrink-0" />
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold">Monat noch nicht bereit</h2>
+              <p className="text-sm">
+                {`Der Dienstplan fuer ${format(month, "MMMM yyyy", { locale: de })} ist noch nicht veroeffentlicht.`}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <CalendarContent
+          month={month}
+          tableView={tableView}
+          onTableViewChange={setTableView}
+          shiftsLoading={shiftsLoading}
+          doctors={doctors}
+          allShifts={allShifts}
+          unavailableByDoctor={unavailableByDoctor}
+          approvedVacationsByDate={approvedVacationsByDate}
+          selectedTargets={selectedTargets}
+          selectedCellKeys={selectedCellKeys}
+          onRowClick={canEditCurrentView ? openAssignModalForDate : undefined}
+          onCellClick={canEditCurrentView ? openAssignModalForCell : undefined}
+          onSelectionChange={
+            canEditCurrentView
+              ? (targets) => {
+                  if (isLocked) {
+                    notifyLocked();
+                    return;
+                  }
 
-                setSelectedTargets(targets);
-              }
-            : undefined
-        }
-        onSelectionInteractionChange={
-          canEditCurrentView ? setIsSelectionInteractionActive : undefined
-        }
-        quickAssignOpen={canEditCurrentView && assignmentMode === "quick" && isQuickAssignOpen}
-        quickAssignFilterText={quickAssignSearchTerm}
-        quickAssignHighlightedIndex={quickAssignHighlightedIndex}
-        quickAssignOptions={quickAssignOptions}
-        quickAssignSelectedValues={quickAssignDoctorIds}
-        quickAssignShowAvailableOnly={quickAssignShowAvailableOnly}
-        onQuickAssignOptionClick={(value, additive) => {
-          void handleQuickAssignOptionClick(value, additive);
-        }}
-        onQuickAssignToggle={handleQuickAssignToggle}
-        onQuickAssignApply={() => {
-          void handleQuickAssignApply();
-        }}
-        onQuickAssignClose={closeQuickAssign}
-        onQuickAssignHighlightChange={setQuickAssignHighlightedIndex}
-        onQuickAssignShowAvailableOnlyChange={setQuickAssignShowAvailableOnly}
-      />
+                  setSelectedTargets(targets);
+                }
+              : undefined
+          }
+          onSelectionInteractionChange={
+            canEditCurrentView ? setIsSelectionInteractionActive : undefined
+          }
+          quickAssignOpen={canEditCurrentView && assignmentMode === "quick" && isQuickAssignOpen}
+          quickAssignFilterText={quickAssignSearchTerm}
+          quickAssignHighlightedIndex={quickAssignHighlightedIndex}
+          quickAssignOptions={quickAssignOptions}
+          quickAssignSelectedValues={quickAssignDoctorIds}
+          quickAssignShowAvailableOnly={quickAssignShowAvailableOnly}
+          onQuickAssignOptionClick={(value, additive) => {
+            void handleQuickAssignOptionClick(value, additive);
+          }}
+          onQuickAssignToggle={handleQuickAssignToggle}
+          onQuickAssignApply={() => {
+            void handleQuickAssignApply();
+          }}
+          onQuickAssignClose={closeQuickAssign}
+          onQuickAssignHighlightChange={setQuickAssignHighlightedIndex}
+          onQuickAssignShowAvailableOnlyChange={setQuickAssignShowAvailableOnly}
+        />
+      )}
 
       {/* Reusable shift assignment modal for table rows */}
       <ShiftAssignmentModal

@@ -47,8 +47,8 @@ export async function POST(req: NextRequest) {
       }),
       { status: 201 },
     );
-  } catch (e) {
-    console.log("================\n", "e: ", e, "\n================");
+  } catch (error) {
+    console.error("Registration failed", error);
     return new Response(JSON.stringify({ error: "Failed to register" }), {
       status: 500,
     });

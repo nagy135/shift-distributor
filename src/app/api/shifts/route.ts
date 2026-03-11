@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { shifts } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { getUserFromAuthHeader } from "@/lib/authz";
+import { listUnpublishedMonths } from "@/lib/month-publications";
 import { canAssignCalendarShiftType, isAssigner } from "@/lib/roles";
 import { hydrateShiftRows, parseDoctorIds } from "@/lib/server/shift-route-helpers";
 
@@ -29,8 +30,22 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
+    const unpublishedMonths =
+      user.role === "doctor" ? await listUnpublishedMonths() : null;
+
+    const canDoctorViewDate = (value: string) => {
+      if (user.role !== "doctor") {
+        return true;
+      }
+
+      return !(unpublishedMonths?.has(value.slice(0, 7)) ?? false);
+    };
 
     if (date) {
+      if (!canDoctorViewDate(date)) {
+        return NextResponse.json([]);
+      }
+
       const rows = await db.select().from(shifts).where(eq(shifts.date, date));
 
       const result = await hydrateShifts(rows);
@@ -38,7 +53,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(result);
     } else {
       const rows = await db.select().from(shifts);
-      const result = await hydrateShifts(rows);
+      const visibleRows =
+        user.role === "doctor"
+          ? rows.filter((row) => canDoctorViewDate(row.date))
+          : rows;
+      const result = await hydrateShifts(visibleRows);
 
       return NextResponse.json(result);
     }

@@ -4,6 +4,7 @@ import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import {
+  AuthConfigurationError,
   REFRESH_TOKEN_TTL_SECONDS,
   signAccessToken,
   signRefreshToken,
@@ -55,7 +56,16 @@ export async function POST(req: NextRequest) {
     });
 
     return new Response(JSON.stringify({ accessToken }), { status: 200 });
-  } catch {
+  } catch (error) {
+    console.error("Login failed", error);
+
+    if (error instanceof AuthConfigurationError) {
+      return new Response(
+        JSON.stringify({ error: "Authentication is not configured" }),
+        { status: 503 },
+      );
+    }
+
     return new Response(JSON.stringify({ error: "Failed to login" }), {
       status: 500,
     });

@@ -5,6 +5,13 @@ export type JwtUserPayload = {
   email: string;
 };
 
+export class AuthConfigurationError extends Error {
+  constructor(message = "JWT_SECRET is required") {
+    super(message);
+    this.name = "AuthConfigurationError";
+  }
+}
+
 const ACCESS_TOKEN_TTL_SEC = 60 * 5; // 5 minutes
 const REFRESH_TOKEN_TTL_SEC = 60 * 60 * 24; // 24 hours
 
@@ -12,7 +19,7 @@ function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
 
   if (!secret) {
-    throw new Error("JWT_SECRET is required");
+    throw new AuthConfigurationError();
   }
 
   return secret;

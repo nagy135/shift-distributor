@@ -2,7 +2,9 @@
 
 import { useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import {
+  type MonthPublication,
   type UnavailableDate,
   type VacationDay,
 } from "@/lib/api";
@@ -10,12 +12,20 @@ import { useApiClient } from "@/lib/use-api-client";
 
 export function useCalendarQueries(month: Date) {
   const queryClient = useQueryClient();
-  const { doctorsApi, shiftsApi, unavailableDatesApi, vacationsApi } =
-    useApiClient();
+  const {
+    doctorsApi,
+    shiftsApi,
+    unavailableDatesApi,
+    vacationsApi,
+    monthPublicationsApi,
+  } = useApiClient();
   const normalizedMonth = month instanceof Date ? month : new Date(month);
   const year = Number.isNaN(normalizedMonth.getTime())
     ? new Date().getFullYear()
     : normalizedMonth.getFullYear();
+  const monthKey = Number.isNaN(normalizedMonth.getTime())
+    ? format(new Date(), "yyyy-MM")
+    : format(normalizedMonth, "yyyy-MM");
 
   const { data: doctors = [] } = useQuery({
     queryKey: ["doctors"],
@@ -67,6 +77,20 @@ export function useCalendarQueries(month: Date) {
     },
   });
 
+  const {
+    data: monthPublication = {
+      month: monthKey,
+      isPublished: true,
+      publishedAt: null,
+      publishedByUserId: null,
+      updatedAt: null,
+    } satisfies MonthPublication,
+    isLoading: monthPublicationLoading,
+  } = useQuery({
+    queryKey: ["month-publication", monthKey],
+    queryFn: () => monthPublicationsApi.getByMonth(monthKey),
+  });
+
   const approvedVacationsByDate = useMemo(() => {
     const doctorNameById = new Map(
       doctors.map((doctor) => [doctor.id, doctor.name]),
@@ -107,13 +131,34 @@ export function useCalendarQueries(month: Date) {
     return queryClient.invalidateQueries({ queryKey: ["shifts"] });
   }, [queryClient]);
 
+  const invalidateMonthPublication = useCallback(() => {
+    return queryClient.invalidateQueries({
+      queryKey: ["month-publication", monthKey],
+    });
+  }, [monthKey, queryClient]);
+
+  const updateMonthPublicationMutation = useMutation({
+    mutationFn: (isPublished: boolean) =>
+      monthPublicationsApi.update(monthKey, isPublished),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["month-publication", monthKey],
+      });
+      queryClient.invalidateQueries({ queryKey: ["shifts"] });
+    },
+  });
+
   return {
     doctors,
     allShifts,
     shiftsLoading,
+    monthPublication,
+    monthPublicationLoading,
     unavailableByDoctor,
     approvedVacationsByDate,
     assignShiftMutation,
     invalidateShifts,
+    invalidateMonthPublication,
+    updateMonthPublicationMutation,
   };
 }

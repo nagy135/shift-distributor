@@ -72,6 +72,14 @@ export interface Notification {
   createdAt?: number | string | null;
 }
 
+export interface MonthPublication {
+  month: string;
+  isPublished: boolean;
+  publishedAt?: number | string | null;
+  publishedByUserId?: number | null;
+  updatedAt?: number | string | null;
+}
+
 export interface AdminUser {
   id: number;
   email: string;
@@ -310,6 +318,26 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     },
   };
 
+  const monthPublicationsApi = {
+    getByMonth: async (month: string): Promise<MonthPublication> => {
+      const response = await apiFetch(`/api/month-publications/${month}`);
+      return readJson(response, "Failed to fetch month publication");
+    },
+    update: async (
+      month: string,
+      isPublished: boolean,
+    ): Promise<MonthPublication> => {
+      const response = await apiFetch(`/api/month-publications/${month}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ isPublished }),
+      });
+      return readJson(response, "Failed to update month publication");
+    },
+  };
+
   const adminUsersApi = {
     getAll: async (): Promise<AdminUser[]> => {
       const response = await apiFetch("/api/admin/users", {
@@ -345,6 +373,7 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     unavailableDatesApi,
     vacationsApi,
     notificationsApi,
+    monthPublicationsApi,
     adminUsersApi,
   };
 }
@@ -356,5 +385,6 @@ export const {
   unavailableDatesApi,
   vacationsApi,
   notificationsApi,
+  monthPublicationsApi,
   adminUsersApi,
 } = createApiClient();

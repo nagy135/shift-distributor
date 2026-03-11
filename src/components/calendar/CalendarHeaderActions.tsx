@@ -5,31 +5,41 @@ import {
   Lock as LockIcon,
   Unlock as UnlockIcon,
   Loader2 as LoaderIcon,
+  Eye as PublishedIcon,
+  EyeOff as UnpublishedIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type CalendarHeaderActionsProps = {
   onDistribute: () => void;
   onToggleLocked: () => void;
+  onTogglePublished: () => void;
   onExport: () => void;
   isLocked: boolean;
+  isPublished: boolean;
   isDistributing: boolean;
+  isPublishUpdating: boolean;
   shiftsLoading: boolean;
   doctorsCount: number;
   showDistribute?: boolean;
   showLockToggle?: boolean;
+  showPublishToggle?: boolean;
 };
 
 export function CalendarHeaderActions({
   onDistribute,
   onToggleLocked,
+  onTogglePublished,
   onExport,
   isLocked,
+  isPublished,
   isDistributing,
+  isPublishUpdating,
   shiftsLoading,
   doctorsCount,
   showDistribute = true,
   showLockToggle = true,
+  showPublishToggle = true,
 }: CalendarHeaderActionsProps) {
   return (
     <>
@@ -72,6 +82,30 @@ export function CalendarHeaderActions({
             <LockIcon className="size-4" />
           ) : (
             <UnlockIcon className="size-4" />
+          )}
+        </Button>
+      )}
+
+      {showPublishToggle && (
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onTogglePublished}
+          disabled={isPublishUpdating}
+          aria-pressed={isPublished}
+          aria-label={
+            isPublished
+              ? "Veroeffentlicht. Zum Zurueckziehen klicken"
+              : "Nicht veroeffentlicht. Zum Veroeffentlichen klicken"
+          }
+          title={isPublished ? "Veroeffentlicht" : "Nicht veroeffentlicht"}
+        >
+          {isPublishUpdating ? (
+            <LoaderIcon className="size-4 animate-spin" />
+          ) : isPublished ? (
+            <PublishedIcon className="size-4" />
+          ) : (
+            <UnpublishedIcon className="size-4" />
           )}
         </Button>
       )}

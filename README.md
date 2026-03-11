@@ -37,7 +37,14 @@ cd shift-distributor
 npm install
 ```
 
-3. Set up the database:
+3. Configure environment variables:
+```bash
+cp .env.example .env
+```
+
+Set `JWT_SECRET` to a long random value. Authentication routes return an error when it is missing.
+
+4. Set up the database:
 ```bash
 # Generate the database schema
 npm run db:generate
@@ -46,12 +53,12 @@ npm run db:generate
 npm run db:migrate
 ```
 
-4. Start the development server:
+5. Start the development server:
 ```bash
 npm run dev
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+6. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Usage
 

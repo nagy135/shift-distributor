@@ -92,6 +92,22 @@ export const vacationDays = sqliteTable("vacation_days", {
   ),
 });
 
+export const monthPublications = sqliteTable("month_publications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  month: text("month").notNull().unique(), // YYYY-MM format
+  isPublished: integer("is_published", { mode: "boolean" })
+    .default(sql`0`)
+    .notNull(),
+  publishedAt: integer("published_at", { mode: "timestamp" }),
+  publishedByUserId: integer("published_by_user_id").references(() => users.id),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
+    () => new Date(),
+  ),
+});
+
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   email: text("email").notNull().unique(),
@@ -134,6 +150,8 @@ export type NewUnavailableDateChangeLogEntry =
   typeof unavailableDateChangeLogEntries.$inferInsert;
 export type VacationDay = typeof vacationDays.$inferSelect;
 export type NewVacationDay = typeof vacationDays.$inferInsert;
+export type MonthPublication = typeof monthPublications.$inferSelect;
+export type NewMonthPublication = typeof monthPublications.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
 export type User = typeof users.$inferSelect;
