@@ -11,7 +11,8 @@ import {
 import { flushSync } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { CircleHelp, Loader2 } from "lucide-react";
+import { de } from "date-fns/locale";
+import { CircleHelp, Loader2, Table2 } from "lucide-react";
 import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { CalendarSkeleton } from "@/components/ui/calendar-skeleton";
@@ -49,10 +50,15 @@ import {
   getDefaultClassNames,
   DayButton as RdpDayButton,
 } from "react-day-picker";
+import { MonthlySingleColumnTable } from "@/components/shifts/MonthlySingleColumnTable";
 
 const EMPTY_VACATION_DAYS: VacationDay[] = [];
 const ALL_DOCTORS_VALUE = "all";
 const DEFAULT_DOCTOR_COLOR = "#64748b";
+const VACATION_TABLE_COLUMN = {
+  id: "vacation",
+  label: "Urlaub",
+} as const;
 
 const createColorCountMap = (): Record<VacationColor, number> =>
   VACATION_COLORS.reduce(
@@ -86,6 +92,7 @@ type VacationMonthCalendarProps = {
   month: Date;
   showVacationOverview: boolean;
   canManageWithPicker: boolean;
+  canOpenMonthTable: boolean;
   isMobile: boolean;
   isUpdating: boolean;
   availableDoctors: DoctorPickerOption[];
@@ -96,6 +103,7 @@ type VacationMonthCalendarProps = {
   modifierClasses?: Record<VacationColor, string>;
   vacationsByDate: Map<string, VacationDay[]>;
   hasPendingByDate: Map<string, boolean>;
+  onOpenMonthTable: (month: Date) => void;
   onOpenDateChange: (date: string | null) => void;
   onPickerSearchTermChange: (value: string) => void;
   onToggleDoctor: (date: string, doctorId: string) => void;
@@ -103,10 +111,86 @@ type VacationMonthCalendarProps = {
   pickerEnabled: boolean;
 };
 
+type VacationColorControlsProps = {
+  canEditAllVacations: boolean;
+  canUseVacationEditor: boolean;
+  activeColor: VacationColor | null;
+  colorCounts: Record<VacationColor, number>;
+  onColorSelect: (color: VacationColor) => void;
+};
+
+function VacationColorControls({
+  canEditAllVacations,
+  canUseVacationEditor,
+  activeColor,
+  colorCounts,
+  onColorSelect,
+}: VacationColorControlsProps) {
+  if (!canUseVacationEditor) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Wählen Sie sich selbst aus, um Urlaubstage zu bearbeiten.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex flex-wrap gap-3">
+        {VACATION_COLORS.map((color) => {
+          const style = VACATION_COLOR_STYLES[color];
+          const used = colorCounts[color];
+          const yearlyLimit = VACATION_DAYS_PER_YEAR[color];
+          const isUnlimited = !Number.isFinite(yearlyLimit);
+          const remaining = isUnlimited
+            ? Number.POSITIVE_INFINITY
+            : Math.max(0, yearlyLimit - used);
+          const isActive = activeColor === color;
+          const showCounts = !canEditAllVacations;
+
+          return (
+            <Button
+              key={color}
+              type="button"
+              title={style.label}
+              aria-label={style.label}
+              className={cn(
+                style.classes,
+                "size-9 rounded-full px-0 sm:h-9 sm:w-auto sm:min-w-[88px] sm:rounded-md sm:px-3",
+                showCounts ? "justify-center sm:justify-between" : "justify-center sm:min-w-[88px]",
+                isActive ? `ring-2 ring-offset-2 ${style.ring}` : "",
+              )}
+              disabled={showCounts && !isUnlimited && remaining === 0 && !isActive}
+              onClick={() => onColorSelect(color)}
+            >
+              <span className="sr-only sm:not-sr-only">{style.label}</span>
+              {showCounts ? (
+                <span className="text-xs opacity-90">
+                  <span className="hidden sm:inline">
+                    {isUnlimited ? "∞" : `${remaining}/${yearlyLimit}`}
+                  </span>
+                </span>
+              ) : null}
+            </Button>
+          );
+        })}
+      </div>
+      {!activeColor ? (
+        <p className="text-xs text-muted-foreground">
+          {canEditAllVacations
+            ? "Wählen Sie eine Farbe und klicken Sie dann auf einen Tag."
+            : "Wählen Sie eine Farbe, um Tage zu markieren."}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 const VacationMonthCalendar = memo(function VacationMonthCalendar({
   month,
   showVacationOverview,
   canManageWithPicker,
+  canOpenMonthTable,
   isMobile,
   isUpdating,
   availableDoctors,
@@ -117,6 +201,7 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
   modifierClasses,
   vacationsByDate,
   hasPendingByDate,
+  onOpenMonthTable,
   onOpenDateChange,
   onPickerSearchTermChange,
   onToggleDoctor,
@@ -174,6 +259,22 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
 
   return (
     <div ref={wrapperRef} className="relative rounded-md border">
+      {canOpenMonthTable ? (
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          className="absolute right-3 top-3 z-20 size-8"
+          aria-label="Monatstabelle öffnen"
+          title="Monatstabelle öffnen"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenMonthTable(month);
+          }}
+        >
+          <Table2 className="size-4" />
+        </Button>
+      ) : null}
       <Calendar
         month={month}
         disableNavigation
@@ -422,7 +523,16 @@ export default function VacationsPage() {
   const [openDate, setOpenDate] = useState<string | null>(null);
   const [pickerSearchTerm, setPickerSearchTerm] = useState("");
   const [isMobile, setIsMobile] = useState(false);
+  const [tableMonth, setTableMonth] = useState<Date | null>(null);
+  const [tableOpenDate, setTableOpenDate] = useState<string | null>(null);
   const hasInitializedDoctorSelection = useRef(false);
+  const tableWrapperRef = useRef<HTMLDivElement | null>(null);
+  const tableCellRefs = useRef(new Map<string, HTMLTableCellElement>());
+  const [tablePickerPosition, setTablePickerPosition] = useState<{
+    top: number;
+    left: number;
+    minWidth: number;
+  } | null>(null);
 
   const filteredDoctorId =
     selectedDoctorId === ALL_DOCTORS_VALUE ? null : Number(selectedDoctorId);
@@ -445,7 +555,14 @@ export default function VacationsPage() {
 
   useEffect(() => {
     setPickerSearchTerm("");
-  }, [openDate]);
+  }, [openDate, tableOpenDate]);
+
+  useEffect(() => {
+    if (!tableMonth) {
+      setTableOpenDate(null);
+      setTablePickerPosition(null);
+    }
+  }, [tableMonth]);
 
   useEffect(() => {
     if (user?.role !== "doctor" || doctorId == null) {
@@ -854,6 +971,47 @@ export default function VacationsPage() {
     return next;
   }, [activeColor, vacationDays]);
 
+  useEffect(() => {
+    if (!tableMonth || !tableOpenDate || !isPickerMode) {
+      setTablePickerPosition(null);
+      return;
+    }
+
+    const wrapper = tableWrapperRef.current;
+    const anchor = tableCellRefs.current.get(tableOpenDate);
+
+    if (!wrapper || !anchor) {
+      setTablePickerPosition(null);
+      return;
+    }
+
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const anchorRect = anchor.getBoundingClientRect();
+
+    setTablePickerPosition({
+      top: anchorRect.bottom - wrapperRect.top + 6,
+      left: anchorRect.left - wrapperRect.left,
+      minWidth: Math.max(anchorRect.width, 280),
+    });
+  }, [isPickerMode, pickerSearchTerm, selectedDoctorIdsByDate, tableMonth, tableOpenDate]);
+
+  useEffect(() => {
+    if (!tableMonth || !tableOpenDate || !isPickerMode || isMobile) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (tableWrapperRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      setTableOpenDate(null);
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    return () => window.removeEventListener("mousedown", handlePointerDown);
+  }, [isMobile, isPickerMode, tableMonth, tableOpenDate]);
+
   const approverStats = useMemo(() => {
     if (!canApprove) {
       return {
@@ -985,6 +1143,35 @@ export default function VacationsPage() {
     });
   }, [months, vacationsByDate]);
 
+  const tableValuesByMonth = useMemo(() => {
+    return vacationsByMonth.map((byDate) => {
+      const next = new Map<string, { text: string; title?: string }>();
+
+      byDate.forEach((entries, date) => {
+        const names = Array.from(
+          new Set(
+            entries
+              .map((entry) => entry.doctorName?.trim())
+              .filter((name): name is string => Boolean(name)),
+          ),
+        );
+
+        next.set(date, {
+          text: names.join("/"),
+          title: names.join("\n") || undefined,
+        });
+      });
+
+      return next;
+    });
+  }, [vacationsByMonth]);
+
+  const activeTableMonthIndex = tableMonth ? tableMonth.getMonth() : -1;
+  const activeTableValues =
+    activeTableMonthIndex >= 0
+      ? (tableValuesByMonth[activeTableMonthIndex] ?? new Map())
+      : new Map<string, { text: string; title?: string }>();
+
   const pendingByMonth = useMemo(() => {
     return months.map((month) => {
       const prefix = format(month, "yyyy-MM");
@@ -1032,59 +1219,13 @@ export default function VacationsPage() {
         </div>
         {canEditVacations && (
           <>
-            {canUseVacationEditor ? (
-              <>
-                <div className="flex flex-wrap gap-3">
-                  {VACATION_COLORS.map((color) => {
-                    const style = VACATION_COLOR_STYLES[color];
-                    const used = colorCounts[color];
-                    const yearlyLimit = VACATION_DAYS_PER_YEAR[color];
-                    const isUnlimited = !Number.isFinite(yearlyLimit);
-                    const remaining = isUnlimited
-                      ? Number.POSITIVE_INFINITY
-                      : Math.max(0, yearlyLimit - used);
-                    const isActive = activeColor === color;
-                    const showCounts = !canEditAllVacations;
-
-                    return (
-                      <Button
-                        key={color}
-                        type="button"
-                        className={cn(
-                          style.classes,
-                          showCounts
-                            ? "min-w-[88px] justify-between"
-                            : "min-w-[88px]",
-                          isActive ? `ring-2 ring-offset-2 ${style.ring}` : "",
-                        )}
-                        disabled={
-                          showCounts && !isUnlimited && remaining === 0 && !isActive
-                        }
-                        onClick={() => setActiveColor(color)}
-                      >
-                        <span>{style.label}</span>
-                        {showCounts ? (
-                          <span className="text-xs opacity-90">
-                            {isUnlimited ? "∞" : `${remaining}/${yearlyLimit}`}
-                          </span>
-                        ) : null}
-                      </Button>
-                    );
-                  })}
-                </div>
-                {!activeColor && (
-                  <p className="text-xs text-muted-foreground">
-                    {canEditAllVacations
-                      ? "Wählen Sie eine Farbe und klicken Sie dann auf einen Tag."
-                      : "Wählen Sie eine Farbe, um Tage zu markieren."}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Wählen Sie sich selbst aus, um Urlaubstage zu bearbeiten.
-              </p>
-            )}
+            <VacationColorControls
+              canEditAllVacations={canEditAllVacations}
+              canUseVacationEditor={canUseVacationEditor}
+              activeColor={activeColor}
+              colorCounts={colorCounts}
+              onColorSelect={setActiveColor}
+            />
           </>
         )}
       </div>
@@ -1174,6 +1315,7 @@ export default function VacationsPage() {
               month={month}
               showVacationOverview={isOverviewMode}
               canManageWithPicker={isPickerMode}
+              canOpenMonthTable={canViewVacations}
               isMobile={isMobile}
               isUpdating={updateMutation.isPending}
               availableDoctors={availableDoctors}
@@ -1184,6 +1326,11 @@ export default function VacationsPage() {
               modifierClasses={modifierClasses}
               vacationsByDate={vacationsByMonth[index] ?? new Map()}
               hasPendingByDate={pendingByMonth[index] ?? new Map()}
+              onOpenMonthTable={(selectedMonth) => {
+                setOpenDate(null);
+                setTableOpenDate(null);
+                setTableMonth(selectedMonth);
+              }}
               onOpenDateChange={setOpenDate}
               onPickerSearchTermChange={setPickerSearchTerm}
               onToggleDoctor={handleToggleDoctor}
@@ -1205,6 +1352,115 @@ export default function VacationsPage() {
           ),
         )}
       </div>
+
+      <Dialog
+        open={tableMonth != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTableMonth(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Monatstabelle Urlaub</DialogTitle>
+            <DialogDescription>
+              {tableMonth
+                ? format(tableMonth, "MMMM yyyy", { locale: de })
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {canEditVacations ? (
+            <div className="space-y-2">
+              <VacationColorControls
+                canEditAllVacations={canEditAllVacations}
+                canUseVacationEditor={canUseVacationEditor}
+                activeColor={activeColor}
+                colorCounts={colorCounts}
+                onColorSelect={setActiveColor}
+              />
+            </div>
+          ) : null}
+          {tableMonth ? (
+            <MonthlySingleColumnTable
+              month={tableMonth}
+              column={VACATION_TABLE_COLUMN}
+              valuesByDate={activeTableValues}
+              selectedDateKey={tableOpenDate}
+              wrapperRef={tableWrapperRef}
+              cellRefs={tableCellRefs}
+              containerClassName="max-h-[70vh]"
+              onCellClick={
+                canApprove || isPickerMode || editableDoctorId != null
+                  ? (day) => {
+                      const key = dayToKey(day);
+
+                      if (canApprove) {
+                        setSelectedDate(key);
+                        setTableMonth(null);
+                        setIsDialogOpen(true);
+                        return;
+                      }
+
+                      if (isPickerMode) {
+                        setTableOpenDate(key);
+                        return;
+                      }
+
+                      handleDayClick(day);
+                    }
+                  : undefined
+              }
+            >
+              {isPickerMode && !isMobile && tableOpenDate && tablePickerPosition ? (
+                <div
+                  className="pointer-events-auto absolute z-30 overflow-hidden rounded-lg border bg-background p-3 shadow-xl"
+                  style={{
+                    top: tablePickerPosition.top,
+                    left: tablePickerPosition.left,
+                    minWidth: tablePickerPosition.minWidth,
+                  }}
+                  onMouseDown={(event) => {
+                    event.stopPropagation();
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                  }}
+                >
+                  {updateMutation.isPending ? (
+                    <Loader2 className="absolute right-3 top-3 size-4 animate-spin text-muted-foreground" />
+                  ) : null}
+                  <div className="mb-3">
+                    <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Urlaub
+                    </div>
+                    <div className="mt-1 text-sm font-medium">
+                      {format(new Date(`${tableOpenDate}T00:00:00`), "dd.MM.yyyy")}
+                    </div>
+                  </div>
+                  {activeColor ? (
+                    <DoctorPicker
+                      open={tableOpenDate != null}
+                      doctors={availableDoctors}
+                      searchTerm={pickerSearchTerm}
+                      selectedDoctorIds={selectedDoctorIdsByDate.get(tableOpenDate) ?? []}
+                      onSearchTermChange={setPickerSearchTerm}
+                      onToggleDoctor={(doctorId) => {
+                        handleToggleDoctor(tableOpenDate, doctorId);
+                        setTableOpenDate(null);
+                      }}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Wählen Sie zuerst eine Farbe.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </MonthlySingleColumnTable>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       {isVacationsLoading && (
         <p className="text-sm text-muted-foreground">
@@ -1231,6 +1487,51 @@ export default function VacationsPage() {
           Urlaub wird abgelehnt...
         </p>
       )}
+      {isPickerMode && isMobile ? (
+        <Dialog
+          open={tableOpenDate != null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setTableOpenDate(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Urlaub</DialogTitle>
+              <DialogDescription>
+                {tableOpenDate
+                  ? `Arzte fur ${format(new Date(`${tableOpenDate}T00:00:00`), "dd.MM.yyyy")} auswahlen oder entfernen.`
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+            {tableOpenDate ? (
+              <div className="relative">
+                {updateMutation.isPending ? (
+                  <Loader2 className="absolute right-0 top-0 size-4 animate-spin text-muted-foreground" />
+                ) : null}
+                {activeColor ? (
+                  <DoctorPicker
+                    open={tableOpenDate != null}
+                    doctors={availableDoctors}
+                    searchTerm={pickerSearchTerm}
+                    selectedDoctorIds={selectedDoctorIdsByDate.get(tableOpenDate) ?? []}
+                    onSearchTermChange={setPickerSearchTerm}
+                    onToggleDoctor={(doctorId) => {
+                      handleToggleDoctor(tableOpenDate, doctorId);
+                      setTableOpenDate(null);
+                    }}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Wählen Sie zuerst eine Farbe.
+                  </p>
+                )}
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+      ) : null}
       {canApprove && (
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="max-w-md">

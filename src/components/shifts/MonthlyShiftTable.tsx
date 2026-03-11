@@ -1,8 +1,6 @@
 "use client";
 
 import React from "react";
-import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
-import { de } from "date-fns/locale";
 import {
   getShiftTargetKey,
   type CalendarCellClickOptions,
@@ -22,7 +20,10 @@ import {
 } from "@/lib/shifts";
 import { useDragToScroll } from "@/lib/use-drag-to-scroll";
 import { cn } from "@/lib/utils";
-import { HOLIDAY_DATE_SET_2026 } from "@/lib/holidays";
+import {
+  getMonthTableDays,
+  MonthlyTableBase,
+} from "@/components/shifts/MonthlyTableBase";
 
 interface MonthlyShiftTableProps {
   month: Date;
@@ -82,12 +83,7 @@ export function MonthlyShiftTable({
   onQuickAssignShowAvailableOnlyChange,
 }: MonthlyShiftTableProps) {
   const wrapperRef = React.useRef<HTMLDivElement | null>(null);
-  const days = React.useMemo(() => {
-    return eachDayOfInterval({
-      start: startOfMonth(month),
-      end: endOfMonth(month),
-    });
-  }, [month]);
+  const days = React.useMemo(() => getMonthTableDays(month), [month]);
 
   const shiftIndex = React.useMemo(() => {
     const map = new Map<string, Record<string, Shift>>();
@@ -363,269 +359,255 @@ export function MonthlyShiftTable({
   ]);
 
   return (
-    <div ref={wrapperRef} className="relative w-full">
-      <div
-        ref={containerRef}
-        className={cn(
-          "max-w-full overflow-auto rounded-md border cursor-move select-none",
-          isDragging && "cursor-grabbing",
-        )}
-        {...dragHandlers}
-      >
-        <table className="w-max min-w-full text-sm">
-          <thead className="bg-muted/50 border-b border-gray-400">
-            <tr>
-              <th
-                className="text-left px-1 py-1 w-[50px] border-r border-gray-400"
-                aria-label="Datum"
-              />
-              {columns.map((t, index) => (
-                <th
-                  key={t.id}
+    <MonthlyTableBase
+      month={month}
+      wrapperRef={wrapperRef}
+      containerRef={containerRef}
+      containerClassName={cn(
+        "cursor-move",
+        isDragging && "cursor-grabbing",
+      )}
+      containerProps={dragHandlers}
+      headerCells={
+        <>
+          {columns.map((column, index) => (
+            <th
+              key={column.id}
+              className={cn(
+                "py-1 text-center",
+                index === 0
+                  ? "pl-1 pr-1"
+                  : "min-w-[120px] border-l border-gray-400 px-2",
+              )}
+            >
+              <span className="flex flex-col items-center leading-tight">
+                <span>{column.label}</span>
+                {column.headerNote ? (
+                  <span className="text-[10px] font-normal text-muted-foreground">
+                    {column.headerNote}
+                  </span>
+                ) : null}
+              </span>
+            </th>
+          ))}
+          <th className="min-w-[140px] border-l border-gray-400 px-2 py-1 text-center">
+            Urlaub
+          </th>
+        </>
+      }
+      getRowProps={({ date, dateKey }) => {
+        const byType = shiftIndex.get(dateKey) ?? {};
+        const visibleByType = Object.fromEntries(
+          Object.entries(byType).filter(([shiftType]) => activeColumnIds.has(shiftType)),
+        );
+        const vacationDoctors = approvedVacationsByDate[dateKey] ?? [];
+        const vacationDoctorIds = new Set<number>(
+          vacationDoctors
+            .map((doctorName) => doctorIdByName.get(doctorName))
+            .filter(
+              (doctorId): doctorId is number => typeof doctorId === "number",
+            ),
+        );
+        const hasShiftConflictInRow = columns.some((column) => {
+          const shift = visibleByType[column.id];
+          return shift ? hasShiftConflict(shift, dateKey, visibleByType) : false;
+        });
+        const assignedDoctorIds = new Set<number>();
+        columns.forEach((column) => {
+          const shift = visibleByType[column.id];
+          if (!shift || !Array.isArray(shift.doctorIds)) {
+            return;
+          }
+
+          shift.doctorIds.forEach((doctorId) => {
+            assignedDoctorIds.add(doctorId);
+          });
+        });
+        const hasVacationConflict = Array.from(vacationDoctorIds).some((doctorId) =>
+          assignedDoctorIds.has(doctorId),
+        );
+        const rowConflict = hasShiftConflictInRow || hasVacationConflict;
+
+        return {
+          className: rowConflict
+            ? "rounded border border-red-400 bg-red-100 hover:bg-red-200 dark:border-red-500/70 dark:bg-red-800/40 dark:hover:bg-red-700/50"
+            : undefined,
+          onClick: (event) => {
+            if (event.ctrlKey || event.metaKey) return;
+            if (!canRowClick) return;
+            onRowClick(date);
+          },
+        };
+      }}
+      getDateCellProps={() => ({
+        className: (canRowClick || canCellClick) ? "hover:bg-muted/30" : undefined,
+      })}
+      renderCells={({ date, dateKey, rowIndex }) => {
+        const byType = shiftIndex.get(dateKey) ?? {};
+        const visibleByType = Object.fromEntries(
+          Object.entries(byType).filter(([shiftType]) => activeColumnIds.has(shiftType)),
+        );
+        const vacationDoctors = approvedVacationsByDate[dateKey] ?? [];
+        const vacationDoctorIds = new Set<number>(
+          vacationDoctors
+            .map((doctorName) => doctorIdByName.get(doctorName))
+            .filter(
+              (doctorId): doctorId is number => typeof doctorId === "number",
+            ),
+        );
+        const assignedDoctorIds = new Set<number>();
+
+        columns.forEach((column) => {
+          const shift = visibleByType[column.id];
+          if (!shift || !Array.isArray(shift.doctorIds)) {
+            return;
+          }
+
+          shift.doctorIds.forEach((doctorId) => {
+            assignedDoctorIds.add(doctorId);
+          });
+        });
+
+        const hasVacationConflict = Array.from(vacationDoctorIds).some((doctorId) =>
+          assignedDoctorIds.has(doctorId),
+        );
+
+        return (
+          <>
+            {columns.map((column, index) => {
+              const shift = visibleByType[column.id];
+              const cellTarget = {
+                date,
+                shiftType: column.id,
+              };
+              const cellKey = getShiftTargetKey(cellTarget);
+              const isSelectedCell = selectedCellKeys?.has(cellKey) ?? false;
+              const hasShiftCellConflict = shift
+                ? hasShiftConflict(shift, dateKey, visibleByType)
+                : false;
+              const hasVacationCellConflict =
+                !!shift &&
+                Array.isArray(shift.doctorIds) &&
+                shift.doctorIds.some((doctorId) => vacationDoctorIds.has(doctorId));
+              const cellConflict = hasShiftCellConflict || hasVacationCellConflict;
+
+              return (
+                <td
+                  key={column.id}
+                  ref={(node) => {
+                    if (node) {
+                      cellRefs.current.set(cellKey, node);
+                    } else {
+                      cellRefs.current.delete(cellKey);
+                    }
+                  }}
                   className={cn(
-                    "text-center py-1",
+                    "py-1 text-center",
                     index === 0
                       ? "pl-1 pr-1"
-                      : "px-2 min-w-[120px] border-l border-gray-400",
+                      : "min-w-[120px] border-l border-gray-400 px-2",
+                    cellConflict &&
+                      "bg-red-300 hover:bg-red-300 dark:bg-red-700/80 dark:hover:bg-red-700/80",
+                    isSelectedCell &&
+                      "outline-2 outline-offset-[-2px] outline-solid outline-sky-500 bg-sky-100 dark:bg-sky-950/60",
+                    !cellConflict &&
+                      (canRowClick || canCellClick) &&
+                      "hover:bg-muted/30",
                   )}
-                >
-                  <span className="flex flex-col items-center leading-tight">
-                    <span>{t.label}</span>
-                    {t.headerNote ? (
-                      <span className="text-[10px] font-normal text-muted-foreground">
-                        {t.headerNote}
-                      </span>
-                    ) : null}
-                  </span>
-                </th>
-              ))}
-              <th className="text-center py-1 px-2 min-w-[140px] border-l border-gray-400">
-                Urlaub
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-400">
-            {days.map((d, rowIndex) => {
-              const key = format(d, "yyyy-MM-dd");
-              const isHoliday = HOLIDAY_DATE_SET_2026.has(key);
-              const dayName = format(d, "EEEE", { locale: de });
-              const dayPrefix = dayName.slice(0, 2);
-              const byType = shiftIndex.get(key) ?? {};
-              const visibleByType = Object.fromEntries(
-                Object.entries(byType).filter(([shiftType]) =>
-                  activeColumnIds.has(shiftType),
-                ),
-              );
-              const vacationDoctors = approvedVacationsByDate[key] ?? [];
-              const vacationDoctorIds = new Set<number>(
-                vacationDoctors
-                  .map((doctorName) => doctorIdByName.get(doctorName))
-                  .filter(
-                    (doctorId): doctorId is number =>
-                      typeof doctorId === "number",
-                  ),
-              );
-              const hasShiftConflictInRow = columns.some((column) => {
-                const s = visibleByType[column.id];
-                return s && hasShiftConflict(s, key, visibleByType);
-              });
-              const assignedDoctorIds = new Set<number>();
-              columns.forEach((column) => {
-                const s = visibleByType[column.id];
-                if (!s || !Array.isArray(s.doctorIds)) {
-                  return;
-                }
-                s.doctorIds.forEach((doctorId) => {
-                  assignedDoctorIds.add(doctorId);
-                });
-              });
-              const hasVacationConflict = Array.from(vacationDoctorIds).some(
-                (doctorId) => assignedDoctorIds.has(doctorId),
-              );
-              const rowConflict = hasShiftConflictInRow || hasVacationConflict;
-              // Hide weekend-only shift content on weekdays
-              const day = d.getDay();
-              const isWeekend = day === 0 || day === 6;
-              return (
-                <tr
-                  key={key}
-                  className={cn(
-                    // canRowClick && "cursor-pointer",
-                    // !canRowClick && "cursor-default",
-                    (isWeekend || isHoliday) && "bg-gray-200 dark:bg-gray-700",
-                    rowConflict
-                      ? "bg-red-100 dark:bg-red-800/40 hover:bg-red-200 dark:hover:bg-red-700/50 border rounded border-red-400 dark:border-red-500/70"
-                      : undefined,
-                  )}
+                  onMouseDown={(event) => {
+                    if (event.ctrlKey || event.metaKey) {
+                      event.preventDefault();
+                      event.stopPropagation();
+
+                      if (!canChangeSelection || event.button !== 0) {
+                        return;
+                      }
+
+                      onSelectionInteractionChange?.(true);
+
+                      clearSuppressedSelectionClick();
+
+                      const selectionMode = isSelectedCell ? "remove" : "add";
+
+                      dragSelectionRef.current = {
+                        anchorRowIndex: rowIndex,
+                        anchorColumnIndex: index,
+                        mode: selectionMode,
+                        baselineTargets: [...selectedTargets],
+                      };
+                      suppressNextSelectionClickRef.current = true;
+                      updateDragSelection(rowIndex, index);
+                    }
+                  }}
+                  onMouseEnter={(event) => {
+                    if ((event.buttons & 1) !== 1) {
+                      return;
+                    }
+
+                    if (!dragSelectionRef.current) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    event.stopPropagation();
+                    updateDragSelection(rowIndex, index);
+                  }}
+                  onContextMenu={(event) => {
+                    if (event.ctrlKey || event.metaKey) {
+                      event.preventDefault();
+                    }
+                  }}
                   onClick={(event) => {
-                    if (event.ctrlKey || event.metaKey) return;
-                    if (!canRowClick) return;
-                    onRowClick(d);
+                    if (!canCellClick) return;
+
+                    if (suppressNextSelectionClickRef.current) {
+                      clearSuppressedSelectionClick();
+                      event.preventDefault();
+                      event.stopPropagation();
+                      return;
+                    }
+
+                    event.stopPropagation();
+                    onCellClick(date, column.id, {
+                      additive: event.ctrlKey || event.metaKey,
+                    });
                   }}
                 >
-                  <td
-                    className={cn(
-                      "px-1 py-1 text-xs min-w-[50px] border-r border-gray-400",
-                      (canRowClick || canCellClick) && "hover:bg-muted/30",
-                    )}
-                  >
-                    <span className="inline-flex items-baseline gap-1">
-                      <span>{format(d, "d.", { locale: de })}</span>
+                  {shift ? (
+                    shift.doctorIds.length > 0 ? (
                       <span>
-                        {isHoliday ? (
-                          <span className="text-red-600">{dayPrefix}</span>
-                        ) : (
-                          dayPrefix
-                        )}
+                        {shift.doctors
+                          .map((assignedDoctor) => assignedDoctor.name)
+                          .join("/")}
                       </span>
-                    </span>
-                  </td>
-                  {columns.map((column, index) => {
-                    const s = visibleByType[column.id];
-                    const cellTarget = {
-                      date: d,
-                      shiftType: column.id,
-                    };
-                    const cellKey = getShiftTargetKey(cellTarget);
-                    const isSelectedCell =
-                      selectedCellKeys?.has(cellKey) ?? false;
-                    const hasShiftCellConflict = s
-                      ? hasShiftConflict(s, key, visibleByType)
-                      : false;
-                    const hasVacationCellConflict =
-                      !!s &&
-                      Array.isArray(s.doctorIds) &&
-                      s.doctorIds.some((doctorId) =>
-                        vacationDoctorIds.has(doctorId),
-                      );
-                    const cellConflict =
-                      hasShiftCellConflict || hasVacationCellConflict;
-
-                    return (
-                      <td
-                        key={column.id}
-                        ref={(node) => {
-                          if (node) {
-                            cellRefs.current.set(cellKey, node);
-                          } else {
-                            cellRefs.current.delete(cellKey);
-                          }
-                        }}
-                        className={cn(
-                          "py-1 text-center",
-                          index === 0
-                            ? "pl-1 pr-1"
-                            : "px-2 min-w-[120px] border-l border-gray-400",
-                          // canCellClick && "cursor-pointer",
-                          cellConflict &&
-                            "bg-red-300 dark:bg-red-700/80 hover:bg-red-300 dark:hover:bg-red-700/80",
-                          isSelectedCell &&
-                            "outline-2 outline-sky-500 outline-solid outline-offset-[-2px] bg-sky-100 dark:bg-sky-950/60",
-                          !cellConflict &&
-                            (canRowClick || canCellClick) &&
-                            "hover:bg-muted/30",
-                        )}
-                        onMouseDown={(event) => {
-                          if (event.ctrlKey || event.metaKey) {
-                            event.preventDefault();
-                            event.stopPropagation();
-
-                            if (!canChangeSelection || event.button !== 0) {
-                              return;
-                            }
-
-                            onSelectionInteractionChange?.(true);
-
-                            clearSuppressedSelectionClick();
-
-                            const selectionMode = isSelectedCell
-                              ? "remove"
-                              : "add";
-
-                            dragSelectionRef.current = {
-                              anchorRowIndex: rowIndex,
-                              anchorColumnIndex: index,
-                              mode: selectionMode,
-                              baselineTargets: [...selectedTargets],
-                            };
-                            suppressNextSelectionClickRef.current = true;
-                            updateDragSelection(rowIndex, index);
-                          }
-                        }}
-                        onMouseEnter={(event) => {
-                          if ((event.buttons & 1) !== 1) {
-                            return;
-                          }
-
-                          if (!dragSelectionRef.current) {
-                            return;
-                          }
-
-                          event.preventDefault();
-                          event.stopPropagation();
-                          updateDragSelection(rowIndex, index);
-                        }}
-                        onContextMenu={(event) => {
-                          if (event.ctrlKey || event.metaKey) {
-                            event.preventDefault();
-                          }
-                        }}
-                        onClick={(event) => {
-                          if (!canCellClick) return;
-
-                          if (suppressNextSelectionClickRef.current) {
-                            clearSuppressedSelectionClick();
-                            event.preventDefault();
-                            event.stopPropagation();
-                            return;
-                          }
-
-                          event.stopPropagation();
-                          onCellClick(d, column.id, {
-                            additive: event.ctrlKey || event.metaKey,
-                          });
-                        }}
-                      >
-                        {s ? (
-                          s.doctorIds.length > 0 ? (
-                            <span>
-                              {s.doctors
-                                .map((assignedDoctor) => assignedDoctor.name)
-                                .join("/")}
-                            </span>
-                          ) : (
-                            "-"
-                          )
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td
-                    className={cn(
-                      "py-1 text-center px-2 min-w-[140px] border-l border-gray-400",
-                      hasVacationConflict &&
-                        "bg-red-300 dark:bg-red-700/80 hover:bg-red-300 dark:hover:bg-red-700/80",
-                      !hasVacationConflict &&
-                        (canRowClick || canCellClick) &&
-                        "hover:bg-muted/30",
-                    )}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                    }}
-                  >
-                    {vacationDoctors.length > 0
-                      ? vacationDoctors.join("/")
-                      : "-"}
-                  </td>
-                </tr>
+                    ) : (
+                      "-"
+                    )
+                  ) : (
+                    "-"
+                  )}
+                </td>
               );
             })}
-          </tbody>
-        </table>
-      </div>
-
+            <td
+              className={cn(
+                "min-w-[140px] border-l border-gray-400 px-2 py-1 text-center",
+                hasVacationConflict &&
+                  "bg-red-300 hover:bg-red-300 dark:bg-red-700/80 dark:hover:bg-red-700/80",
+                !hasVacationConflict &&
+                  (canRowClick || canCellClick) &&
+                  "hover:bg-muted/30",
+              )}
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              {vacationDoctors.length > 0 ? vacationDoctors.join("/") : "-"}
+            </td>
+          </>
+        );
+      }}
+    >
       <QuickAssignOverlay
         open={quickAssignOpen}
         position={quickAssignPosition}
@@ -645,6 +627,6 @@ export function MonthlyShiftTable({
           onQuickAssignShowAvailableOnlyChange?.(value)
         }
       />
-    </div>
+    </MonthlyTableBase>
   );
 }
