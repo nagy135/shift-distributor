@@ -197,7 +197,7 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
                   {children}
                 </span>
                 {firstDoctorName ? (
-                  <span className="pointer-events-none absolute inset-x-1 top-4 z-10 overflow-hidden whitespace-nowrap text-ellipsis text-[10px] leading-none lg:text-[6px] md:text-[7px] sm:text-[8px]">
+                  <span className="pointer-events-none absolute inset-x-1 top-4 z-10 overflow-hidden whitespace-nowrap text-ellipsis text-[10px] leading-none lg:text-[8px] md:text-[7px] sm:text-[8px]">
                     {firstDoctorName}
                   </span>
                 ) : null}
@@ -525,7 +525,9 @@ export default function NightShiftsPage() {
     const currentDoctorIds = existingShift?.doctorIds ?? [];
     const nextDoctorIds = currentDoctorIds.includes(parsedDoctorId)
       ? currentDoctorIds.filter((doctorId) => doctorId !== parsedDoctorId)
-      : [...currentDoctorIds, parsedDoctorId].sort((left, right) => left - right);
+      : [...currentDoctorIds, parsedDoctorId].sort(
+          (left, right) => left - right,
+        );
 
     const nextNightShifts = (() => {
       const optimisticShift: NightShift = {
@@ -684,7 +686,10 @@ export default function NightShiftsPage() {
                   : undefined
               }
             >
-              {canManage && !isMobile && tableOpenDate && tablePickerPosition ? (
+              {canManage &&
+              !isMobile &&
+              tableOpenDate &&
+              tablePickerPosition ? (
                 <div
                   className="pointer-events-auto absolute z-30 overflow-hidden rounded-lg border bg-background p-3 shadow-xl"
                   style={{
@@ -707,14 +712,19 @@ export default function NightShiftsPage() {
                       Nachtdienst
                     </div>
                     <div className="mt-1 text-sm font-medium">
-                      {format(new Date(`${tableOpenDate}T00:00:00`), "dd.MM.yyyy")}
+                      {format(
+                        new Date(`${tableOpenDate}T00:00:00`),
+                        "dd.MM.yyyy",
+                      )}
                     </div>
                   </div>
                   <DoctorPicker
                     open={tableOpenDate != null}
                     doctors={availableDoctors}
                     searchTerm={pickerSearchTerm}
-                    selectedDoctorIds={selectedDoctorIdsByDate.get(tableOpenDate) ?? []}
+                    selectedDoctorIds={
+                      selectedDoctorIdsByDate.get(tableOpenDate) ?? []
+                    }
                     onSearchTermChange={setPickerSearchTerm}
                     onToggleDoctor={(doctorId) => {
                       handleToggleDoctor(tableOpenDate, doctorId);
@@ -808,7 +818,9 @@ export default function NightShiftsPage() {
                   open={tableOpenDate != null}
                   doctors={availableDoctors}
                   searchTerm={pickerSearchTerm}
-                  selectedDoctorIds={selectedDoctorIdsByDate.get(tableOpenDate) ?? []}
+                  selectedDoctorIds={
+                    selectedDoctorIdsByDate.get(tableOpenDate) ?? []
+                  }
                   onSearchTermChange={setPickerSearchTerm}
                   onToggleDoctor={(doctorId) => {
                     handleToggleDoctor(tableOpenDate, doctorId);
