@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { doctors, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getUserFromAuthHeader } from "@/lib/authz";
+import { isAssigner } from "@/lib/roles";
 
 const ONLINE_WINDOW_MS = 30 * 1000;
 
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (user.role !== "shift_assigner") {
+  if (!isAssigner(user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

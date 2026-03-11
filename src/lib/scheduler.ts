@@ -44,6 +44,8 @@ export function generateAssignmentsForMonth(
   const assignments: GeneratedAssignment[] = [];
   // Filter out disabled doctors
   const enabledDoctors = doctors.filter((d) => !d.disabled);
+  const doctorById = new Map(enabledDoctors.map((doctor) => [doctor.id, doctor]));
+
   if (enabledDoctors.length === 0 || dates.length === 0) return assignments;
 
   // Track how many shifts each doctor has been assigned
@@ -82,7 +84,7 @@ export function generateAssignmentsForMonth(
       let chosen: number | null = null;
 
       for (const candidateId of candidateIds) {
-        const doctor = enabledDoctors.find((d) => d.id === candidateId);
+        const doctor = doctorById.get(candidateId);
 
         if (!doctor) {
           continue;
@@ -138,7 +140,8 @@ export function generateAssignmentsForMonth(
       // If no candidate fits the consecutive-day constraint, relax it but still avoid same day double assignment
       if (chosen == null) {
         for (const candidateId of candidateIds) {
-          const doctor = enabledDoctors.find((d) => d.id === candidateId);
+          const doctor = doctorById.get(candidateId);
+
           if (!doctor) {
             continue;
           }

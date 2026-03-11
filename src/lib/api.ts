@@ -1,4 +1,5 @@
 import type { VacationColor } from "@/lib/vacations";
+import type { UserRole } from "@/lib/roles";
 
 type ApiFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -68,6 +69,17 @@ export interface VacationDay {
 export interface Notification {
   id: number;
   message: string;
+  createdAt?: number | string | null;
+}
+
+export interface AdminUser {
+  id: number;
+  email: string;
+  role: UserRole;
+  doctorId?: number | null;
+  doctorName?: string | null;
+  lastOnlineAt?: number | string | null;
+  isOnline?: boolean;
   createdAt?: number | string | null;
 }
 
@@ -195,6 +207,19 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
   };
 
   const unavailableDatesApi = {
+    getAll: async (doctorIds?: number[]): Promise<UnavailableDate[]> => {
+      const params = new URLSearchParams();
+
+      if (doctorIds && doctorIds.length > 0) {
+        params.set("doctorIds", doctorIds.join(","));
+      }
+
+      const query = params.toString();
+      const response = await apiFetch(
+        query ? `/api/unavailable-dates?${query}` : "/api/unavailable-dates",
+      );
+      return readJson(response, "Failed to fetch unavailable dates");
+    },
     getByDoctor: async (doctorId: number): Promise<UnavailableDate[]> => {
       const response = await apiFetch(`/api/doctors/${doctorId}/unavailable-dates`);
       return readJson(response, "Failed to fetch unavailable dates");
@@ -285,6 +310,34 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     },
   };
 
+  const adminUsersApi = {
+    getAll: async (): Promise<AdminUser[]> => {
+      const response = await apiFetch("/api/admin/users", {
+        cache: "no-store",
+      });
+      return readJson(response, "Failed to fetch users");
+    },
+    update: async (
+      userId: number,
+      payload: { role?: UserRole; doctorId?: number | null },
+    ): Promise<AdminUser> => {
+      const response = await apiFetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      return readJson(response, "Failed to update user");
+    },
+    remove: async (userId: number): Promise<{ success: boolean }> => {
+      const response = await apiFetch(`/api/admin/users/${userId}`, {
+        method: "DELETE",
+      });
+      return readJson(response, "Failed to delete user");
+    },
+  };
+
   return {
     doctorsApi,
     shiftsApi,
@@ -292,6 +345,7 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     unavailableDatesApi,
     vacationsApi,
     notificationsApi,
+    adminUsersApi,
   };
 }
 
@@ -302,4 +356,5 @@ export const {
   unavailableDatesApi,
   vacationsApi,
   notificationsApi,
+  adminUsersApi,
 } = createApiClient();

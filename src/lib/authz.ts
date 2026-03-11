@@ -11,6 +11,8 @@ export type AuthUser = {
   doctorId: number | null;
 };
 
+const LAST_ONLINE_UPDATE_INTERVAL_MS = 15 * 1000;
+
 export async function getUserFromAuthHeader(
   authHeader: string | null,
 ): Promise<AuthUser | null> {
@@ -26,6 +28,7 @@ export async function getUserFromAuthHeader(
       email: users.email,
       role: users.role,
       doctorId: users.doctorId,
+      lastOnlineAt: users.lastOnlineAt,
     })
     .from(users)
     .where(eq(users.id, payload.id))
@@ -33,10 +36,22 @@ export async function getUserFromAuthHeader(
 
   if (!user) return null;
 
-  await db
-    .update(users)
-    .set({ lastOnlineAt: new Date() })
-    .where(eq(users.id, user.id));
+  const shouldUpdateLastOnlineAt =
+    !user.lastOnlineAt ||
+    Date.now() - new Date(user.lastOnlineAt).getTime() >=
+      LAST_ONLINE_UPDATE_INTERVAL_MS;
 
-  return user;
+  if (shouldUpdateLastOnlineAt) {
+    await db
+      .update(users)
+      .set({ lastOnlineAt: new Date() })
+      .where(eq(users.id, user.id));
+  }
+
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    doctorId: user.doctorId,
+  };
 }

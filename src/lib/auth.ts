@@ -9,11 +9,12 @@ const ACCESS_TOKEN_TTL_SEC = 60 * 5; // 5 minutes
 const REFRESH_TOKEN_TTL_SEC = 60 * 60 * 24; // 24 hours
 
 function getJwtSecret(): string {
-  const secret = process.env.JWT_SECRET || process.env.NEXT_PUBLIC_JWT_SECRET;
+  const secret = process.env.JWT_SECRET;
+
   if (!secret) {
-    // Use a dev fallback to avoid crashes in local
-    return "dev-insecure-jwt-secret-change-me";
+    throw new Error("JWT_SECRET is required");
   }
+
   return secret;
 }
 

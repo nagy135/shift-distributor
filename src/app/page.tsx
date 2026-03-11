@@ -14,7 +14,10 @@ import { MonthSelector } from "@/components/MonthSelector";
 import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
 import type { QuickAssignOption } from "@/components/shifts/QuickAssignOverlay";
 import { CalendarHeaderActions } from "@/components/calendar/CalendarHeaderActions";
-import { CalendarContent } from "@/components/calendar/CalendarContent";
+import {
+  CalendarContent,
+  type CalendarTableView,
+} from "@/components/calendar/CalendarContent";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,6 +38,7 @@ import { useCalendarQueries } from "@/components/calendar/useCalendarQueries";
 import { useMonthStore } from "@/lib/month-store";
 import { useDistributeLockStore } from "@/lib/distribute-lock-store";
 import { generateAssignmentsForMonth } from "@/lib/scheduler";
+import { useMediaQuery } from "@/lib/use-media-query";
 import {
   ALL_CALENDAR_SHIFT_TYPES,
   AUTO_DISTRIBUTE_SHIFT_TYPES,
@@ -45,6 +49,10 @@ import {
 } from "@/lib/shifts";
 import { useAuth } from "@/lib/auth-client";
 import { useApiClient } from "@/lib/use-api-client";
+import {
+  canEditCalendarView,
+  isShiftAssigner,
+} from "@/lib/roles";
 
 type ShiftAssignment = CalendarShiftTarget & {
   doctorIds: number[];
@@ -52,11 +60,12 @@ type ShiftAssignment = CalendarShiftTarget & {
 
 export default function CalendarPage() {
   const { user } = useAuth();
-  const { shiftsApi, unavailableDatesApi } = useApiClient();
-  const isShiftAssigner = user?.role === "shift_assigner";
-  const [assignmentMode, setAssignmentMode] = useState<"quick" | "slow">(
-    "slow",
-  );
+  const { shiftsApi } = useApiClient();
+  const [tableView, setTableView] = useState<CalendarTableView>("shifts");
+  const canEditCurrentView = canEditCalendarView(user?.role, tableView);
+  const canDistribute = isShiftAssigner(user?.role) && tableView === "shifts";
+  const isDesktopQuickAssign = useMediaQuery("(min-width: 768px)");
+  const assignmentMode = isDesktopQuickAssign ? "quick" : "slow";
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const { month } = useMonthStore();
   const [isDistributing, setIsDistributing] = useState(false);
@@ -106,6 +115,17 @@ export default function CalendarPage() {
     setQuickAssignDoctorIds((current) => (current.length === 0 ? current : []));
   }, []);
 
+  useEffect(() => {
+    if (canEditCurrentView) {
+      return;
+    }
+
+    setIsAssignModalOpen(false);
+    setIsQuickAssignOpen(false);
+    setIsSelectionInteractionActive(false);
+    clearSelectedTargets();
+  }, [canEditCurrentView, clearSelectedTargets]);
+
   const selectedCellKeys = useMemo(
     () => new Set(selectedTargets.map((target) => getShiftTargetKey(target))),
     [selectedTargets],
@@ -114,6 +134,11 @@ export default function CalendarPage() {
   const selectedTargetsKey = useMemo(
     () => selectedTargets.map((target) => getShiftTargetKey(target)).join("|"),
     [selectedTargets],
+  );
+
+  const doctorById = useMemo(
+    () => new Map(doctors.map((doctor) => [doctor.id, doctor])),
+    [doctors],
   );
 
   const quickAssignOptions = useMemo<QuickAssignOption[]>(
@@ -147,7 +172,7 @@ export default function CalendarPage() {
       };
 
       const hasDoctorConflict = (doctorId: number) => {
-        const doctor = doctors.find((entry) => entry.id === doctorId);
+        const doctor = doctorById.get(doctorId);
 
         if (!doctor) {
           return false;
@@ -207,6 +232,7 @@ export default function CalendarPage() {
     [
       allShifts,
       approvedVacationsByDate,
+      doctorById,
       doctors,
       selectedTargets,
       unavailableByDoctor,
@@ -241,28 +267,8 @@ export default function CalendarPage() {
     setQuickAssignHighlightedIndex(maxHighlightedIndex);
   }, [filteredQuickAssignOptions.length, quickAssignHighlightedIndex]);
 
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(min-width: 768px)");
-
-    const updateAssignmentMode = (matches: boolean) => {
-      setAssignmentMode(matches ? "quick" : "slow");
-    };
-
-    updateAssignmentMode(mediaQuery.matches);
-
-    const handleChange = (event: MediaQueryListEvent) => {
-      updateAssignmentMode(event.matches);
-    };
-
-    mediaQuery.addEventListener("change", handleChange);
-
-    return () => {
-      mediaQuery.removeEventListener("change", handleChange);
-    };
-  }, []);
-
   const openAssignModalForSelection = useCallback(() => {
-    if (!isShiftAssigner || selectedTargets.length === 0) return;
+    if (!canEditCurrentView || selectedTargets.length === 0) return;
     if (isLocked) {
       notifyLocked();
       return;
@@ -273,12 +279,12 @@ export default function CalendarPage() {
       Array.from(new Set(selectedTargets.map((target) => target.shiftType))),
     );
     setIsAssignModalOpen(true);
-  }, [isLocked, isShiftAssigner, notifyLocked, selectedTargets]);
+  }, [canEditCurrentView, isLocked, notifyLocked, selectedTargets]);
 
   useEffect(() => {
     if (
       assignmentMode !== "slow" ||
-      !isShiftAssigner ||
+      !canEditCurrentView ||
       selectedTargets.length === 0 ||
       isAssignModalOpen
     ) {
@@ -298,14 +304,15 @@ export default function CalendarPage() {
     };
   }, [
     assignmentMode,
+    canEditCurrentView,
     isAssignModalOpen,
-    isShiftAssigner,
     openAssignModalForSelection,
     selectedTargets.length,
   ]);
 
   useEffect(() => {
     if (
+      canEditCurrentView &&
       assignmentMode === "quick" &&
       selectedTargets.length > 0 &&
       !isSelectionInteractionActive
@@ -317,6 +324,7 @@ export default function CalendarPage() {
     closeQuickAssign();
   }, [
     assignmentMode,
+    canEditCurrentView,
     closeQuickAssign,
     isSelectionInteractionActive,
     selectedTargets.length,
@@ -376,7 +384,7 @@ export default function CalendarPage() {
     date: Date,
     shiftTypes: readonly string[],
   ) => {
-    if (!isShiftAssigner) return;
+    if (!canEditCurrentView) return;
     if (isLocked) {
       notifyLocked();
       return;
@@ -395,7 +403,7 @@ export default function CalendarPage() {
     shiftTypes: readonly string[],
     options: CalendarCellClickOptions,
   ) => {
-    if (!isShiftAssigner) return;
+    if (!canEditCurrentView) return;
     if (isLocked) {
       notifyLocked();
       return;
@@ -437,7 +445,7 @@ export default function CalendarPage() {
 
   const handleShiftAssignments = useCallback(
     async (assignments: ShiftAssignment[]) => {
-      if (!isShiftAssigner) return;
+      if (!canEditCurrentView) return;
       if (isLocked) {
         notifyLocked();
         return;
@@ -464,9 +472,9 @@ export default function CalendarPage() {
     },
     [
       assignShiftMutation,
+      canEditCurrentView,
       invalidateShifts,
       isLocked,
-      isShiftAssigner,
       notifyLocked,
       shiftsApi,
     ],
@@ -499,7 +507,7 @@ export default function CalendarPage() {
         return;
       }
 
-      if (!isShiftAssigner || selectedTargets.length === 0) {
+      if (!canEditCurrentView || selectedTargets.length === 0) {
         return;
       }
 
@@ -523,9 +531,9 @@ export default function CalendarPage() {
       closeQuickAssign,
       handleShiftAssignments,
       isLocked,
-      isShiftAssigner,
       notifyLocked,
       selectedTargets,
+      canEditCurrentView,
     ],
   );
 
@@ -535,7 +543,7 @@ export default function CalendarPage() {
       return;
     }
 
-    if (!isShiftAssigner || selectedTargets.length === 0) {
+    if (!canEditCurrentView || selectedTargets.length === 0) {
       return;
     }
 
@@ -554,9 +562,9 @@ export default function CalendarPage() {
   }, [
     clearSelectedTargets,
     closeQuickAssign,
+    canEditCurrentView,
     handleShiftAssignments,
     isLocked,
-    isShiftAssigner,
     notifyLocked,
     quickAssignDoctorIds,
     selectedTargets,
@@ -576,7 +584,7 @@ export default function CalendarPage() {
   useEffect(() => {
     if (
       assignmentMode !== "quick" ||
-      !isShiftAssigner ||
+      !canEditCurrentView ||
       selectedTargets.length === 0 ||
       isAssignModalOpen
     ) {
@@ -668,23 +676,23 @@ export default function CalendarPage() {
     };
   }, [
     assignmentMode,
+    canEditCurrentView,
     closeQuickAssign,
     filteredQuickAssignOptions,
     handleQuickAssignApply,
     handleQuickAssignToggle,
     isAssignModalOpen,
-    isShiftAssigner,
     quickAssignHighlightedIndex,
     selectedTargets.length,
   ]);
 
   const handleDistributeMonth = useCallback(() => {
-    if (!isShiftAssigner || isDistributing) return;
+    if (!canDistribute || isDistributing) return;
     setIsDistributeConfirmOpen(true);
-  }, [isDistributing, isShiftAssigner]);
+  }, [canDistribute, isDistributing]);
 
   const confirmDistributeMonth = async () => {
-    if (!isShiftAssigner) return;
+    if (!canDistribute) return;
 
     try {
       setIsDistributeConfirmOpen(false);
@@ -695,17 +703,12 @@ export default function CalendarPage() {
       };
       const dates = eachDayOfInterval(range);
 
-      // Build unavailable map for all doctors
-      const unavailableDatesByDoctorEntries = await Promise.all(
-        doctors.map(async (d) => {
-          const records = await unavailableDatesApi.getByDoctor(d.id);
-          const set = new Set(records.map((r) => r.date));
-          return [d.id, set] as const;
-        }),
-      );
       const unavailableDatesByDoctor = Object.fromEntries(
-        unavailableDatesByDoctorEntries,
-      );
+        doctors.map((doctor) => [
+          doctor.id,
+          new Set(unavailableByDoctor[doctor.id] ?? []),
+        ]),
+      ) as Record<number, Set<string>>;
 
       for (const shift of allShifts) {
         if (shift.shiftType !== "night") continue;
@@ -760,14 +763,16 @@ export default function CalendarPage() {
             isDistributing={isDistributing}
             shiftsLoading={shiftsLoading}
             doctorsCount={doctors.length}
-            showDistribute={isShiftAssigner}
-            showLockToggle={isShiftAssigner}
+            showDistribute={canDistribute}
+            showLockToggle={canEditCurrentView}
           />
         }
       />
 
       <CalendarContent
         month={month}
+        tableView={tableView}
+        onTableViewChange={setTableView}
         shiftsLoading={shiftsLoading}
         doctors={doctors}
         allShifts={allShifts}
@@ -775,10 +780,10 @@ export default function CalendarPage() {
         approvedVacationsByDate={approvedVacationsByDate}
         selectedTargets={selectedTargets}
         selectedCellKeys={selectedCellKeys}
-        onRowClick={isShiftAssigner ? openAssignModalForDate : undefined}
-        onCellClick={isShiftAssigner ? openAssignModalForCell : undefined}
+        onRowClick={canEditCurrentView ? openAssignModalForDate : undefined}
+        onCellClick={canEditCurrentView ? openAssignModalForCell : undefined}
         onSelectionChange={
-          isShiftAssigner
+          canEditCurrentView
             ? (targets) => {
                 if (isLocked) {
                   notifyLocked();
@@ -790,9 +795,9 @@ export default function CalendarPage() {
             : undefined
         }
         onSelectionInteractionChange={
-          isShiftAssigner ? setIsSelectionInteractionActive : undefined
+          canEditCurrentView ? setIsSelectionInteractionActive : undefined
         }
-        quickAssignOpen={assignmentMode === "quick" && isQuickAssignOpen}
+        quickAssignOpen={canEditCurrentView && assignmentMode === "quick" && isQuickAssignOpen}
         quickAssignFilterText={quickAssignSearchTerm}
         quickAssignHighlightedIndex={quickAssignHighlightedIndex}
         quickAssignOptions={quickAssignOptions}
@@ -812,7 +817,7 @@ export default function CalendarPage() {
 
       {/* Reusable shift assignment modal for table rows */}
       <ShiftAssignmentModal
-        open={isAssignModalOpen && isShiftAssigner}
+        open={isAssignModalOpen && canEditCurrentView}
         onOpenChange={handleAssignModalOpenChange}
         date={selectedDate}
         targets={selectedTargets}
@@ -828,7 +833,7 @@ export default function CalendarPage() {
       />
 
       <Dialog
-        open={isDistributeConfirmOpen && isShiftAssigner}
+        open={isDistributeConfirmOpen && canDistribute}
         onOpenChange={setIsDistributeConfirmOpen}
       >
         <DialogContent className="max-w-md">

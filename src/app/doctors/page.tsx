@@ -16,6 +16,7 @@ import { ShiftDetailsDialog } from "@/components/doctors/ShiftDetailsDialog";
 import { exportDoctorShifts } from "@/components/doctors/export-doctor-shifts";
 import { getDoctorShiftCount } from "@/components/doctors/utils";
 import { useAuth } from "@/lib/auth-client";
+import { isAssigner } from "@/lib/roles";
 import { SHIFT_TYPES } from "@/lib/shifts";
 
 export default function DoctorsPage() {
@@ -28,7 +29,7 @@ export default function DoctorsPage() {
   const [isColorDialogOpen, setIsColorDialogOpen] = useState(false);
   const [oaOnly, setOaOnly] = useState(false);
   const { month: selectedMonth, setMonth } = useMonthStore();
-  const isShiftAssigner = user?.role === "shift_assigner";
+  const isShiftAssigner = isAssigner(user?.role);
   const {
     doctors,
     unavailableDates,

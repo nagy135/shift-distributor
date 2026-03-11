@@ -25,12 +25,15 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-client";
 import { type VacationDay } from "@/lib/api";
 import { useApiClient } from "@/lib/use-api-client";
+import { useAnchoredOverlay } from "@/lib/use-anchored-overlay";
+import { useMediaQuery } from "@/lib/use-media-query";
 import {
   VACATION_COLORS,
   VACATION_COLOR_STYLES,
   VACATION_DAYS_PER_YEAR,
   type VacationColor,
 } from "@/lib/vacations";
+import { isAssigner } from "@/lib/roles";
 import {
   Dialog,
   DialogContent,
@@ -55,6 +58,7 @@ import { MonthlySingleColumnTable } from "@/components/shifts/MonthlySingleColum
 const EMPTY_VACATION_DAYS: VacationDay[] = [];
 const ALL_DOCTORS_VALUE = "all";
 const DEFAULT_DOCTOR_COLOR = "#64748b";
+const alphabeticCollator = new Intl.Collator("de", { sensitivity: "base" });
 const VACATION_TABLE_COLUMN = {
   id: "vacation",
   label: "Urlaub",
@@ -78,12 +82,50 @@ const countColors = (input: Record<string, VacationColor>) => {
 
 const dayToKey = (day: Date) => format(day, "yyyy-MM-dd");
 
+const getVacationDoctorName = (entry: VacationDay) =>
+  entry.doctorName?.trim() || `Arzt #${entry.doctorId ?? "?"}`;
+
+const compareVacationColors = (left: VacationColor, right: VacationColor) =>
+  alphabeticCollator.compare(
+    VACATION_COLOR_STYLES[left].label,
+    VACATION_COLOR_STYLES[right].label,
+  );
+
+const sortVacationEntries = (entries: VacationDay[]) => {
+  return [...entries].sort((left, right) => {
+    const doctorComparison = alphabeticCollator.compare(
+      getVacationDoctorName(left),
+      getVacationDoctorName(right),
+    );
+
+    if (doctorComparison !== 0) {
+      return doctorComparison;
+    }
+
+    const colorComparison = compareVacationColors(left.color, right.color);
+
+    if (colorComparison !== 0) {
+      return colorComparison;
+    }
+
+    return (left.doctorId ?? 0) - (right.doctorId ?? 0);
+  });
+};
+
+const getSortedUniqueNames = (names: Array<string | null | undefined>) => {
+  return Array.from(
+    new Set(
+      names.map((name) => name?.trim()).filter((name): name is string => Boolean(name)),
+    ),
+  ).sort((left, right) => alphabeticCollator.compare(left, right));
+};
+
 const getDayColors = (entries: VacationDay[]) => {
   const map = new Map<string, VacationDay[]>();
   entries.forEach((entry) => {
     const list = map.get(entry.date) ?? [];
     list.push(entry);
-    map.set(entry.date, list);
+    map.set(entry.date, sortVacationEntries(list));
   });
   return map;
 };
@@ -210,52 +252,15 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
 }: VacationMonthCalendarProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const cellRefs = useRef(new Map<string, HTMLButtonElement>());
-  const [pickerPosition, setPickerPosition] = useState<{
-    top: number;
-    left: number;
-    minWidth: number;
-  } | null>(null);
-
-  useEffect(() => {
-    if (!canManageWithPicker || !openDate) {
-      setPickerPosition(null);
-      return;
-    }
-
-    const wrapper = wrapperRef.current;
-    const anchor = cellRefs.current.get(openDate);
-
-    if (!wrapper || !anchor) {
-      setPickerPosition(null);
-      return;
-    }
-
-    const wrapperRect = wrapper.getBoundingClientRect();
-    const anchorRect = anchor.getBoundingClientRect();
-
-    setPickerPosition({
-      top: anchorRect.bottom - wrapperRect.top + 6,
-      left: anchorRect.left - wrapperRect.left,
-      minWidth: Math.max(anchorRect.width, 280),
-    });
-  }, [canManageWithPicker, openDate, pickerSearchTerm, selectedDoctorIdsByDate]);
-
-  useEffect(() => {
-    if (!canManageWithPicker || !openDate || isMobile) {
-      return;
-    }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (wrapperRef.current?.contains(event.target as Node)) {
-        return;
-      }
-
-      onOpenDateChange(null);
-    };
-
-    window.addEventListener("mousedown", handlePointerDown);
-    return () => window.removeEventListener("mousedown", handlePointerDown);
-  }, [canManageWithPicker, isMobile, onOpenDateChange, openDate]);
+  const pickerPosition = useAnchoredOverlay({
+    anchorKey: openDate,
+    anchorRefs: cellRefs,
+    wrapperRef,
+    isEnabled: canManageWithPicker,
+    isMobile,
+    recalculateKey: pickerSearchTerm,
+    onRequestClose: () => onOpenDateChange(null),
+  });
 
   return (
     <div ref={wrapperRef} className="relative rounded-md border">
@@ -294,16 +299,12 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
             const { day, modifiers, className, children, ...rest } = props;
             const dayKey = dayToKey(day.date);
             const entries = vacationsByDate.get(dayKey) ?? [];
-            const tooltip = Array.from(
-              new Set(
-                entries
-                  .map((entry) => entry.doctorName?.trim())
-                  .filter((name): name is string => Boolean(name)),
-              ),
+            const tooltip = getSortedUniqueNames(
+              entries.map((entry) => entry.doctorName),
             ).join("\n");
             const colors = Array.from(
               new Set(entries.map((entry: VacationDay) => entry.color)),
-            ) as VacationColor[];
+            ).sort(compareVacationColors) as VacationColor[];
             const hasPendingApproval = hasPendingByDate.get(dayKey) ?? false;
             const pendingQuestionMarkClass =
               colors.length > 0
@@ -481,9 +482,9 @@ export default function VacationsPage() {
   const canApprove = user?.role === "secretary";
   const canViewAllVacations =
     canApprove ||
-    user?.role === "shift_assigner" ||
+    isAssigner(user?.role) ||
     user?.role === "doctor";
-  const canEditAllVacations = user?.role === "shift_assigner";
+  const canEditAllVacations = isAssigner(user?.role);
   const canEditOwnVacations = user?.role === "doctor" && doctorId != null;
   const canEditVacations = canEditAllVacations || canEditOwnVacations;
   const canViewVacations = canViewAllVacations;
@@ -522,17 +523,12 @@ export default function VacationsPage() {
   );
   const [openDate, setOpenDate] = useState<string | null>(null);
   const [pickerSearchTerm, setPickerSearchTerm] = useState("");
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useMediaQuery("(max-width: 767px)");
   const [tableMonth, setTableMonth] = useState<Date | null>(null);
   const [tableOpenDate, setTableOpenDate] = useState<string | null>(null);
   const hasInitializedDoctorSelection = useRef(false);
   const tableWrapperRef = useRef<HTMLDivElement | null>(null);
   const tableCellRefs = useRef(new Map<string, HTMLTableCellElement>());
-  const [tablePickerPosition, setTablePickerPosition] = useState<{
-    top: number;
-    left: number;
-    minWidth: number;
-  } | null>(null);
 
   const filteredDoctorId =
     selectedDoctorId === ALL_DOCTORS_VALUE ? null : Number(selectedDoctorId);
@@ -546,6 +542,15 @@ export default function VacationsPage() {
   const canUseVacationEditor = canEditAllVacations || editableDoctorId != null;
   const isPickerMode =
     canEditAllVacations && selectedDoctorId === ALL_DOCTORS_VALUE;
+  const tablePickerPosition = useAnchoredOverlay({
+    anchorKey: tableOpenDate,
+    anchorRefs: tableCellRefs,
+    wrapperRef: tableWrapperRef,
+    isEnabled: tableMonth != null && isPickerMode,
+    isMobile,
+    recalculateKey: `${tableMonth?.getTime() ?? ""}:${pickerSearchTerm}`,
+    onRequestClose: () => setTableOpenDate(null),
+  });
 
   const isOverviewMode = canApprove || editableDoctorId == null;
 
@@ -560,7 +565,6 @@ export default function VacationsPage() {
   useEffect(() => {
     if (!tableMonth) {
       setTableOpenDate(null);
-      setTablePickerPosition(null);
     }
   }, [tableMonth]);
 
@@ -579,23 +583,6 @@ export default function VacationsPage() {
       setSelectedDoctorId(String(doctorId));
     }
   }, [doctorId, selectedDoctorId, user?.role]);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 767px)");
-
-    const updateIsMobile = (matches: boolean) => {
-      setIsMobile(matches);
-    };
-
-    updateIsMobile(mediaQuery.matches);
-
-    const handleChange = (event: MediaQueryListEvent) => {
-      updateIsMobile(event.matches);
-    };
-
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, []);
 
   useEffect(() => {
     if (editableDoctorId == null) {
@@ -797,7 +784,7 @@ export default function VacationsPage() {
         return count;
       }, 0);
 
-      if (!isUnlimited && existingEntry?.color !== activeColor && usedDays >= yearlyLimit) {
+      if (!isUnlimited && !existingEntry && usedDays >= yearlyLimit) {
         toast.error(
           `${VACATION_COLOR_STYLES[activeColor].label} ist für diesen Arzt bereits vollständig verbraucht.`,
         );
@@ -835,7 +822,7 @@ export default function VacationsPage() {
 
         const filtered = vacationDays.filter(
           (entry) =>
-            !(entry.date === date && entry.color === activeColor),
+            !(entry.date === date && entry.doctorId === parsedDoctorId),
         );
 
         return [...filtered, nextEntry].sort((left, right) => {
@@ -950,6 +937,9 @@ export default function VacationsPage() {
 
   const selectedDoctorIdsByDate = useMemo(() => {
     const next = new Map<string, string[]>();
+    const doctorNameById = new Map(
+      availableDoctors.map((doctor) => [doctor.id, doctor.name]),
+    );
 
     if (!activeColor) {
       return next;
@@ -965,52 +955,19 @@ export default function VacationsPage() {
       if (!current.includes(doctorId)) {
         current.push(doctorId);
       }
-      next.set(entry.date, current.sort((left, right) => left.localeCompare(right)));
+      next.set(
+        entry.date,
+        current.sort((left, right) =>
+          alphabeticCollator.compare(
+            doctorNameById.get(left) ?? left,
+            doctorNameById.get(right) ?? right,
+          ),
+        ),
+      );
     });
 
     return next;
-  }, [activeColor, vacationDays]);
-
-  useEffect(() => {
-    if (!tableMonth || !tableOpenDate || !isPickerMode) {
-      setTablePickerPosition(null);
-      return;
-    }
-
-    const wrapper = tableWrapperRef.current;
-    const anchor = tableCellRefs.current.get(tableOpenDate);
-
-    if (!wrapper || !anchor) {
-      setTablePickerPosition(null);
-      return;
-    }
-
-    const wrapperRect = wrapper.getBoundingClientRect();
-    const anchorRect = anchor.getBoundingClientRect();
-
-    setTablePickerPosition({
-      top: anchorRect.bottom - wrapperRect.top + 6,
-      left: anchorRect.left - wrapperRect.left,
-      minWidth: Math.max(anchorRect.width, 280),
-    });
-  }, [isPickerMode, pickerSearchTerm, selectedDoctorIdsByDate, tableMonth, tableOpenDate]);
-
-  useEffect(() => {
-    if (!tableMonth || !tableOpenDate || !isPickerMode || isMobile) {
-      return;
-    }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (tableWrapperRef.current?.contains(event.target as Node)) {
-        return;
-      }
-
-      setTableOpenDate(null);
-    };
-
-    window.addEventListener("mousedown", handlePointerDown);
-    return () => window.removeEventListener("mousedown", handlePointerDown);
-  }, [isMobile, isPickerMode, tableMonth, tableOpenDate]);
+  }, [activeColor, availableDoctors, vacationDays]);
 
   const approverStats = useMemo(() => {
     if (!canApprove) {
@@ -1148,13 +1105,7 @@ export default function VacationsPage() {
       const next = new Map<string, { text: string; title?: string }>();
 
       byDate.forEach((entries, date) => {
-        const names = Array.from(
-          new Set(
-            entries
-              .map((entry) => entry.doctorName?.trim())
-              .filter((name): name is string => Boolean(name)),
-          ),
-        );
+        const names = getSortedUniqueNames(entries.map((entry) => entry.doctorName));
 
         next.set(date, {
           text: names.join("/"),

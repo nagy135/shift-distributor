@@ -43,17 +43,27 @@ import {
 import { useAuth } from "@/lib/auth-client";
 import type { NightShift, ShiftDoctor } from "@/lib/api";
 import { useApiClient } from "@/lib/use-api-client";
+import { useAnchoredOverlay } from "@/lib/use-anchored-overlay";
+import { useMediaQuery } from "@/lib/use-media-query";
+import { isAssigner } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 const EMPTY_NIGHT_SHIFTS: NightShift[] = [];
 const DEFAULT_DOCTOR_COLOR = "#64748b";
 const ALL_DOCTORS_VALUE = "all";
+const alphabeticCollator = new Intl.Collator("de", { sensitivity: "base" });
 const NIGHT_SHIFT_TABLE_COLUMN = {
   id: "night",
   label: "Nachtdienst",
 } as const;
 
 const dayToKey = (day: Date) => format(day, "yyyy-MM-dd");
+
+const sortDoctorsAlphabetically = (doctors: ShiftDoctor[]) => {
+  return [...doctors].sort((left, right) =>
+    alphabeticCollator.compare(left.name, right.name),
+  );
+};
 
 type NightShiftsMonthCalendarProps = {
   month: Date;
@@ -90,63 +100,16 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
 }: NightShiftsMonthCalendarProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const cellRefs = useRef(new Map<string, HTMLButtonElement>());
-  const [pickerPosition, setPickerPosition] = useState<{
-    top: number;
-    left: number;
-    minWidth: number;
-  } | null>(null);
-
-  useEffect(() => {
-    if (!canManage || !openDate) {
-      setPickerPosition(null);
-      return;
-    }
-
-    const wrapper = wrapperRef.current;
-    const anchor = cellRefs.current.get(openDate);
-
-    if (!wrapper || !anchor) {
-      setPickerPosition(null);
-      return;
-    }
-
-    const wrapperRect = wrapper.getBoundingClientRect();
-    const anchorRect = anchor.getBoundingClientRect();
-    const viewportPadding = 12;
-    const desiredMinWidth = Math.max(anchorRect.width, 280);
-    const wouldOverflowRight =
-      anchorRect.left + desiredMinWidth > window.innerWidth - viewportPadding;
-    const openLeft = wouldOverflowRight;
-    const alignedLeft = openLeft
-      ? anchorRect.right - wrapperRect.left - desiredMinWidth
-      : anchorRect.left - wrapperRect.left;
-    const minLeft = viewportPadding - wrapperRect.left;
-    const maxLeft =
-      window.innerWidth - viewportPadding - desiredMinWidth - wrapperRect.left;
-
-    setPickerPosition({
-      top: anchorRect.bottom - wrapperRect.top + 6,
-      left: Math.min(Math.max(alignedLeft, minLeft), maxLeft),
-      minWidth: desiredMinWidth,
-    });
-  }, [canManage, openDate, pickerSearchTerm, selectedDoctorIdsByDate]);
-
-  useEffect(() => {
-    if (!canManage || !openDate || isMobile) {
-      return;
-    }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (wrapperRef.current?.contains(event.target as Node)) {
-        return;
-      }
-
-      onOpenDateChange(null);
-    };
-
-    window.addEventListener("mousedown", handlePointerDown);
-    return () => window.removeEventListener("mousedown", handlePointerDown);
-  }, [canManage, isMobile, onOpenDateChange, openDate]);
+  const pickerPosition = useAnchoredOverlay({
+    anchorKey: openDate,
+    anchorRefs: cellRefs,
+    wrapperRef,
+    isEnabled: canManage,
+    isMobile,
+    alignWithinViewport: true,
+    recalculateKey: pickerSearchTerm,
+    onRequestClose: () => onOpenDateChange(null),
+  });
 
   return (
     <div ref={wrapperRef} className="relative rounded-md border">
@@ -331,8 +294,7 @@ export default function NightShiftsPage() {
   const { doctorsApi, nightShiftsApi } = useApiClient();
   const queryClient = useQueryClient();
   const year = new Date().getFullYear();
-  const canManage =
-    user?.role === "secretary" || user?.role === "shift_assigner";
+  const canManage = user?.role === "secretary" || isAssigner(user?.role);
   const doctorId = user?.doctorId ?? null;
   const canViewNightShifts = canManage || user?.role === "doctor";
   const nightShiftsQueryKey = useMemo(
@@ -362,18 +324,23 @@ export default function NightShiftsPage() {
   const [selectedDoctorId, setSelectedDoctorId] = useState(ALL_DOCTORS_VALUE);
   const [openDate, setOpenDate] = useState<string | null>(null);
   const [pickerSearchTerm, setPickerSearchTerm] = useState("");
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useMediaQuery("(max-width: 767px)");
   const [mobileInfoDate, setMobileInfoDate] = useState<string | null>(null);
   const [tableMonth, setTableMonth] = useState<Date | null>(null);
   const [tableOpenDate, setTableOpenDate] = useState<string | null>(null);
   const hasInitializedDoctorSelection = useRef(false);
   const tableWrapperRef = useRef<HTMLDivElement | null>(null);
   const tableCellRefs = useRef(new Map<string, HTMLTableCellElement>());
-  const [tablePickerPosition, setTablePickerPosition] = useState<{
-    top: number;
-    left: number;
-    minWidth: number;
-  } | null>(null);
+  const tablePickerPosition = useAnchoredOverlay({
+    anchorKey: tableOpenDate,
+    anchorRefs: tableCellRefs,
+    wrapperRef: tableWrapperRef,
+    isEnabled: tableMonth != null && canManage,
+    isMobile,
+    alignWithinViewport: true,
+    recalculateKey: `${tableMonth?.getTime() ?? ""}:${pickerSearchTerm}`,
+    onRequestClose: () => setTableOpenDate(null),
+  });
   const nightShifts = optimisticNightShifts ?? data ?? EMPTY_NIGHT_SHIFTS;
 
   useEffect(() => {
@@ -387,7 +354,6 @@ export default function NightShiftsPage() {
   useEffect(() => {
     if (!tableMonth) {
       setTableOpenDate(null);
-      setTablePickerPosition(null);
     }
   }, [tableMonth]);
 
@@ -406,74 +372,6 @@ export default function NightShiftsPage() {
       setSelectedDoctorId(String(doctorId));
     }
   }, [doctorId, selectedDoctorId, user?.role]);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 767px)");
-
-    const updateIsMobile = (matches: boolean) => {
-      setIsMobile(matches);
-    };
-
-    updateIsMobile(mediaQuery.matches);
-
-    const handleChange = (event: MediaQueryListEvent) => {
-      updateIsMobile(event.matches);
-    };
-
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
-  }, []);
-
-  useEffect(() => {
-    if (!tableMonth || !tableOpenDate || !canManage) {
-      setTablePickerPosition(null);
-      return;
-    }
-
-    const wrapper = tableWrapperRef.current;
-    const anchor = tableCellRefs.current.get(tableOpenDate);
-
-    if (!wrapper || !anchor) {
-      setTablePickerPosition(null);
-      return;
-    }
-
-    const wrapperRect = wrapper.getBoundingClientRect();
-    const anchorRect = anchor.getBoundingClientRect();
-    const viewportPadding = 12;
-    const desiredMinWidth = Math.max(anchorRect.width, 280);
-    const wouldOverflowRight =
-      anchorRect.left + desiredMinWidth > window.innerWidth - viewportPadding;
-    const alignedLeft = wouldOverflowRight
-      ? anchorRect.right - wrapperRect.left - desiredMinWidth
-      : anchorRect.left - wrapperRect.left;
-    const minLeft = viewportPadding - wrapperRect.left;
-    const maxLeft =
-      window.innerWidth - viewportPadding - desiredMinWidth - wrapperRect.left;
-
-    setTablePickerPosition({
-      top: anchorRect.bottom - wrapperRect.top + 6,
-      left: Math.min(Math.max(alignedLeft, minLeft), maxLeft),
-      minWidth: desiredMinWidth,
-    });
-  }, [canManage, nightShifts, pickerSearchTerm, tableMonth, tableOpenDate]);
-
-  useEffect(() => {
-    if (!tableMonth || !tableOpenDate || !canManage || isMobile) {
-      return;
-    }
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (tableWrapperRef.current?.contains(event.target as Node)) {
-        return;
-      }
-
-      setTableOpenDate(null);
-    };
-
-    window.addEventListener("mousedown", handlePointerDown);
-    return () => window.removeEventListener("mousedown", handlePointerDown);
-  }, [canManage, isMobile, tableMonth, tableOpenDate]);
 
   const availableDoctors = useMemo<DoctorPickerOption[]>(() => {
     return doctors
@@ -544,7 +442,7 @@ export default function NightShiftsPage() {
         : shift.doctors;
 
       if (doctorsForDay.length > 0) {
-        next.set(shift.date, doctorsForDay);
+        next.set(shift.date, sortDoctorsAlphabetically(doctorsForDay));
       }
     });
 
@@ -555,11 +453,11 @@ export default function NightShiftsPage() {
     const next = new Map<string, string[]>();
 
     nightShifts.forEach((shift) => {
+      const doctorsForDay = sortDoctorsAlphabetically(shift.doctors);
+
       next.set(
         shift.date,
-        shift.doctorIds
-          .map((entry) => String(entry))
-          .sort((left, right) => left.localeCompare(right)),
+        doctorsForDay.map((doctor) => String(doctor.id)),
       );
     });
 
@@ -596,6 +494,7 @@ export default function NightShiftsPage() {
 
       byDate.forEach((doctorsForDay, date) => {
         const names = doctorsForDay.map((doctor) => doctor.name);
+
         next.set(date, {
           text: names.join("/"),
           title: names.join("\n") || undefined,
@@ -625,8 +524,8 @@ export default function NightShiftsPage() {
     const existingShift = nightShiftByDate.get(date);
     const currentDoctorIds = existingShift?.doctorIds ?? [];
     const nextDoctorIds = currentDoctorIds.includes(parsedDoctorId)
-      ? []
-      : [parsedDoctorId];
+      ? currentDoctorIds.filter((doctorId) => doctorId !== parsedDoctorId)
+      : [...currentDoctorIds, parsedDoctorId].sort((left, right) => left - right);
 
     const nextNightShifts = (() => {
       const optimisticShift: NightShift = {

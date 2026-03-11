@@ -99,6 +99,10 @@ export function MonthlyShiftTable({
     return new Map(doctors.map((doctor) => [doctor.name, doctor.id]));
   }, [doctors]);
 
+  const doctorById = React.useMemo(() => {
+    return new Map(doctors.map((doctor) => [doctor.id, doctor]));
+  }, [doctors]);
+
   const activeColumnIds = React.useMemo(
     () => new Set(columns.map((column) => column.id)),
     [columns],
@@ -118,10 +122,10 @@ export function MonthlyShiftTable({
         ? (unavailableByDoctor[doctorId]?.has(date) ?? false)
         : false;
 
-      const doctor = doctors.find((d) => d.id === doctorId);
-      const hasShiftTypeConflict =
-        isShiftType(shift.shiftType) &&
-        doctor?.unavailableShiftTypes &&
+        const doctor = doctorById.get(doctorId);
+        const hasShiftTypeConflict =
+          isShiftType(shift.shiftType) &&
+          doctor?.unavailableShiftTypes &&
         Array.isArray(doctor.unavailableShiftTypes)
           ? doctor.unavailableShiftTypes.includes(shift.shiftType)
           : false;
@@ -142,7 +146,7 @@ export function MonthlyShiftTable({
 
       return hasDateConflict || hasShiftTypeConflict || hasNightOverlap;
     },
-    [doctors, unavailableByDoctor],
+    [doctorById, unavailableByDoctor],
   );
 
   const hasShiftConflict = React.useCallback(

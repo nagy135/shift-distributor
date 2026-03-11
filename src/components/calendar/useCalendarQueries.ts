@@ -33,20 +33,25 @@ export function useCalendarQueries(month: Date) {
   const { data: unavailableByDoctor = {} } = useQuery({
     queryKey: [
       "unavailable-by-doctor",
-      doctors?.map((doctor) => `${doctor.id}:${doctor.color ?? ""}`).join("|"),
+      doctors?.map((doctor) => doctor.id).join("|"),
     ],
     queryFn: async () => {
-      const entries = await Promise.all(
-        (doctors ?? []).map(async (doctor) => {
-          const records: UnavailableDate[] =
-            await unavailableDatesApi.getByDoctor(doctor.id);
-          return [
-            doctor.id,
-            new Set(records.map((record) => record.date)),
-          ] as const;
-        }),
+      const records: UnavailableDate[] = await unavailableDatesApi.getAll(
+        doctors.map((doctor) => doctor.id),
       );
-      return Object.fromEntries(entries) as Record<number, Set<string>>;
+      const grouped = Object.fromEntries(
+        doctors.map((doctor) => [doctor.id, new Set<string>()]),
+      ) as Record<number, Set<string>>;
+
+      records.forEach((record) => {
+        if (!grouped[record.doctorId]) {
+          grouped[record.doctorId] = new Set<string>();
+        }
+
+        grouped[record.doctorId].add(record.date);
+      });
+
+      return grouped;
     },
     enabled: (doctors ?? []).length > 0,
   });

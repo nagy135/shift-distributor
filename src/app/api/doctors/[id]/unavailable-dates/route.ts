@@ -7,6 +7,7 @@ import {
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getUserFromAuthHeader } from "@/lib/authz";
+import { isAssigner } from "@/lib/roles";
 
 function getMonthAndDay(date: string) {
   const [year, month, day] = date.split("-");
@@ -63,10 +64,7 @@ export async function POST(
     const doctorId = parseInt(id);
     const { dates } = await request.json();
 
-    if (
-      user.role !== "shift_assigner" &&
-      (!user.doctorId || user.doctorId !== doctorId)
-    ) {
+    if (!isAssigner(user.role) && (!user.doctorId || user.doctorId !== doctorId)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

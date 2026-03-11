@@ -7,6 +7,7 @@ import {
   users,
 } from "@/lib/db/schema";
 import { getUserFromAuthHeader } from "@/lib/authz";
+import { isAssigner } from "@/lib/roles";
 
 function toDateString(month: string, dayInMonth: number) {
   return `${month}-${String(dayInMonth).padStart(2, "0")}`;
@@ -23,7 +24,7 @@ export async function GET(
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (user.role !== "shift_assigner") {
+    if (!isAssigner(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

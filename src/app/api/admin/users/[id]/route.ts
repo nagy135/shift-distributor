@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { doctors, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getUserFromAuthHeader } from "@/lib/authz";
-import { USER_ROLES, type UserRole } from "@/lib/roles";
+import { USER_ROLES, isAssigner, type UserRole } from "@/lib/roles";
 
 function parseUserId(value: string): number | null {
   const id = Number(value);
@@ -21,7 +21,7 @@ export async function PATCH(
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (admin.role !== "shift_assigner") {
+  if (!isAssigner(admin.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -112,7 +112,7 @@ export async function DELETE(
   if (!admin) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (admin.role !== "shift_assigner") {
+  if (!isAssigner(admin.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

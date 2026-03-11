@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-client";
-import { useAuthorizedFetch } from "@/lib/use-authorized-fetch";
+import type { AdminUser } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,141 +19,91 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { USER_ROLES, type UserRole } from "@/lib/roles";
+import { useAdminUsersQueries } from "@/components/admin/useAdminUsersQueries";
+import { USER_ROLES, isAssigner, type UserRole } from "@/lib/roles";
 
 const ROLE_LABELS: Record<UserRole, string> = {
   doctor: "Arzt",
   shift_assigner: "Dienstplaner",
+  department_assigner: "Stationsplaner",
   secretary: "Sekretariat",
 };
 
-type AdminUser = {
-  id: number;
-  email: string;
-  role: UserRole;
-  doctorId?: number | null;
-  doctorName?: string | null;
-  lastOnlineAt?: number | string | null;
-  isOnline?: boolean;
-  createdAt?: number | string | null;
-};
-
-type DoctorOption = {
-  id: number;
-  name: string;
-};
+const UNASSIGNED_DOCTOR_VALUE = "none";
 
 const formatDate = (value?: number | string | null) => {
   if (!value) return "-";
+
   const date = typeof value === "number" ? new Date(value) : new Date(value);
+
   if (Number.isNaN(date.getTime())) return "-";
+
   return date.toLocaleDateString();
 };
 
 export default function AdminUsersPage() {
-  const { user, accessToken, isLoading } = useAuth();
-  const authorizedFetch = useAuthorizedFetch();
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [doctors, setDoctors] = useState<DoctorOption[]>([]);
-  const [isFetching, setIsFetching] = useState(false);
-  const [isDoctorsFetching, setIsDoctorsFetching] = useState(false);
+  const { user, isLoading } = useAuth();
+  const canManage = isAssigner(user?.role);
+  const { usersQuery, doctorsQuery, updateUserMutation, deleteUserMutation } =
+    useAdminUsersQueries(canManage);
   const [error, setError] = useState<string | null>(null);
   const [busyUserId, setBusyUserId] = useState<number | null>(null);
   const [isDoctorDialogOpen, setIsDoctorDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
-  const [selectedDoctorId, setSelectedDoctorId] = useState("");
+  const [selectedDoctorId, setSelectedDoctorId] = useState(
+    UNASSIGNED_DOCTOR_VALUE,
+  );
 
-  const canManage = user?.role === "shift_assigner";
-
-  const loadUsers = useCallback(async () => {
-    if (!accessToken) return;
-    setIsFetching(true);
-    setError(null);
-    try {
-      const res = await authorizedFetch("/api/admin/users", {
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-      const data = (await res.json()) as AdminUser[];
-      setUsers(data);
-    } catch (err) {
-      console.error(err);
-      setError("Benutzer konnten nicht geladen werden");
-    } finally {
-      setIsFetching(false);
+  const users = usersQuery.data ?? [];
+  const doctors = doctorsQuery.data ?? [];
+  const queryError = useMemo(() => {
+    if (error) {
+      return error;
     }
-  }, [accessToken, authorizedFetch]);
 
-  const loadDoctors = useCallback(async () => {
-    setIsDoctorsFetching(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/doctors");
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-      const data = (await res.json()) as DoctorOption[];
-      setDoctors(data.slice().sort((a, b) => a.name.localeCompare(b.name)));
-    } catch (err) {
-      console.error(err);
-      setError("Ärzte konnten nicht geladen werden");
-    } finally {
-      setIsDoctorsFetching(false);
+    if (usersQuery.isError) {
+      return "Benutzer konnten nicht geladen werden";
     }
-  }, []);
 
-  useEffect(() => {
-    if (canManage && accessToken) {
-      loadUsers();
-      loadDoctors();
+    if (doctorsQuery.isError) {
+      return "Ärzte konnten nicht geladen werden";
     }
-  }, [canManage, accessToken, loadUsers, loadDoctors]);
 
-  useEffect(() => {
-    if (!canManage || !accessToken) return;
-
-    const interval = window.setInterval(() => {
-      void loadUsers();
-    }, 15_000);
-
-    return () => window.clearInterval(interval);
-  }, [canManage, accessToken, loadUsers]);
+    return null;
+  }, [doctorsQuery.isError, error, usersQuery.isError]);
 
   const formatLastOnline = useCallback((value?: number | string | null) => {
     if (!value) return "Nie aktiv";
+
     const date = typeof value === "number" ? new Date(value) : new Date(value);
+
     if (Number.isNaN(date.getTime())) return "-";
+
     return date.toLocaleString("de-DE", {
       dateStyle: "short",
       timeStyle: "short",
     });
   }, []);
 
+  const openDoctorDialog = (row: AdminUser) => {
+    setSelectedUser(row);
+    setSelectedDoctorId(
+      row.doctorId ? String(row.doctorId) : UNASSIGNED_DOCTOR_VALUE,
+    );
+    setIsDoctorDialogOpen(true);
+  };
+
   const handleRoleChange = async (userId: number, role: UserRole) => {
-    if (!accessToken) return;
     setBusyUserId(userId);
     setError(null);
+
     try {
-      const res = await authorizedFetch(`/api/admin/users/${userId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ role }),
+      await updateUserMutation.mutateAsync({
+        userId,
+        payload: { role },
       });
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-      const updated = (await res.json()) as Pick<AdminUser, "id" | "role">;
-      setUsers((prev) =>
-        prev.map((item) =>
-          item.id === updated.id ? { ...item, role: updated.role } : item,
-        ),
-      );
-    } catch (err) {
-      console.error(err);
+    } catch (updateError) {
+      console.error(updateError);
       setError("Rolle konnte nicht aktualisiert werden");
     } finally {
       setBusyUserId(null);
@@ -161,67 +111,48 @@ export default function AdminUsersPage() {
   };
 
   const handleDelete = async (userId: number) => {
-    if (!accessToken) return;
     const confirmed = window.confirm("Diesen Benutzer löschen?");
-    if (!confirmed) return;
+
+    if (!confirmed) {
+      return;
+    }
+
     setBusyUserId(userId);
     setError(null);
+
     try {
-      const res = await authorizedFetch(`/api/admin/users/${userId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-      setUsers((prev) => prev.filter((item) => item.id !== userId));
-    } catch (err) {
-      console.error(err);
+      await deleteUserMutation.mutateAsync(userId);
+    } catch (deleteError) {
+      console.error(deleteError);
       setError("Benutzer konnte nicht gelöscht werden");
     } finally {
       setBusyUserId(null);
     }
   };
 
-  const openDoctorDialog = (row: AdminUser) => {
-    setSelectedUser(row);
-    setSelectedDoctorId(row.doctorId ? String(row.doctorId) : "");
-    setIsDoctorDialogOpen(true);
-  };
-
   const handleDoctorSave = async () => {
-    if (!accessToken || !selectedUser) return;
-    if (!selectedDoctorId) return;
+    if (!selectedUser) return;
+
+    const doctorId =
+      selectedDoctorId === UNASSIGNED_DOCTOR_VALUE
+        ? null
+        : Number(selectedDoctorId);
+
+    if (doctorId !== null && !Number.isInteger(doctorId)) {
+      return;
+    }
+
     setBusyUserId(selectedUser.id);
     setError(null);
+
     try {
-      const res = await authorizedFetch(`/api/admin/users/${selectedUser.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ doctorId: Number(selectedDoctorId) }),
+      await updateUserMutation.mutateAsync({
+        userId: selectedUser.id,
+        payload: { doctorId },
       });
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-      const updated = (await res.json()) as Pick<
-        AdminUser,
-        "id" | "doctorId" | "doctorName"
-      >;
-      setUsers((prev) =>
-        prev.map((item) =>
-          item.id === updated.id
-            ? {
-                ...item,
-                doctorId: updated.doctorId ?? null,
-                doctorName: updated.doctorName ?? null,
-              }
-            : item,
-        ),
-      );
       setIsDoctorDialogOpen(false);
-    } catch (err) {
-      console.error(err);
+    } catch (updateError) {
+      console.error(updateError);
       setError("Arztzuordnung konnte nicht aktualisiert werden");
     } finally {
       setBusyUserId(null);
@@ -239,7 +170,7 @@ export default function AdminUsersPage() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading || usersQuery.isLoading) {
     return <div className="text-center">Lädt...</div>;
   }
 
@@ -254,7 +185,7 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {error && <div className="text-sm text-destructive">{error}</div>}
+      {queryError && <div className="text-sm text-destructive">{queryError}</div>}
 
       <div className="overflow-x-auto rounded-lg border">
         <table className="min-w-full text-sm">
@@ -271,6 +202,7 @@ export default function AdminUsersPage() {
           <tbody>
             {users.map((row) => {
               const isBusy = busyUserId === row.id;
+
               return (
                 <tr key={row.id} className="border-t">
                   <td className="px-4 py-3">{row.email}</td>
@@ -278,7 +210,7 @@ export default function AdminUsersPage() {
                     <Select
                       value={row.role}
                       onValueChange={(value) =>
-                        handleRoleChange(row.id, value as UserRole)
+                        void handleRoleChange(row.id, value as UserRole)
                       }
                       disabled={isBusy}
                     >
@@ -345,7 +277,7 @@ export default function AdminUsersPage() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => handleDelete(row.id)}
+                      onClick={() => void handleDelete(row.id)}
                       disabled={isBusy}
                     >
                       Löschen
@@ -354,7 +286,7 @@ export default function AdminUsersPage() {
                 </tr>
               );
             })}
-            {users.length === 0 && !isFetching && (
+            {users.length === 0 && !usersQuery.isFetching && (
               <tr>
                 <td
                   className="px-4 py-6 text-center text-muted-foreground"
@@ -364,7 +296,7 @@ export default function AdminUsersPage() {
                 </td>
               </tr>
             )}
-            {isFetching && users.length === 0 && (
+            {usersQuery.isFetching && users.length === 0 && (
               <tr>
                 <td
                   className="px-4 py-6 text-center text-muted-foreground"
@@ -390,18 +322,21 @@ export default function AdminUsersPage() {
             <Select
               value={selectedDoctorId}
               onValueChange={setSelectedDoctorId}
-              disabled={isDoctorsFetching || doctors.length === 0}
+              disabled={doctorsQuery.isFetching}
             >
               <SelectTrigger>
                 <SelectValue
                   placeholder={
-                    isDoctorsFetching
+                    doctorsQuery.isFetching
                       ? "Ärzte werden geladen..."
                       : "Arzt auswählen"
                   }
                 />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={UNASSIGNED_DOCTOR_VALUE}>
+                  Keine Zuordnung
+                </SelectItem>
                 {doctors.map((doctor) => (
                   <SelectItem key={doctor.id} value={String(doctor.id)}>
                     {doctor.name}
@@ -409,7 +344,7 @@ export default function AdminUsersPage() {
                 ))}
               </SelectContent>
             </Select>
-            {doctors.length === 0 && !isDoctorsFetching && (
+            {doctors.length === 0 && !doctorsQuery.isFetching && (
               <p className="text-sm text-muted-foreground">
                 Keine Ärzte verfügbar.
               </p>
@@ -423,13 +358,8 @@ export default function AdminUsersPage() {
               Abbrechen
             </Button>
             <Button
-              onClick={handleDoctorSave}
-              disabled={
-                !selectedDoctorId ||
-                busyUserId === selectedUser?.id ||
-                isDoctorsFetching ||
-                doctors.length === 0
-              }
+              onClick={() => void handleDoctorSave()}
+              disabled={busyUserId === selectedUser?.id || doctorsQuery.isFetching}
             >
               Speichern
             </Button>

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { shifts, doctors } from "@/lib/db/schema";
+import { shifts } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { getUserFromAuthHeader } from "@/lib/authz";
+import { canAssignCalendarShiftType, isAssigner } from "@/lib/roles";
+import { hydrateShiftRows, parseDoctorIds } from "@/lib/server/shift-route-helpers";
 
 type ShiftRow = typeof shifts.$inferSelect;
 
@@ -14,89 +16,17 @@ interface ApiShift {
   doctors: Array<{ id: number; name: string; color: string | null }>;
 }
 
-const hydrateShifts = async (rows: ShiftRow[]): Promise<ApiShift[]> => {
-  const doctorIdSet = new Set<number>();
-  for (const row of rows) {
-    for (const doctorId of row.doctorIds ?? []) {
-      if (typeof doctorId === "number") {
-        doctorIdSet.add(doctorId);
-      }
-    }
-  }
-
-  const doctorMap = new Map<
-    number,
-    { id: number; name: string; color: string | null }
-  >();
-  if (doctorIdSet.size > 0) {
-    const ids = Array.from(doctorIdSet);
-    const doctorRows = await db
-      .select({
-        id: doctors.id,
-        name: doctors.name,
-        color: doctors.color,
-      })
-      .from(doctors)
-      .where(inArray(doctors.id, ids));
-
-    for (const doctor of doctorRows) {
-      doctorMap.set(doctor.id, {
-        id: doctor.id,
-        name: doctor.name,
-        color: doctor.color ?? null,
-      });
-    }
-  }
-
-  return rows.map((row) => {
-    const doctorIds = Array.isArray(row.doctorIds)
-      ? row.doctorIds.filter(
-          (value): value is number => typeof value === "number",
-        )
-      : [];
-
-    const doctorsForShift = doctorIds.map((doctorId) => {
-      const doctor = doctorMap.get(doctorId);
-      return (
-        doctor ?? { id: doctorId, name: `Doctor #${doctorId}`, color: null }
-      );
-    });
-
-    return {
-      id: row.id,
-      date: row.date,
-      shiftType: row.shiftType,
-      doctorIds,
-      doctors: doctorsForShift,
-    };
-  });
-};
-
-const parseDoctorIds = (input: unknown): number[] => {
-  if (!Array.isArray(input)) {
-    return [];
-  }
-
-  const ids = input
-    .map((value) => {
-      if (typeof value === "number") {
-        return value;
-      }
-      if (typeof value === "string" && value.trim() !== "") {
-        const numeric = Number(value);
-        return Number.isNaN(numeric) ? null : numeric;
-      }
-      return null;
-    })
-    .filter(
-      (value): value is number => value != null && Number.isInteger(value),
-    );
-
-  return Array.from(new Set(ids));
-};
+const hydrateShifts = (rows: ShiftRow[]): Promise<ApiShift[]> => hydrateShiftRows(rows);
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getUserFromAuthHeader(
+      request.headers.get("authorization"),
+    );
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
 
@@ -129,7 +59,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (user.role !== "shift_assigner") {
+    if (!isAssigner(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -140,6 +70,10 @@ export async function POST(request: NextRequest) {
         { error: "Date and shiftType are required" },
         { status: 400 },
       );
+    }
+
+    if (!canAssignCalendarShiftType(user.role, shiftType)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const normalizedDoctorIds = parseDoctorIds(doctorIds);
@@ -194,7 +128,7 @@ export async function PUT(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (user.role !== "shift_assigner") {
+    if (!isAssigner(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -216,6 +150,10 @@ export async function PUT(request: NextRequest) {
           { error: "Each shift must have date and shiftType" },
           { status: 400 },
         );
+      }
+
+      if (!canAssignCalendarShiftType(user.role, shift.shiftType)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
     }
 

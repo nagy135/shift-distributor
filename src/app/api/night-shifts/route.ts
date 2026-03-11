@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { getUserFromAuthHeader } from "@/lib/authz";
 import { db } from "@/lib/db";
-import { doctors, shifts } from "@/lib/db/schema";
+import { shifts } from "@/lib/db/schema";
+import { isAssigner } from "@/lib/roles";
+import { hydrateShiftRows, parseDoctorIds } from "@/lib/server/shift-route-helpers";
 
 type ShiftRow = typeof shifts.$inferSelect;
 
@@ -26,81 +28,13 @@ const toYearRange = (year: number) => ({
   end: `${year}-12-31`,
 });
 
-const parseDoctorIds = (input: unknown): number[] => {
-  if (!Array.isArray(input)) {
-    return [];
-  }
-
-  const ids = input
-    .map((value) => {
-      if (typeof value === "number") {
-        return value;
-      }
-      if (typeof value === "string" && value.trim() !== "") {
-        const numeric = Number(value);
-        return Number.isNaN(numeric) ? null : numeric;
-      }
-      return null;
-    })
-    .filter(
-      (value): value is number => value != null && Number.isInteger(value),
-    );
-
-  return Array.from(new Set(ids));
-};
-
 const hydrateNightShifts = async (rows: ShiftRow[]): Promise<ApiNightShift[]> => {
-  const doctorIds = Array.from(
-    new Set(
-      rows.flatMap((row) =>
-        Array.isArray(row.doctorIds)
-          ? row.doctorIds.filter(
-              (doctorId): doctorId is number => typeof doctorId === "number",
-            )
-          : [],
-      ),
-    ),
-  );
+  const hydratedRows = await hydrateShiftRows(rows);
 
-  const doctorMap = new Map<number, { id: number; name: string; color: string | null }>();
-
-  if (doctorIds.length > 0) {
-    const doctorRows = await db
-      .select({
-        id: doctors.id,
-        name: doctors.name,
-        color: doctors.color,
-      })
-      .from(doctors)
-      .where(inArray(doctors.id, doctorIds));
-
-    for (const doctor of doctorRows) {
-      doctorMap.set(doctor.id, {
-        id: doctor.id,
-        name: doctor.name,
-        color: doctor.color ?? null,
-      });
-    }
-  }
-
-  return rows.map((row) => {
-    const normalizedDoctorIds = Array.isArray(row.doctorIds)
-      ? row.doctorIds.filter(
-          (doctorId): doctorId is number => typeof doctorId === "number",
-        )
-      : [];
-
-    return {
-      id: row.id,
-      date: row.date,
-      shiftType: "night",
-      doctorIds: normalizedDoctorIds,
-      doctors: normalizedDoctorIds.map((doctorId) => {
-        const doctor = doctorMap.get(doctorId);
-        return doctor ?? { id: doctorId, name: `Doctor #${doctorId}`, color: null };
-      }),
-    };
-  });
+  return hydratedRows.map((row) => ({
+    ...row,
+    shiftType: "night",
+  }));
 };
 
 export async function GET(request: NextRequest) {
@@ -111,8 +45,7 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const canManage =
-      user.role === "secretary" || user.role === "shift_assigner";
+    const canManage = user.role === "secretary" || isAssigner(user.role);
     const canView = canManage || user.role === "doctor";
 
     if (!canView) {
@@ -155,7 +88,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (user.role !== "secretary" && user.role !== "shift_assigner") {
+    if (user.role !== "secretary" && !isAssigner(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

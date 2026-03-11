@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { notifications, vacationDays, users } from "@/lib/db/schema";
 import { and, eq, gte, lte } from "drizzle-orm";
 import { getUserFromAuthHeader } from "@/lib/authz";
+import { isAssigner } from "@/lib/roles";
 import { VACATION_COLORS, type VacationColor } from "@/lib/vacations";
 import { doctors } from "@/lib/db/schema";
 
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
 
     const canView =
       user.role === "secretary" ||
-      user.role === "shift_assigner" ||
+      isAssigner(user.role) ||
       user.role === "doctor";
 
     if (!canView) {
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const canEditAll = user.role === "shift_assigner";
+    const canEditAll = isAssigner(user.role);
     const canEditOwn = user.role === "doctor";
 
     if (!canEditAll && !canEditOwn) {

@@ -25,10 +25,12 @@ import {
   SHIFT_TYPES,
 } from "@/lib/shifts";
 
-type CalendarTableView = "shifts" | "departments";
+export type CalendarTableView = "shifts" | "departments";
 
 type CalendarContentProps = {
   month: Date;
+  tableView: CalendarTableView;
+  onTableViewChange: (view: CalendarTableView) => void;
   shiftsLoading: boolean;
   doctors: Doctor[];
   allShifts: Shift[];
@@ -61,6 +63,8 @@ type CalendarContentProps = {
 
 export function CalendarContent({
   month,
+  tableView,
+  onTableViewChange,
   shiftsLoading,
   doctors,
   allShifts,
@@ -85,7 +89,6 @@ export function CalendarContent({
   onQuickAssignHighlightChange,
   onQuickAssignShowAvailableOnlyChange,
 }: CalendarContentProps) {
-  const [tableView, setTableView] = React.useState<CalendarTableView>("shifts");
   const [statisticsVisible, setStatisticsVisible] = React.useState(false);
 
   const activeColumns =
@@ -130,7 +133,7 @@ export function CalendarContent({
             type="button"
             size="sm"
             variant={tableView === "shifts" ? "default" : "outline"}
-            onClick={() => setTableView("shifts")}
+            onClick={() => onTableViewChange("shifts")}
           >
             <CalendarDays className="size-4" />
             Dienste
@@ -139,7 +142,7 @@ export function CalendarContent({
             type="button"
             size="sm"
             variant={tableView === "departments" ? "default" : "outline"}
-            onClick={() => setTableView("departments")}
+            onClick={() => onTableViewChange("departments")}
           >
             <Building2 className="size-4" />
             Station

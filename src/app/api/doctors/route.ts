@@ -3,19 +3,24 @@ import { db } from "@/lib/db";
 import { doctors, unavailableDates } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getUserFromAuthHeader } from "@/lib/authz";
+import { isAssigner } from "@/lib/roles";
+import { withNormalizedUnavailableShiftTypes } from "@/lib/server/doctor-route-helpers";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const user = await getUserFromAuthHeader(
+      request.headers.get("authorization"),
+    );
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const allDoctors = await db.select().from(doctors);
-    // Parse the JSON field for unavailableShiftTypes
-    const doctorsWithParsedTypes = allDoctors.map((doctor) => ({
-      ...doctor,
-      unavailableShiftTypes: doctor.unavailableShiftTypes
-        ? typeof doctor.unavailableShiftTypes === "string"
-          ? JSON.parse(doctor.unavailableShiftTypes)
-          : doctor.unavailableShiftTypes
-        : [],
-    }));
+
+    const doctorsWithParsedTypes = allDoctors.map(
+      withNormalizedUnavailableShiftTypes,
+    );
+
     return NextResponse.json(doctorsWithParsedTypes);
   } catch (error) {
     console.error("Error fetching doctors:", error);
@@ -34,7 +39,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (user.role !== "shift_assigner") {
+    if (!isAssigner(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -84,7 +89,7 @@ export async function PATCH(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (user.role !== "shift_assigner") {
+    if (!isAssigner(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -119,15 +124,8 @@ export async function PATCH(request: NextRequest) {
       .set(updateValues)
       .where(eq(doctors.id, id))
       .returning();
-    // Parse the JSON field for unavailableShiftTypes in the response
-    const updatedWithParsedTypes = {
-      ...updated,
-      unavailableShiftTypes: updated.unavailableShiftTypes
-        ? typeof updated.unavailableShiftTypes === "string"
-          ? JSON.parse(updated.unavailableShiftTypes)
-          : updated.unavailableShiftTypes
-        : [],
-    };
+    const updatedWithParsedTypes = withNormalizedUnavailableShiftTypes(updated);
+
     return NextResponse.json(updatedWithParsedTypes);
   } catch (error) {
     console.error("Error updating doctor:", error);
