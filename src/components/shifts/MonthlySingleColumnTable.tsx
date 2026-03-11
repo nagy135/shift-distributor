@@ -9,6 +9,7 @@ export type MonthlySingleColumnValue = {
   text: string;
   title?: string;
   className?: string;
+  content?: React.ReactNode;
 };
 
 type MonthlySingleColumnTableProps = {
@@ -93,7 +94,7 @@ export function MonthlySingleColumnTable({
               onCellClick(date);
             }}
           >
-            {value?.text?.trim() ? value.text : "-"}
+            {value?.content ?? (value?.text?.trim() ? value.text : "-")}
           </td>
         );
       }}

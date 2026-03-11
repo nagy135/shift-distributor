@@ -54,6 +54,14 @@ export function DoctorPicker({
     );
   }, [doctors, searchTerm]);
 
+  const selectedDoctors = useMemo(
+    () =>
+      selectedDoctorIds
+        .map((doctorId) => doctors.find((entry) => entry.id === doctorId))
+        .filter((doctor): doctor is DoctorPickerOption => doctor != null),
+    [doctors, selectedDoctorIds],
+  );
+
   return (
     <div className="space-y-3">
       <div className="space-y-2">
@@ -67,16 +75,13 @@ export function DoctorPicker({
             className="pl-9"
           />
         </div>
-        {selectedDoctorIds.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {selectedDoctorIds.map((doctorId) => {
-              const doctor = doctors.find((entry) => entry.id === doctorId);
-
-              if (!doctor) {
-                return null;
-              }
-
-              return (
+        <div className="space-y-2">
+          <div className="text-[10px] font-medium text-muted-foreground">
+            Ausgewahlt
+          </div>
+          {selectedDoctors.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {selectedDoctors.map((doctor) => (
                 <button
                   key={doctor.id}
                   type="button"
@@ -91,14 +96,21 @@ export function DoctorPicker({
                     <Trash2 className="size-3" />
                   </Pill>
                 </button>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">
-            Noch kein Arzt ausgewahlt.
-          </p>
-        )}
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Noch kein Arzt ausgewahlt.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="border-t" />
+        <div className="text-[10px] font-medium text-muted-foreground">
+          Verfugbare Arzte
+        </div>
       </div>
 
       <div className="max-h-64 space-y-1 overflow-auto">

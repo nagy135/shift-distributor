@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
@@ -54,6 +47,7 @@ import {
   DayButton as RdpDayButton,
 } from "react-day-picker";
 import { MonthlySingleColumnTable } from "@/components/shifts/MonthlySingleColumnTable";
+import { RealPill } from "@/components/ui/real-pill";
 
 const EMPTY_VACATION_DAYS: VacationDay[] = [];
 const ALL_DOCTORS_VALUE = "all";
@@ -115,7 +109,9 @@ const sortVacationEntries = (entries: VacationDay[]) => {
 const getSortedUniqueNames = (names: Array<string | null | undefined>) => {
   return Array.from(
     new Set(
-      names.map((name) => name?.trim()).filter((name): name is string => Boolean(name)),
+      names
+        .map((name) => name?.trim())
+        .filter((name): name is string => Boolean(name)),
     ),
   ).sort((left, right) => alphabeticCollator.compare(left, right));
 };
@@ -199,10 +195,14 @@ function VacationColorControls({
               className={cn(
                 style.classes,
                 "size-9 rounded-full px-0 sm:h-9 sm:w-auto sm:min-w-[88px] sm:rounded-md sm:px-3",
-                showCounts ? "justify-center sm:justify-between" : "justify-center sm:min-w-[88px]",
+                showCounts
+                  ? "justify-center sm:justify-between"
+                  : "justify-center sm:min-w-[88px]",
                 isActive ? `ring-2 ring-offset-2 ${style.ring}` : "",
               )}
-              disabled={showCounts && !isUnlimited && remaining === 0 && !isActive}
+              disabled={
+                showCounts && !isUnlimited && remaining === 0 && !isActive
+              }
               onClick={() => onColorSelect(color)}
             >
               <span className="sr-only sm:not-sr-only">{style.label}</span>
@@ -453,7 +453,9 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
                     open={openDate != null}
                     doctors={availableDoctors}
                     searchTerm={pickerSearchTerm}
-                    selectedDoctorIds={selectedDoctorIdsByDate.get(openDate) ?? []}
+                    selectedDoctorIds={
+                      selectedDoctorIdsByDate.get(openDate) ?? []
+                    }
                     onSearchTermChange={onPickerSearchTermChange}
                     onToggleDoctor={(doctorId) => {
                       onToggleDoctor(openDate, doctorId);
@@ -481,9 +483,7 @@ export default function VacationsPage() {
   const doctorId = user?.doctorId ?? null;
   const canApprove = user?.role === "secretary";
   const canViewAllVacations =
-    canApprove ||
-    isAssigner(user?.role) ||
-    user?.role === "doctor";
+    canApprove || isAssigner(user?.role) || user?.role === "doctor";
   const canEditAllVacations = isAssigner(user?.role);
   const canEditOwnVacations = user?.role === "doctor" && doctorId != null;
   const canEditVacations = canEditAllVacations || canEditOwnVacations;
@@ -518,9 +518,8 @@ export default function VacationsPage() {
   const [activeColor, setActiveColor] = useState<VacationColor | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
-    ALL_DOCTORS_VALUE,
-  );
+  const [selectedDoctorId, setSelectedDoctorId] =
+    useState<string>(ALL_DOCTORS_VALUE);
   const [openDate, setOpenDate] = useState<string | null>(null);
   const [pickerSearchTerm, setPickerSearchTerm] = useState("");
   const isMobile = useMediaQuery("(max-width: 767px)");
@@ -533,12 +532,11 @@ export default function VacationsPage() {
   const filteredDoctorId =
     selectedDoctorId === ALL_DOCTORS_VALUE ? null : Number(selectedDoctorId);
 
-  const editableDoctorId =
-    canEditAllVacations
-      ? filteredDoctorId
-      : canEditOwnVacations && filteredDoctorId === doctorId
-        ? doctorId
-        : null;
+  const editableDoctorId = canEditAllVacations
+    ? filteredDoctorId
+    : canEditOwnVacations && filteredDoctorId === doctorId
+      ? doctorId
+      : null;
   const canUseVacationEditor = canEditAllVacations || editableDoctorId != null;
   const isPickerMode =
     canEditAllVacations && selectedDoctorId === ALL_DOCTORS_VALUE;
@@ -791,7 +789,9 @@ export default function VacationsPage() {
         return;
       }
 
-      const doctor = doctors.find((entry) => String(entry.id) === doctorIdToToggle);
+      const doctor = doctors.find(
+        (entry) => String(entry.id) === doctorIdToToggle,
+      );
       const affectedDoctorIds = Array.from(
         new Set(
           activeColorEntriesForDate
@@ -917,6 +917,11 @@ export default function VacationsPage() {
     );
   }, [doctors, vacationDays]);
 
+  const doctorNameById = useMemo(
+    () => new Map(availableDoctors.map((doctor) => [doctor.id, doctor.name])),
+    [availableDoctors],
+  );
+
   useEffect(() => {
     if (!canViewVacations) {
       return;
@@ -929,7 +934,9 @@ export default function VacationsPage() {
       return;
     }
 
-    const exists = availableDoctors.some((doctor) => doctor.id === selectedDoctorId);
+    const exists = availableDoctors.some(
+      (doctor) => doctor.id === selectedDoctorId,
+    );
     if (!exists) {
       setSelectedDoctorId(ALL_DOCTORS_VALUE);
     }
@@ -937,9 +944,6 @@ export default function VacationsPage() {
 
   const selectedDoctorIdsByDate = useMemo(() => {
     const next = new Map<string, string[]>();
-    const doctorNameById = new Map(
-      availableDoctors.map((doctor) => [doctor.id, doctor.name]),
-    );
 
     if (!activeColor) {
       return next;
@@ -1102,20 +1106,60 @@ export default function VacationsPage() {
 
   const tableValuesByMonth = useMemo(() => {
     return vacationsByMonth.map((byDate) => {
-      const next = new Map<string, { text: string; title?: string }>();
+      const next = new Map<
+        string,
+        {
+          text: string;
+          title?: string;
+          className?: string;
+          content?: React.ReactNode;
+        }
+      >();
 
       byDate.forEach((entries, date) => {
-        const names = getSortedUniqueNames(entries.map((entry) => entry.doctorName));
+        const sortedEntries = sortVacationEntries(entries);
+        const names = getSortedUniqueNames(
+          sortedEntries.map((entry) => entry.doctorName),
+        );
 
         next.set(date, {
           text: names.join("/"),
           title: names.join("\n") || undefined,
+          className: "py-1.5 align-top",
+          content: (
+            <div className="flex flex-wrap justify-center gap-1">
+              {sortedEntries.map((entry) => {
+                const doctorKey = String(
+                  entry.doctorId ?? entry.doctorName ?? date,
+                );
+                const doctorName =
+                  entry.doctorName ??
+                  (typeof entry.doctorId === "number"
+                    ? (doctorNameById.get(String(entry.doctorId)) ??
+                      `Arzt #${entry.doctorId}`)
+                    : "Arzt");
+
+                return (
+                  <RealPill
+                    key={`${date}-${doctorKey}-${entry.color}`}
+                    className={cn(
+                      "max-w-full",
+                      VACATION_COLOR_STYLES[entry.color].classes,
+                    )}
+                    title={`${doctorName} - ${VACATION_COLOR_STYLES[entry.color].label}`}
+                  >
+                    <span className="truncate">{doctorName}</span>
+                  </RealPill>
+                );
+              })}
+            </div>
+          ),
         });
       });
 
       return next;
     });
-  }, [vacationsByMonth]);
+  }, [doctorNameById, vacationsByMonth]);
 
   const activeTableMonthIndex = tableMonth ? tableMonth.getMonth() : -1;
   const activeTableValues =
@@ -1165,7 +1209,7 @@ export default function VacationsPage() {
                 ? "Wählen Sie eine Farbe, klicken Sie auf einen Tag und wählen Sie dann Ärzte aus."
                 : editableDoctorId == null
                   ? "Wählen Sie einen Arzt aus, um Urlaub zu sehen. Zum Bearbeiten wählen Sie sich selbst aus."
-                : `Wählen Sie eine Farbe und klicken Sie dann auf Tage, um Urlaub für ${year} zu markieren.`}
+                  : `Wählen Sie eine Farbe und klicken Sie dann auf Tage, um Urlaub für ${year} zu markieren.`}
           </p>
         </div>
         {canEditVacations && (
@@ -1312,7 +1356,7 @@ export default function VacationsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Monatstabelle Urlaub</DialogTitle>
             <DialogDescription>
@@ -1363,7 +1407,10 @@ export default function VacationsPage() {
                   : undefined
               }
             >
-              {isPickerMode && !isMobile && tableOpenDate && tablePickerPosition ? (
+              {isPickerMode &&
+              !isMobile &&
+              tableOpenDate &&
+              tablePickerPosition ? (
                 <div
                   className="pointer-events-auto absolute z-30 overflow-hidden rounded-lg border bg-background p-3 shadow-xl"
                   style={{
@@ -1386,7 +1433,10 @@ export default function VacationsPage() {
                       Urlaub
                     </div>
                     <div className="mt-1 text-sm font-medium">
-                      {format(new Date(`${tableOpenDate}T00:00:00`), "dd.MM.yyyy")}
+                      {format(
+                        new Date(`${tableOpenDate}T00:00:00`),
+                        "dd.MM.yyyy",
+                      )}
                     </div>
                   </div>
                   {activeColor ? (
@@ -1394,7 +1444,9 @@ export default function VacationsPage() {
                       open={tableOpenDate != null}
                       doctors={availableDoctors}
                       searchTerm={pickerSearchTerm}
-                      selectedDoctorIds={selectedDoctorIdsByDate.get(tableOpenDate) ?? []}
+                      selectedDoctorIds={
+                        selectedDoctorIdsByDate.get(tableOpenDate) ?? []
+                      }
                       onSearchTermChange={setPickerSearchTerm}
                       onToggleDoctor={(doctorId) => {
                         handleToggleDoctor(tableOpenDate, doctorId);
@@ -1466,7 +1518,9 @@ export default function VacationsPage() {
                     open={tableOpenDate != null}
                     doctors={availableDoctors}
                     searchTerm={pickerSearchTerm}
-                    selectedDoctorIds={selectedDoctorIdsByDate.get(tableOpenDate) ?? []}
+                    selectedDoctorIds={
+                      selectedDoctorIdsByDate.get(tableOpenDate) ?? []
+                    }
                     onSearchTermChange={setPickerSearchTerm}
                     onToggleDoctor={(doctorId) => {
                       handleToggleDoctor(tableOpenDate, doctorId);

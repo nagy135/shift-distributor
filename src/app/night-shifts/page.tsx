@@ -658,7 +658,7 @@ export default function NightShiftsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Monatstabelle Nachtdienst</DialogTitle>
             <DialogDescription>
