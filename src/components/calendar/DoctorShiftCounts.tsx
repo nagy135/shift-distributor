@@ -100,8 +100,9 @@ export function DoctorShiftCounts({
           counts[shift.shiftType] += 1;
         }
 
-        const total = Object.values(counts).reduce(
-          (sum, value) => sum + value,
+        const total = Object.entries(counts).reduce(
+          (sum, [shiftType, value]) =>
+            shiftType === "ITS" ? sum : sum + value,
           0,
         );
 
