@@ -20,14 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAdminUsersQueries } from "@/components/admin/useAdminUsersQueries";
-import { USER_ROLES, isAssigner, type UserRole } from "@/lib/roles";
-
-const ROLE_LABELS: Record<UserRole, string> = {
-  doctor: "Arzt",
-  shift_assigner: "Dienstplaner",
-  department_assigner: "Stationsplaner",
-  secretary: "Sekretariat",
-};
+import { USER_ROLES, ROLE_LABELS, isAssigner, type UserRole } from "@/lib/roles";
 
 const UNASSIGNED_DOCTOR_VALUE = "none";
 

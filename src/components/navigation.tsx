@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -16,10 +17,12 @@ import {
   PopoverClose,
 } from "@/components/ui/popover";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ProfileModal } from "@/components/ProfileModal";
 
 export function Navigation() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [profileOpen, setProfileOpen] = useState(false);
   const { notificationsApi } = useApiClient();
   const queryClient = useQueryClient();
   const { data: notifications = [] } = useQuery({
@@ -192,6 +195,15 @@ export function Navigation() {
                     {user.email}
                   </div>
                   <div className="my-2 h-px bg-border" />
+                  <PopoverClose asChild>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start"
+                      onClick={() => setProfileOpen(true)}
+                    >
+                      Profil
+                    </Button>
+                  </PopoverClose>
                   <Button
                     variant="ghost"
                     className="w-full justify-start"
@@ -203,6 +215,7 @@ export function Navigation() {
               </Popover>
             </div>
           )}
+          <ProfileModal open={profileOpen} onOpenChange={setProfileOpen} />
         </div>
       </div>
 

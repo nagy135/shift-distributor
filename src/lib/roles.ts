@@ -15,6 +15,13 @@ export type AssignerRole = Extract<
 
 export const DEFAULT_USER_ROLE: UserRole = "doctor";
 
+export const ROLE_LABELS: Record<UserRole, string> = {
+  doctor: "Arzt",
+  shift_assigner: "Dienstplaner",
+  department_assigner: "Stationsplaner",
+  secretary: "Sekretariat",
+};
+
 const SHIFT_TABLE_SHIFT_TYPE_SET = new Set<string>(SHIFT_TYPES);
 const DEPARTMENT_TABLE_SHIFT_TYPE_SET = new Set<string>(DEPARTMENT_SHIFT_TYPES);
 
