@@ -24,6 +24,7 @@ import {
   getMonthTableDays,
   MonthlyTableBase,
 } from "@/components/shifts/MonthlyTableBase";
+import { HOLIDAY_DAY_SET } from "@/lib/holidays";
 
 interface MonthlyShiftTableProps {
   month: Date;
@@ -32,6 +33,7 @@ interface MonthlyShiftTableProps {
   unavailableByDoctor?: Record<number, Set<string>>;
   approvedVacationsByDate?: Record<string, string[]>;
   columns?: readonly CalendarShiftColumn[];
+  disableWeekendSelection?: boolean;
   selectedTargets?: readonly CalendarShiftTarget[];
   selectedCellKeys?: ReadonlySet<string>;
   onRowClick?: (date: Date) => void;
@@ -63,6 +65,7 @@ export function MonthlyShiftTable({
   unavailableByDoctor = {},
   approvedVacationsByDate = {},
   columns = SHIFT_TABLE_COLUMNS,
+  disableWeekendSelection = false,
   selectedTargets = [],
   selectedCellKeys,
   onRowClick,
@@ -189,6 +192,19 @@ export function MonthlyShiftTable({
     suppressNextSelectionClickRef.current = false;
   }, []);
 
+  const isSelectionDisabledForDate = React.useCallback(
+    (date: Date) => {
+      if (!disableWeekendSelection) {
+        return false;
+      }
+
+      const dayKey = `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+      return [0, 6].includes(date.getDay()) || HOLIDAY_DAY_SET.has(dayKey);
+    },
+    [disableWeekendSelection],
+  );
+
   const buildSelectionTargets = React.useCallback(
     (
       baselineTargets: readonly CalendarShiftTarget[],
@@ -209,10 +225,14 @@ export function MonthlyShiftTable({
       for (let row = startRow; row <= endRow; row += 1) {
         const date = days[row];
 
+        if (!date || isSelectionDisabledForDate(date)) {
+          continue;
+        }
+
         for (let column = startColumn; column <= endColumn; column += 1) {
           const shiftType = columns[column]?.id;
 
-          if (!date || !shiftType) {
+          if (!shiftType) {
             continue;
           }
 
@@ -229,7 +249,7 @@ export function MonthlyShiftTable({
 
       return Array.from(nextTargets.values());
     },
-    [columns, days],
+    [columns, days, isSelectionDisabledForDate],
   );
 
   const updateDragSelection = React.useCallback(
@@ -279,6 +299,27 @@ export function MonthlyShiftTable({
       minWidth: anchorRect.width,
     });
   }, [quickAssignOpen, selectedTargets]);
+
+  React.useEffect(() => {
+    if (!canChangeSelection || selectedTargets.length === 0) {
+      return;
+    }
+
+    const selectableTargets = selectedTargets.filter(
+      (target) => !isSelectionDisabledForDate(target.date),
+    );
+
+    if (selectableTargets.length === selectedTargets.length) {
+      return;
+    }
+
+    onSelectionChange(selectableTargets);
+  }, [
+    canChangeSelection,
+    isSelectionDisabledForDate,
+    onSelectionChange,
+    selectedTargets,
+  ]);
 
   const getRowState = React.useCallback(
     (dateKey: string) => {
@@ -343,34 +384,36 @@ export function MonthlyShiftTable({
     ({
       isConflict = false,
       isSelected = false,
+      isDisabled = false,
       isWeekendOrHoliday = false,
     }: {
       isConflict?: boolean;
       isSelected?: boolean;
+      isDisabled?: boolean;
       isWeekendOrHoliday?: boolean;
     }) => {
       if (isSelected) {
         return cn(
           "outline-2 outline-offset-[-2px] outline-solid outline-sky-500 bg-sky-100 dark:bg-sky-950/60",
-          isInteractive && "hover:bg-sky-200 dark:hover:bg-sky-900/80",
+          isInteractive && !isDisabled && "hover:bg-sky-200 dark:hover:bg-sky-900/80",
         );
       }
 
       if (isConflict) {
         return cn(
           "bg-red-300 dark:bg-red-700/80",
-          isInteractive && "hover:bg-red-400 dark:hover:bg-red-700",
+          isInteractive && !isDisabled && "hover:bg-red-400 dark:hover:bg-red-700",
         );
       }
 
       if (isWeekendOrHoliday) {
         return cn(
           "bg-gray-200 dark:bg-gray-700",
-          isInteractive && "hover:bg-gray-300 dark:hover:bg-gray-600",
+          isInteractive && !isDisabled && "hover:bg-gray-300 dark:hover:bg-gray-600",
         );
       }
 
-      return isInteractive
+      return isInteractive && !isDisabled
         ? "bg-white hover:bg-gray-100 dark:bg-background dark:hover:bg-muted/60"
         : undefined;
     },
@@ -380,26 +423,28 @@ export function MonthlyShiftTable({
   const getDateCellStateClassName = React.useCallback(
     ({
       isConflict = false,
+      isDisabled = false,
       isWeekendOrHoliday = false,
     }: {
       isConflict?: boolean;
+      isDisabled?: boolean;
       isWeekendOrHoliday?: boolean;
     }) => {
       if (isConflict) {
         return cn(
           "bg-red-100 dark:bg-red-800/40",
-          isInteractive && "hover:bg-red-200 dark:hover:bg-red-700/50",
+          isInteractive && !isDisabled && "hover:bg-red-200 dark:hover:bg-red-700/50",
         );
       }
 
       if (isWeekendOrHoliday) {
         return cn(
           "bg-gray-200 dark:bg-gray-700",
-          isInteractive && "hover:bg-gray-300 dark:hover:bg-gray-600",
+          isInteractive && !isDisabled && "hover:bg-gray-300 dark:hover:bg-gray-600",
         );
       }
 
-      return isInteractive
+      return isInteractive && !isDisabled
         ? "bg-white hover:bg-gray-100 dark:bg-background dark:hover:bg-muted/60"
         : undefined;
     },
@@ -523,10 +568,13 @@ export function MonthlyShiftTable({
           </th>
         </>
       }
-      getRowProps={({ date }) => {
+      getRowProps={({ date, isHoliday, isWeekend }) => {
+        const isRowClickDisabled = disableWeekendSelection && (isWeekend || isHoliday);
+
         return {
           onClick: (event) => {
             if (event.ctrlKey || event.metaKey) return;
+            if (isRowClickDisabled) return;
             if (!canRowClick) return;
             onRowClick(date);
           },
@@ -534,10 +582,12 @@ export function MonthlyShiftTable({
       }}
       getDateCellProps={({ dateKey, isHoliday, isWeekend }) => {
         const { rowConflict } = getRowState(dateKey);
+        const isSelectionDisabled = disableWeekendSelection && (isWeekend || isHoliday);
 
         return {
           className: getDateCellStateClassName({
             isConflict: rowConflict,
+            isDisabled: isSelectionDisabled,
             isWeekendOrHoliday: isHoliday || isWeekend,
           }),
         };
@@ -550,6 +600,7 @@ export function MonthlyShiftTable({
           hasVacationConflict,
         } = getRowState(dateKey);
         const isWeekendOrHoliday = isHoliday || isWeekend;
+        const isSelectionDisabled = disableWeekendSelection && (isWeekend || isHoliday);
 
         return (
           <>
@@ -590,11 +641,16 @@ export function MonthlyShiftTable({
                       : "min-w-[120px] border-l border-gray-400 px-2",
                     getContentCellStateClassName({
                       isConflict: cellConflict,
+                      isDisabled: isSelectionDisabled,
                       isSelected: isSelectedCell,
                       isWeekendOrHoliday,
                     }),
                   )}
                   onMouseDown={(event) => {
+                    if (isSelectionDisabled) {
+                      return;
+                    }
+
                     if (event.ctrlKey || event.metaKey) {
                       event.preventDefault();
                       event.stopPropagation();
@@ -638,6 +694,11 @@ export function MonthlyShiftTable({
                     }
                   }}
                   onClick={(event) => {
+                    if (isSelectionDisabled) {
+                      event.stopPropagation();
+                      return;
+                    }
+
                     if (!canCellClick) return;
 
                     if (suppressNextSelectionClickRef.current) {

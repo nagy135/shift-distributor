@@ -2,7 +2,7 @@
 
 import React from "react";
 import { format, isSameMonth } from "date-fns";
-import { HOLIDAY_DATE_SET_2026 } from "@/lib/holidays";
+import { HOLIDAY_DATE_SET } from "@/lib/holidays";
 import { useDragToScroll } from "@/lib/use-drag-to-scroll";
 import { cn } from "@/lib/utils";
 import type { Doctor, Shift } from "@/lib/api";
@@ -74,7 +74,7 @@ export function DoctorShiftCounts({
             const date = new Date(shift.date);
             const dateKey = format(date, "yyyy-MM-dd");
             const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-            const isHoliday = HOLIDAY_DATE_SET_2026.has(dateKey);
+            const isHoliday = HOLIDAY_DATE_SET.has(dateKey);
             const isWeekday = !isWeekend && !isHoliday;
 
             if (shift.shiftType === "night") {

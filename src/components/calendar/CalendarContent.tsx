@@ -222,6 +222,7 @@ export function CalendarContent({
                 unavailableByDoctor={unavailableByDoctor}
                 approvedVacationsByDate={approvedVacationsByDate}
                 columns={activeColumns}
+                disableWeekendSelection={tableView === "departments"}
                 selectedTargets={selectedTargets}
                 selectedCellKeys={selectedCellKeys}
                 onRowClick={

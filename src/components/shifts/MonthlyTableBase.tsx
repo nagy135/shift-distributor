@@ -3,7 +3,7 @@
 import React from "react";
 import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
 import { de } from "date-fns/locale";
-import { HOLIDAY_DATE_SET_2026 } from "@/lib/holidays";
+import { HOLIDAY_DATE_SET } from "@/lib/holidays";
 import { cn } from "@/lib/utils";
 
 export type MonthlyTableRowContext = {
@@ -98,7 +98,7 @@ export function MonthlyTableBase({
           <tbody className="divide-y divide-gray-400">
             {days.map((date, rowIndex) => {
               const dateKey = format(date, "yyyy-MM-dd");
-              const isHoliday = HOLIDAY_DATE_SET_2026.has(dateKey);
+              const isHoliday = HOLIDAY_DATE_SET.has(dateKey);
               const dayName = format(date, "EEEE", { locale: de });
               const dayPrefix = dayName.slice(0, 2);
               const isWeekend = date.getDay() === 0 || date.getDay() === 6;
