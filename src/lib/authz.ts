@@ -8,6 +8,7 @@ export type AuthUser = {
   id: number;
   email: string;
   role: UserRole;
+  admin: boolean;
   doctorId: number | null;
 };
 
@@ -27,6 +28,7 @@ export async function getUserFromAuthHeader(
       id: users.id,
       email: users.email,
       role: users.role,
+      admin: users.admin,
       doctorId: users.doctorId,
       lastOnlineAt: users.lastOnlineAt,
     })
@@ -52,6 +54,7 @@ export async function getUserFromAuthHeader(
     id: user.id,
     email: user.email,
     role: user.role,
+    admin: user.admin,
     doctorId: user.doctorId,
   };
 }

@@ -14,6 +14,7 @@ export async function GET() {
       id: user.id,
       email: user.email,
       role: user.role,
+      admin: user.admin,
       doctorId: user.doctorId,
     }),
     { status: 200 },

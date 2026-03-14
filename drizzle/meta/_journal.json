@@ -71,6 +71,13 @@
       "when": 1773233614011,
       "tag": "0009_flawless_warpath",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1773525909805,
+      "tag": "0010_blushing_captain_flint",
+      "breakpoints": true
     }
   ]
 }

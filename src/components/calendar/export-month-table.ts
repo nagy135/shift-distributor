@@ -6,12 +6,16 @@ import {
   isSameMonth,
 } from "date-fns";
 import { de } from "date-fns/locale";
-import { SHIFT_LABELS, SHIFT_TYPES, type ShiftType } from "@/lib/shifts";
+import {
+  DEPARTMENT_SHIFT_COLUMNS,
+  SHIFT_TABLE_COLUMNS,
+} from "@/lib/shifts";
 import type { Shift } from "@/lib/api";
 
 type ExportMonthTableParams = {
   month: Date;
   allShifts: Shift[];
+  tableView?: "shifts" | "departments";
 };
 
 type BorderLineStyle = "thin" | "medium";
@@ -59,29 +63,34 @@ type ExcelJSPackage = { Workbook: new () => ExcelWorkbook };
 export async function exportMonthTable({
   month,
   allShifts,
+  tableView = "shifts",
 }: ExportMonthTableParams) {
   const days = eachDayOfInterval({
     start: startOfMonth(month),
     end: endOfMonth(month),
   });
 
-  const shiftIndex = new Map<string, Partial<Record<ShiftType, Shift>>>();
+  const shiftIndex = new Map<string, Partial<Record<string, Shift>>>();
   for (const shift of allShifts) {
     const dateObj = new Date(shift.date);
     if (!isSameMonth(dateObj, month)) continue;
     const existing = shiftIndex.get(shift.date);
-    const byType: Partial<Record<ShiftType, Shift>> = existing ?? {};
-    byType[shift.shiftType as ShiftType] = shift;
+    const byType: Partial<Record<string, Shift>> = existing ?? {};
+    byType[shift.shiftType] = shift;
     shiftIndex.set(shift.date, byType);
   }
 
+  const isDepartmentTable = tableView === "departments";
+  const tableColumns = isDepartmentTable
+    ? DEPARTMENT_SHIFT_COLUMNS
+    : SHIFT_TABLE_COLUMNS;
   const header = [
     "",
     "",
-    ...SHIFT_TYPES.map((type) => {
-      if (type === "oa") return "Hintergrund";
-      if (type === "20shift") return "20:00 Dienst";
-      return SHIFT_LABELS[type];
+    ...tableColumns.map((column) => {
+      if (!isDepartmentTable && column.id === "oa") return "Hintergrund";
+      if (!isDepartmentTable && column.id === "20shift") return "20:00 Dienst";
+      return column.slotLabel ?? column.label;
     }),
   ];
   const title = "Ärztlicher Dienstplan Medizinische Klinik KKH Schlüchtern";
@@ -89,19 +98,20 @@ export async function exportMonthTable({
 
   const rowsAoa = days.map((day) => {
     const key = format(day, "yyyy-MM-dd");
-    const byType: Partial<Record<ShiftType, Shift>> =
-      shiftIndex.get(key) ?? ({} as Partial<Record<ShiftType, Shift>>);
+    const byType: Partial<Record<string, Shift>> =
+      shiftIndex.get(key) ?? ({} as Partial<Record<string, Shift>>);
     const dayNumber = format(day, "d", { locale: de });
     const dayNameShort = format(day, "EEE", { locale: de }).replace(".", "");
 
     const row: string[] = [
       dayNumber,
       dayNameShort,
-      ...SHIFT_TYPES.map((type) => {
+      ...tableColumns.map((column) => {
+        const type = column.id;
         const shift = byType[type];
         return shift
           ? shift.doctors.length > 0
-            ? shift.doctors.map((doctor) => doctor.name).join(", ")
+            ? shift.doctors.map((doctor: { name: string }) => doctor.name).join(", ")
             : "-"
           : "-";
       }),
@@ -120,7 +130,7 @@ export async function exportMonthTable({
   worksheet.columns = [
     { width: 4 },
     { width: 6 },
-    ...SHIFT_TYPES.map(() => ({ width: 16 })),
+    ...tableColumns.map(() => ({ width: 16 })),
   ];
 
   const gridBorder: BorderStyle = {
@@ -144,16 +154,21 @@ export async function exportMonthTable({
     };
   };
 
-  worksheet.addRow([title]);
-  const titleRowNumber = worksheet.lastRow?.number ?? 1;
-  worksheet.addRow([]);
-  worksheet.addRow([monthLabel]);
-  const monthRowNumber = worksheet.lastRow?.number ?? titleRowNumber + 2;
-  worksheet.addRow([]);
+  let titleRowNumber = 1;
+  let monthRowNumber = 1;
+
+  if (!isDepartmentTable) {
+    worksheet.addRow([title]);
+    titleRowNumber = worksheet.lastRow?.number ?? 1;
+    worksheet.addRow([]);
+    worksheet.addRow([monthLabel]);
+    monthRowNumber = worksheet.lastRow?.number ?? titleRowNumber + 2;
+    worksheet.addRow([]);
+  }
 
   const headerRow = worksheet.addRow(header);
-  const headerRowNumber = worksheet.lastRow?.number ?? monthRowNumber + 2;
-  if (header.length > 0) {
+  const headerRowNumber = worksheet.lastRow?.number ?? 1;
+  if (!isDepartmentTable && header.length > 0) {
     worksheet.mergeCells(titleRowNumber, 1, titleRowNumber, header.length);
     worksheet.mergeCells(monthRowNumber, 1, monthRowNumber, header.length);
   }
@@ -183,20 +198,22 @@ export async function exportMonthTable({
     });
   });
 
-  const footerRow = (left: string, right: string) => {
-    if (header.length <= 1) return [left];
-    return [left, ...Array(header.length - 2).fill(""), right];
-  };
+  if (!isDepartmentTable) {
+    const footerRow = (left: string, right: string) => {
+      if (header.length <= 1) return [left];
+      return [left, ...Array(header.length - 2).fill(""), right];
+    };
 
-  worksheet.addRow([]);
-  worksheet.addRow(footerRow("AVD (tags und nachts)", "tel. 2228"));
-  worksheet.addRow([]);
-  worksheet.addRow(
-    footerRow(
-      "Dienstarzt für Stationen (Samstags bis 17:00h; Sonntags bis 15:00h)",
-      "tel 2329",
-    ),
-  );
+    worksheet.addRow([]);
+    worksheet.addRow(footerRow("AVD (tags und nachts)", "tel. 2228"));
+    worksheet.addRow([]);
+    worksheet.addRow(
+      footerRow(
+        "Dienstarzt für Stationen (Samstags bis 17:00h; Sonntags bis 15:00h)",
+        "tel 2329",
+      ),
+    );
+  }
 
   const tableStartRow = headerRowNumber;
   const tableEndRow = tableStartRow + rowsAoa.length;
@@ -212,7 +229,7 @@ export async function exportMonthTable({
     }
   }
 
-  const fileName = `Dienstplan-${format(month, "yyyy-MM")}.xlsx`;
+  const fileName = `${isDepartmentTable ? "Stationsplan" : "Dienstplan"}-${format(month, "yyyy-MM")}.xlsx`;
   const buffer: ArrayBuffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

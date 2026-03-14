@@ -3,8 +3,6 @@ import { db } from "@/lib/db";
 import { doctors, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getUserFromAuthHeader } from "@/lib/authz";
-import { isAssigner } from "@/lib/roles";
-
 const ONLINE_WINDOW_MS = 30 * 1000;
 
 export async function GET(request: NextRequest) {
@@ -14,7 +12,7 @@ export async function GET(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!isAssigner(user.role)) {
+  if (!user.admin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -24,6 +22,7 @@ export async function GET(request: NextRequest) {
       id: users.id,
       email: users.email,
       role: users.role,
+      admin: users.admin,
       doctorId: users.doctorId,
       doctorName: doctors.name,
       lastOnlineAt: users.lastOnlineAt,

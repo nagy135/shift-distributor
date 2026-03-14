@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-client";
 import type { AdminUser } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAdminUsersQueries } from "@/components/admin/useAdminUsersQueries";
-import { USER_ROLES, ROLE_LABELS, isAssigner, type UserRole } from "@/lib/roles";
+import { USER_ROLES, ROLE_LABELS, type UserRole } from "@/lib/roles";
 
 const UNASSIGNED_DOCTOR_VALUE = "none";
 
@@ -35,8 +37,9 @@ const formatDate = (value?: number | string | null) => {
 };
 
 export default function AdminUsersPage() {
+  const router = useRouter();
   const { user, isLoading } = useAuth();
-  const canManage = isAssigner(user?.role);
+  const canManage = user?.admin === true;
   const { usersQuery, doctorsQuery, updateUserMutation, deleteUserMutation } =
     useAdminUsersQueries(canManage);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +49,12 @@ export default function AdminUsersPage() {
   const [selectedDoctorId, setSelectedDoctorId] = useState(
     UNASSIGNED_DOCTOR_VALUE,
   );
+
+  useEffect(() => {
+    if (!isLoading && !canManage) {
+      router.replace("/");
+    }
+  }, [canManage, isLoading, router]);
 
   const users = usersQuery.data ?? [];
   const doctors = doctorsQuery.data ?? [];
@@ -103,6 +112,23 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleAdminChange = async (userId: number, admin: boolean) => {
+    setBusyUserId(userId);
+    setError(null);
+
+    try {
+      await updateUserMutation.mutateAsync({
+        userId,
+        payload: { admin },
+      });
+    } catch (updateError) {
+      console.error(updateError);
+      setError("Admin-Status konnte nicht aktualisiert werden");
+    } finally {
+      setBusyUserId(null);
+    }
+  };
+
   const handleDelete = async (userId: number) => {
     const confirmed = window.confirm("Diesen Benutzer löschen?");
 
@@ -153,14 +179,7 @@ export default function AdminUsersPage() {
   };
 
   if (!isLoading && !canManage) {
-    return (
-      <div className="space-y-2">
-        <h2 className="text-xl font-semibold">Benutzer</h2>
-        <p className="text-sm text-muted-foreground">
-          Sie haben keine Berechtigung, diese Seite zu sehen.
-        </p>
-      </div>
-    );
+    return null;
   }
 
   if (isLoading || usersQuery.isLoading) {
@@ -186,6 +205,7 @@ export default function AdminUsersPage() {
             <tr>
               <th className="px-4 py-3 text-left font-medium">Email</th>
               <th className="px-4 py-3 text-left font-medium">Rolle</th>
+              <th className="px-4 py-3 text-left font-medium">Admin</th>
               <th className="px-4 py-3 text-left font-medium">Arzt</th>
               <th className="px-4 py-3 text-left font-medium">Status</th>
               <th className="px-4 py-3 text-left font-medium">Erstellt</th>
@@ -218,6 +238,21 @@ export default function AdminUsersPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        checked={row.admin}
+                        onCheckedChange={(checked) =>
+                          void handleAdminChange(row.id, checked)
+                        }
+                        disabled={isBusy}
+                        aria-label={`Admin-Zugriff fuer ${row.email}`}
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {row.admin ? "Ja" : "Nein"}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-0 py-3">
                     {row.doctorName ? (
@@ -283,7 +318,7 @@ export default function AdminUsersPage() {
               <tr>
                 <td
                   className="px-4 py-6 text-center text-muted-foreground"
-                  colSpan={6}
+                  colSpan={7}
                 >
                   Keine Benutzer gefunden.
                 </td>
@@ -293,7 +328,7 @@ export default function AdminUsersPage() {
               <tr>
                 <td
                   className="px-4 py-6 text-center text-muted-foreground"
-                  colSpan={6}
+                  colSpan={7}
                 >
                   Benutzer werden geladen...
                 </td>

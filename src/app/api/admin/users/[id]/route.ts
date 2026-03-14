@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { doctors, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getUserFromAuthHeader } from "@/lib/authz";
-import { USER_ROLES, isAssigner, type UserRole } from "@/lib/roles";
+import { USER_ROLES, type UserRole } from "@/lib/roles";
 
 function parseUserId(value: string): number | null {
   const id = Number(value);
@@ -15,13 +15,13 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const admin = await getUserFromAuthHeader(
+  const currentUser = await getUserFromAuthHeader(
     request.headers.get("authorization"),
   );
-  if (!admin) {
+  if (!currentUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!isAssigner(admin.role)) {
+  if (!currentUser.admin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -32,7 +32,7 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const updates: { role?: UserRole; doctorId?: number | null } = {};
+  const updates: { role?: UserRole; admin?: boolean; doctorId?: number | null } = {};
 
   if (Object.prototype.hasOwnProperty.call(body, "role")) {
     const role = String(body.role || "").toLowerCase();
@@ -40,6 +40,13 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid role" }, { status: 400 });
     }
     updates.role = role as UserRole;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "admin")) {
+    if (typeof body.admin !== "boolean") {
+      return NextResponse.json({ error: "Invalid admin flag" }, { status: 400 });
+    }
+    updates.admin = body.admin;
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "doctorId")) {
@@ -91,6 +98,7 @@ export async function PATCH(
       id: users.id,
       email: users.email,
       role: users.role,
+      admin: users.admin,
       doctorId: users.doctorId,
       doctorName: doctors.name,
     })
@@ -106,13 +114,13 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const admin = await getUserFromAuthHeader(
+  const currentUser = await getUserFromAuthHeader(
     request.headers.get("authorization"),
   );
-  if (!admin) {
+  if (!currentUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (!isAssigner(admin.role)) {
+  if (!currentUser.admin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

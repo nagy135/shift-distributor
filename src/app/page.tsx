@@ -66,6 +66,7 @@ export default function CalendarPage() {
   const [tableView, setTableView] = useState<CalendarTableView>("shifts");
   const canEditCurrentView = canEditCalendarView(user?.role, tableView);
   const canManageMonthPublication = isAssigner(user?.role);
+  const canToggleSharedLock = isAssigner(user?.role);
   const canDistribute = isShiftAssigner(user?.role) && tableView === "shifts";
   const isDoctor = user?.role === "doctor";
   const isDesktopQuickAssign = useMediaQuery("(min-width: 768px)");
@@ -754,7 +755,7 @@ export default function CalendarPage() {
 
   const handleExportMonthTable = async () => {
     try {
-      await exportMonthTable({ month, allShifts });
+      await exportMonthTable({ month, allShifts, tableView });
     } catch (error) {
       console.error("Export failed", error);
     }
@@ -802,7 +803,7 @@ export default function CalendarPage() {
             shiftsLoading={shiftsLoading}
             doctorsCount={doctors.length}
             showDistribute={canDistribute}
-            showLockToggle={canEditCurrentView}
+            showLockToggle={canToggleSharedLock}
             showPublishToggle={canManageMonthPublication}
           />
         }

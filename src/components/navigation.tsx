@@ -9,7 +9,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { useApiClient } from "@/lib/use-api-client";
-import { isAssigner } from "@/lib/roles";
 import {
   Popover,
   PopoverTrigger,
@@ -52,7 +51,7 @@ export function Navigation() {
     { href: "/doctors", label: "Ärzte", active: pathname === "/doctors" },
   ];
 
-  if (isAssigner(user?.role)) {
+  if (user?.admin) {
     navItems.push({
       href: "/admin/users",
       label: "Benutzer",

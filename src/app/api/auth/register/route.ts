@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
         id: inserted.id,
         email: inserted.email,
         role: inserted.role,
+        admin: inserted.admin,
         createdAt: inserted.createdAt,
       }),
       { status: 201 },

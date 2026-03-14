@@ -113,6 +113,7 @@ export const users = sqliteTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   role: text("role").$type<UserRole>().notNull().default(DEFAULT_USER_ROLE),
+  admin: integer("admin", { mode: "boolean" }).default(sql`0`).notNull(),
   doctorId: integer("doctor_id").references(() => doctors.id),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
     () => new Date(),

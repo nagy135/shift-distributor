@@ -84,6 +84,7 @@ export interface AdminUser {
   id: number;
   email: string;
   role: UserRole;
+  admin: boolean;
   doctorId?: number | null;
   doctorName?: string | null;
   lastOnlineAt?: number | string | null;
@@ -347,7 +348,7 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     },
     update: async (
       userId: number,
-      payload: { role?: UserRole; doctorId?: number | null },
+      payload: { role?: UserRole; admin?: boolean; doctorId?: number | null },
     ): Promise<AdminUser> => {
       const response = await apiFetch(`/api/admin/users/${userId}`, {
         method: "PATCH",

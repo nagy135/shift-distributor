@@ -21,6 +21,7 @@ type User = {
   id: number;
   email: string;
   role: UserRole;
+  admin: boolean;
   doctorId: number | null;
 } | null;
 
@@ -56,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       id: number;
       email: string;
       role: UserRole;
+      admin: boolean;
       doctorId: number | null;
     }>("/api/auth/me", {
       headers: { Authorization: `Bearer ${token}` },
