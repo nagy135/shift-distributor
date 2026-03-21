@@ -8,6 +8,7 @@ import {
   Eye as PublishedIcon,
   EyeOff as UnpublishedIcon,
   Mail as MailIcon,
+  Shuffle as DistributeIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -15,6 +16,7 @@ type CalendarHeaderActionsProps = {
   onDistribute: () => void;
   onToggleLocked: () => void;
   onSendCalendars: () => void;
+  sendCalendarsLabel: string;
   onTogglePublished: () => void;
   onExport: () => void;
   isLocked: boolean;
@@ -34,6 +36,7 @@ export function CalendarHeaderActions({
   onDistribute,
   onToggleLocked,
   onSendCalendars,
+  sendCalendarsLabel,
   onTogglePublished,
   onExport,
   isLocked,
@@ -57,11 +60,12 @@ export function CalendarHeaderActions({
           disabled={
             isLocked || isDistributing || shiftsLoading || doctorsCount === 0
           }
-          title={isLocked ? "Zum Verteilen entsperren" : undefined}
+          title={isLocked ? "Zum Verteilen entsperren" : "Verteilen"}
           className="relative"
           aria-busy={isDistributing}
         >
-          <span className={isDistributing ? "opacity-0" : "opacity-100"}>
+          <DistributeIcon className={isDistributing ? "opacity-0" : "opacity-100"} />
+          <span className={`hidden sm:inline ${isDistributing ? "opacity-0" : "opacity-100"}`}>
             Verteilen
           </span>
           {isDistributing && (
@@ -75,7 +79,6 @@ export function CalendarHeaderActions({
       {showLockToggle && (
         <Button
           variant="outline"
-          size="icon"
           onClick={onToggleLocked}
           aria-pressed={!isLocked}
           aria-label={
@@ -90,6 +93,9 @@ export function CalendarHeaderActions({
           ) : (
             <UnlockIcon className="size-4" />
           )}
+          <span className="hidden sm:inline">
+            {isLocked ? "Gesperrt" : "Entsperrt"}
+          </span>
         </Button>
       )}
 
@@ -98,12 +104,13 @@ export function CalendarHeaderActions({
           variant="outline"
           onClick={onSendCalendars}
           disabled={isSendingCalendars || shiftsLoading || doctorsCount === 0}
+          title={sendCalendarsLabel}
           className="relative"
           aria-busy={isSendingCalendars}
         >
           <MailIcon className={isSendingCalendars ? "opacity-0" : "opacity-100"} />
-          <span className={isSendingCalendars ? "opacity-0" : "opacity-100"}>
-            Kalender senden
+          <span className={`hidden sm:inline ${isSendingCalendars ? "opacity-0" : "opacity-100"}`}>
+            {sendCalendarsLabel}
           </span>
           {isSendingCalendars && (
             <span className="absolute inset-0 flex items-center justify-center">
@@ -116,7 +123,6 @@ export function CalendarHeaderActions({
       {showPublishToggle && (
         <Button
           variant="outline"
-          size="icon"
           onClick={onTogglePublished}
           disabled={isPublishUpdating}
           aria-pressed={isPublished}
@@ -134,12 +140,15 @@ export function CalendarHeaderActions({
           ) : (
             <UnpublishedIcon className="size-4" />
           )}
+          <span className="hidden sm:inline">
+            {isPublished ? "Veröffentlicht" : "Unveröffentlicht"}
+          </span>
         </Button>
       )}
 
-      <Button variant="default" onClick={onExport} disabled={shiftsLoading}>
+      <Button variant="default" onClick={onExport} disabled={shiftsLoading} title="Exportieren">
         <DownloadIcon className="size-4" />
-        <span className="ml-1">Exportieren</span>
+        <span className="ml-1 hidden sm:inline">Exportieren</span>
       </Button>
     </>
   );

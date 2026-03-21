@@ -769,12 +769,16 @@ export default function CalendarPage() {
 
     const monthKey = format(month, "yyyy-MM");
     const monthLabel = format(month, "MMMM yyyy", { locale: de });
+    const scopeLabel =
+      tableView === "departments" ? "Stationskalender" : "Dienstkalender";
 
     try {
       setIsSendingCalendars(true);
-      const result = await monthCalendarEmailsApi.send(monthKey);
+      const result = await monthCalendarEmailsApi.send(monthKey, tableView);
       const messagePrefix =
-        result.mode === "mock" ? "Mock-Kalender" : "Kalender-E-Mails";
+        result.mode === "mock"
+          ? `Mock-${scopeLabel}`
+          : `${scopeLabel}-E-Mails`;
 
       if (result.deliveredCount === 0) {
         toast.error(
@@ -797,6 +801,7 @@ export default function CalendarPage() {
     isSendingCalendars,
     month,
     monthCalendarEmailsApi,
+    tableView,
   ]);
 
   const handleTogglePublished = useCallback(async () => {
@@ -833,6 +838,11 @@ export default function CalendarPage() {
             onSendCalendars={() => {
               void handleSendMonthCalendars();
             }}
+            sendCalendarsLabel={
+              tableView === "departments"
+                ? "Stationskalender senden"
+                : "Dienstkalender senden"
+            }
             onTogglePublished={() => {
               void handleTogglePublished();
             }}

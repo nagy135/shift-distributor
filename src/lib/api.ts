@@ -95,6 +95,7 @@ export interface MonthCalendarEmailSkip {
 
 export interface MonthCalendarEmailResult {
   month: string;
+  scope: "shifts" | "departments";
   mode: "mock" | "smtp";
   mockBasePath: string | null;
   deliveredCount: number;
@@ -363,10 +364,16 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
   };
 
   const monthCalendarEmailsApi = {
-    send: async (month: string): Promise<MonthCalendarEmailResult> => {
-      const response = await apiFetch(`/api/month-calendar-emails/${month}`, {
-        method: "POST",
-      });
+    send: async (
+      month: string,
+      scope: "shifts" | "departments",
+    ): Promise<MonthCalendarEmailResult> => {
+      const response = await apiFetch(
+        `/api/month-calendar-emails/${month}?scope=${scope}`,
+        {
+          method: "POST",
+        },
+      );
       return readJson(response, "Failed to send month calendar emails");
     },
   };

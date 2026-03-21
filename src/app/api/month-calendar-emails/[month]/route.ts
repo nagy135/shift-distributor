@@ -19,13 +19,20 @@ export async function POST(
   }
 
   const { month } = await params;
+  const scopeParam = new URL(request.url).searchParams.get("scope");
+  const scope =
+    scopeParam === "departments" ? "departments" : scopeParam === "shifts" ? "shifts" : null;
 
   if (!isValidMonthKey(month)) {
     return NextResponse.json({ error: "Invalid month" }, { status: 400 });
   }
 
+  if (!scope) {
+    return NextResponse.json({ error: "Invalid scope" }, { status: 400 });
+  }
+
   try {
-    const result = await sendMonthCalendarEmails(month);
+    const result = await sendMonthCalendarEmails(month, scope);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Error sending month calendar emails:", error);

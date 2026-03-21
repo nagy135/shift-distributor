@@ -6,7 +6,12 @@ import { asc, eq, like } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import { db } from "@/lib/db";
 import { doctors, shifts, users } from "@/lib/db/schema";
-import { getShiftLabel, SHIFT_TIME_RANGES } from "@/lib/shifts";
+import {
+  DEPARTMENT_SHIFT_TYPES,
+  getShiftLabel,
+  SHIFT_TIME_RANGES,
+  SHIFT_TYPES,
+} from "@/lib/shifts";
 import { hydrateShiftRows } from "@/lib/server/shift-route-helpers";
 
 type HydratedShift = Awaited<ReturnType<typeof hydrateShiftRows>>[number];
@@ -72,6 +77,7 @@ export type MonthCalendarEmailSkip = {
 
 export type MonthCalendarEmailResult = {
   month: string;
+  scope: "shifts" | "departments";
   mode: MonthCalendarEmailMode;
   mockBasePath: string | null;
   deliveredCount: number;
@@ -567,11 +573,13 @@ function addDeliveredResult(
 
 export async function sendMonthCalendarEmails(
   month: string,
+  scope: "shifts" | "departments",
 ): Promise<MonthCalendarEmailResult> {
   const mockFolder = process.env[MOCK_EMAIL_FOLDER_ENV]?.trim();
   const mockBasePath = mockFolder ? path.resolve(mockFolder) : null;
   const result: MonthCalendarEmailResult = {
     month,
+    scope,
     mode: mockBasePath ? "mock" : "smtp",
     mockBasePath,
     deliveredCount: 0,
@@ -595,7 +603,13 @@ export async function sendMonthCalendarEmails(
     .from(shifts)
     .where(like(shifts.date, `${month}-%`))
     .orderBy(asc(shifts.date), asc(shifts.shiftType));
-  const monthlyShifts = await hydrateShiftRows(shiftRows);
+  const activeShiftTypes = new Set<string>(
+    scope === "shifts" ? SHIFT_TYPES : DEPARTMENT_SHIFT_TYPES,
+  );
+  const scopedShiftRows = shiftRows.filter((shift) =>
+    activeShiftTypes.has(shift.shiftType),
+  );
+  const monthlyShifts = await hydrateShiftRows(scopedShiftRows);
   const shiftsByDoctorId = new Map<number, HydratedShift[]>();
 
   monthlyShifts.forEach((shift) => {
