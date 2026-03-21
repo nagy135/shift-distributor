@@ -44,6 +44,11 @@ cp .env.example .env
 
 Set `JWT_SECRET` to a long random value. Authentication routes return an error when it is missing.
 
+For calendar email delivery, configure either a mock output folder or SMTP:
+
+- `MOCK_EMAIL_FOLDER` - local folder where one markdown file per email is written for verification
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` - SMTP settings used by Nodemailer when `MOCK_EMAIL_FOLDER` is not set
+
 4. Set up the database:
 ```bash
 # Generate the database schema

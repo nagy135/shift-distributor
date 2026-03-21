@@ -11,6 +11,11 @@ export type CalendarShiftColumn = {
   headerNote?: string;
 };
 
+export type ShiftTimeRange = {
+  from: `${number}:${number}`;
+  to: `${number}:${number}`;
+};
+
 export const SHIFT_TYPES = ["night", "20shift", "17shift", "oa"] as const;
 export type ShiftType = (typeof SHIFT_TYPES)[number];
 const SHIFT_TYPE_SET = new Set<string>(SHIFT_TYPES);
@@ -37,6 +42,13 @@ export const SHIFT_DEFS: Record<
 export const SHIFT_LABELS: Record<ShiftType, string> = Object.fromEntries(
   (SHIFT_TYPES as readonly ShiftType[]).map((t) => [t, SHIFT_DEFS[t].label]),
 ) as Record<ShiftType, string>;
+
+export const SHIFT_TIME_RANGES: Partial<Record<ShiftType, ShiftTimeRange>> = {
+  // "17shift": {
+  //   from: "12:00",
+  //   to: "17:00",
+  // },
+};
 
 export const SHIFT_TABLE_COLUMNS: readonly CalendarShiftColumn[] = (
   SHIFT_TYPES as readonly ShiftType[]
@@ -78,13 +90,16 @@ export const DEPARTMENT_SHIFT_COLUMNS: readonly CalendarShiftColumn[] = (() => {
         const nextIndex = (usedCountsByLabel.get(definition.label) ?? 0) + 1;
         usedCountsByLabel.set(definition.label, nextIndex);
 
-        const hasDuplicates = (totalCountsByLabel.get(definition.label) ?? 0) > 1;
+        const hasDuplicates =
+          (totalCountsByLabel.get(definition.label) ?? 0) > 1;
         const headerNote = Array.isArray(definition.headerNote)
           ? definition.headerNote[slotIndex]
           : definition.headerNote;
 
         return {
-          id: hasDuplicates ? `${definition.label}-${nextIndex}` : definition.label,
+          id: hasDuplicates
+            ? `${definition.label}-${nextIndex}`
+            : definition.label,
           label: definition.label,
           slotLabel: hasDuplicates
             ? `${definition.label} ${nextIndex}`

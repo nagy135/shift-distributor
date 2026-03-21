@@ -80,6 +80,29 @@ export interface MonthPublication {
   updatedAt?: number | string | null;
 }
 
+export interface MonthCalendarEmailDelivery {
+  email: string;
+  doctorName: string;
+  shiftCount: number;
+  outputPath: string | null;
+  messageId: string | null;
+}
+
+export interface MonthCalendarEmailSkip {
+  email: string;
+  reason: string;
+}
+
+export interface MonthCalendarEmailResult {
+  month: string;
+  mode: "mock" | "smtp";
+  mockBasePath: string | null;
+  deliveredCount: number;
+  skippedCount: number;
+  deliveries: MonthCalendarEmailDelivery[];
+  skipped: MonthCalendarEmailSkip[];
+}
+
 export interface AdminUser {
   id: number;
   email: string;
@@ -339,6 +362,15 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     },
   };
 
+  const monthCalendarEmailsApi = {
+    send: async (month: string): Promise<MonthCalendarEmailResult> => {
+      const response = await apiFetch(`/api/month-calendar-emails/${month}`, {
+        method: "POST",
+      });
+      return readJson(response, "Failed to send month calendar emails");
+    },
+  };
+
   const adminUsersApi = {
     getAll: async (): Promise<AdminUser[]> => {
       const response = await apiFetch("/api/admin/users", {
@@ -375,6 +407,7 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     vacationsApi,
     notificationsApi,
     monthPublicationsApi,
+    monthCalendarEmailsApi,
     adminUsersApi,
   };
 }
@@ -387,5 +420,6 @@ export const {
   vacationsApi,
   notificationsApi,
   monthPublicationsApi,
+  monthCalendarEmailsApi,
   adminUsersApi,
 } = createApiClient();

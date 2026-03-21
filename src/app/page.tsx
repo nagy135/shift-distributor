@@ -62,7 +62,7 @@ type ShiftAssignment = CalendarShiftTarget & {
 
 export default function CalendarPage() {
   const { user } = useAuth();
-  const { shiftsApi } = useApiClient();
+  const { shiftsApi, monthCalendarEmailsApi } = useApiClient();
   const [tableView, setTableView] = useState<CalendarTableView>("shifts");
   const canEditCurrentView = canEditCalendarView(user?.role, tableView);
   const canManageMonthPublication = isAssigner(user?.role);
@@ -74,6 +74,7 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const { month } = useMonthStore();
   const [isDistributing, setIsDistributing] = useState(false);
+  const [isSendingCalendars, setIsSendingCalendars] = useState(false);
   const [isDistributeConfirmOpen, setIsDistributeConfirmOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isQuickAssignOpen, setIsQuickAssignOpen] = useState(false);
@@ -761,6 +762,43 @@ export default function CalendarPage() {
     }
   };
 
+  const handleSendMonthCalendars = useCallback(async () => {
+    if (!canToggleSharedLock || isSendingCalendars) {
+      return;
+    }
+
+    const monthKey = format(month, "yyyy-MM");
+    const monthLabel = format(month, "MMMM yyyy", { locale: de });
+
+    try {
+      setIsSendingCalendars(true);
+      const result = await monthCalendarEmailsApi.send(monthKey);
+      const messagePrefix =
+        result.mode === "mock" ? "Mock-Kalender" : "Kalender-E-Mails";
+
+      if (result.deliveredCount === 0) {
+        toast.error(
+          `${messagePrefix} fuer ${monthLabel} konnten nicht erstellt werden.`,
+        );
+        return;
+      }
+
+      toast.success(
+        `${messagePrefix} fuer ${monthLabel}: ${result.deliveredCount} erstellt${result.skippedCount > 0 ? `, ${result.skippedCount} uebersprungen` : ""}.`,
+      );
+    } catch (error) {
+      console.error("Error sending month calendar emails:", error);
+      toast.error("Kalender-E-Mails konnten nicht erstellt werden.");
+    } finally {
+      setIsSendingCalendars(false);
+    }
+  }, [
+    canToggleSharedLock,
+    isSendingCalendars,
+    month,
+    monthCalendarEmailsApi,
+  ]);
+
   const handleTogglePublished = useCallback(async () => {
     if (!canManageMonthPublication || updateMonthPublicationMutation.isPending) {
       return;
@@ -792,6 +830,9 @@ export default function CalendarPage() {
           <CalendarHeaderActions
             onDistribute={handleDistributeMonth}
             onToggleLocked={toggleLocked}
+            onSendCalendars={() => {
+              void handleSendMonthCalendars();
+            }}
             onTogglePublished={() => {
               void handleTogglePublished();
             }}
@@ -799,11 +840,13 @@ export default function CalendarPage() {
             isLocked={isLocked}
             isPublished={isMonthPublished}
             isDistributing={isDistributing}
+            isSendingCalendars={isSendingCalendars}
             isPublishUpdating={updateMonthPublicationMutation.isPending}
             shiftsLoading={shiftsLoading}
             doctorsCount={doctors.length}
             showDistribute={canDistribute}
             showLockToggle={canToggleSharedLock}
+            showSendCalendars={canToggleSharedLock}
             showPublishToggle={canManageMonthPublication}
           />
         }
