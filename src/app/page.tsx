@@ -504,30 +504,10 @@ export default function CalendarPage() {
     ],
   );
 
-  const handleQuickAssignToggle = useCallback((doctorId: string) => {
-    if (isLocked) {
-      notifyLocked();
-      return;
-    }
-
-    setQuickAssignDoctorIds((current) =>
-      current.includes(doctorId)
-        ? current.filter((entry) => entry !== doctorId)
-        : [...current, doctorId],
-    );
-  }, [isLocked, notifyLocked]);
-
-  const handleQuickAssignOptionClick = useCallback(
-    async (doctorId: string, additive: boolean) => {
+  const applyQuickAssignDoctorIds = useCallback(
+    async (doctorIds: readonly string[]) => {
       if (isLocked) {
         notifyLocked();
-        return;
-      }
-
-      if (additive) {
-        setQuickAssignDoctorIds((current) =>
-          current.includes(doctorId) ? current : [...current, doctorId],
-        );
         return;
       }
 
@@ -535,64 +515,48 @@ export default function CalendarPage() {
         return;
       }
 
-      const parsedDoctorId = Number(doctorId);
+      const parsedDoctorIds = doctorIds
+        .map((doctorId) => Number(doctorId))
+        .filter((doctorId) => Number.isInteger(doctorId));
 
-      if (!Number.isInteger(parsedDoctorId)) {
-        return;
-      }
+      setQuickAssignDoctorIds([...doctorIds]);
 
       await handleShiftAssignments(
         selectedTargets.map((target) => ({
           ...target,
-          doctorIds: [parsedDoctorId],
+          doctorIds: parsedDoctorIds,
         })),
       );
-      closeQuickAssign();
-      clearSelectedTargets();
     },
     [
-      clearSelectedTargets,
-      closeQuickAssign,
+      canEditCurrentView,
       handleShiftAssignments,
       isLocked,
       notifyLocked,
       selectedTargets,
-      canEditCurrentView,
     ],
   );
 
-  const handleQuickAssignApply = useCallback(async () => {
-    if (isLocked) {
-      notifyLocked();
-      return;
-    }
+  const handleQuickAssignToggle = useCallback(
+    async (doctorId: string) => {
+      const nextDoctorIds = quickAssignDoctorIds.includes(doctorId)
+        ? quickAssignDoctorIds.filter((entry) => entry !== doctorId)
+        : [...quickAssignDoctorIds, doctorId];
 
-    if (!canEditCurrentView || selectedTargets.length === 0) {
-      return;
-    }
+      await applyQuickAssignDoctorIds(nextDoctorIds);
+    },
+    [applyQuickAssignDoctorIds, quickAssignDoctorIds],
+  );
 
-    const doctorIds = quickAssignDoctorIds
-      .map((doctorId) => Number(doctorId))
-      .filter((doctorId) => Number.isInteger(doctorId));
-
-    await handleShiftAssignments(
-      selectedTargets.map((target) => ({
-        ...target,
-        doctorIds,
-      })),
-    );
-    closeQuickAssign();
-    clearSelectedTargets();
-  }, [
-    clearSelectedTargets,
-    closeQuickAssign,
-    canEditCurrentView,
-    handleShiftAssignments,
-    isLocked,
-    notifyLocked,
-    quickAssignDoctorIds,
-    selectedTargets,
-  ]);
+  const handleQuickAssignOptionClick = useCallback(
+    async (doctorId: string, _additive: boolean) => {
+      void _additive;
+      await handleQuickAssignToggle(doctorId);
+    },
+    [
+      handleQuickAssignToggle,
+    ],
+  );
 
   useEffect(() => {
     if (!isLocked) {
@@ -653,16 +617,11 @@ export default function CalendarPage() {
       if (event.key === "Enter") {
         event.preventDefault();
 
-        if (event.metaKey || event.ctrlKey) {
-          void handleQuickAssignApply();
-          return;
-        }
-
         const highlightedOption =
           filteredQuickAssignOptions[quickAssignHighlightedIndex];
 
         if (highlightedOption) {
-          handleQuickAssignToggle(highlightedOption.value);
+          void handleQuickAssignToggle(highlightedOption.value);
           return;
         }
 
@@ -703,7 +662,6 @@ export default function CalendarPage() {
     canEditCurrentView,
     closeQuickAssign,
     filteredQuickAssignOptions,
-    handleQuickAssignApply,
     handleQuickAssignToggle,
     isAssignModalOpen,
     quickAssignHighlightedIndex,
@@ -927,9 +885,8 @@ export default function CalendarPage() {
           onQuickAssignOptionClick={(value, additive) => {
             void handleQuickAssignOptionClick(value, additive);
           }}
-          onQuickAssignToggle={handleQuickAssignToggle}
-          onQuickAssignApply={() => {
-            void handleQuickAssignApply();
+          onQuickAssignToggle={(value) => {
+            void handleQuickAssignToggle(value);
           }}
           onQuickAssignClose={closeQuickAssign}
           onQuickAssignHighlightChange={setQuickAssignHighlightedIndex}

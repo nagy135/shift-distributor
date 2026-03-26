@@ -56,7 +56,6 @@ interface MonthlyShiftTableProps {
   quickAssignShowAvailableOnly?: boolean;
   onQuickAssignOptionClick?: (value: string, additive: boolean) => void;
   onQuickAssignToggle?: (value: string) => void;
-  onQuickAssignApply?: () => void;
   onQuickAssignClose?: () => void;
   onQuickAssignHighlightChange?: (index: number) => void;
   onQuickAssignShowAvailableOnlyChange?: (value: boolean) => void;
@@ -88,7 +87,6 @@ export function MonthlyShiftTable({
   quickAssignShowAvailableOnly = false,
   onQuickAssignOptionClick,
   onQuickAssignToggle,
-  onQuickAssignApply,
   onQuickAssignClose,
   onQuickAssignHighlightChange,
   onQuickAssignShowAvailableOnlyChange,
@@ -792,7 +790,6 @@ export function MonthlyShiftTable({
           onQuickAssignOptionClick?.(value, additive)
         }
         onToggleSelect={(value) => onQuickAssignToggle?.(value)}
-        onApply={() => onQuickAssignApply?.()}
         onClose={() => onQuickAssignClose?.()}
         onHighlightChange={(index) => onQuickAssignHighlightChange?.(index)}
         onShowAvailableOnlyChange={(value) =>

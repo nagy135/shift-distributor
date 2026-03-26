@@ -57,7 +57,6 @@ type CalendarContentProps = {
   quickAssignShowAvailableOnly?: boolean;
   onQuickAssignOptionClick?: (value: string, additive: boolean) => void;
   onQuickAssignToggle?: (value: string) => void;
-  onQuickAssignApply?: () => void;
   onQuickAssignClose?: () => void;
   onQuickAssignHighlightChange?: (index: number) => void;
   onQuickAssignShowAvailableOnlyChange?: (value: boolean) => void;
@@ -88,7 +87,6 @@ export function CalendarContent({
   quickAssignShowAvailableOnly,
   onQuickAssignOptionClick,
   onQuickAssignToggle,
-  onQuickAssignApply,
   onQuickAssignClose,
   onQuickAssignHighlightChange,
   onQuickAssignShowAvailableOnlyChange,
@@ -262,7 +260,6 @@ export function CalendarContent({
                 quickAssignShowAvailableOnly={quickAssignShowAvailableOnly}
                 onQuickAssignOptionClick={onQuickAssignOptionClick}
                 onQuickAssignToggle={onQuickAssignToggle}
-                onQuickAssignApply={onQuickAssignApply}
                 onQuickAssignClose={onQuickAssignClose}
                 onQuickAssignHighlightChange={onQuickAssignHighlightChange}
                 onQuickAssignShowAvailableOnlyChange={

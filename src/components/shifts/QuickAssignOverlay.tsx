@@ -1,8 +1,7 @@
 "use client";
 
 import React from "react";
-import { Check, Save, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Check, Search, Trash2, X } from "lucide-react";
 import { Pill } from "@/components/ui/pill";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -28,7 +27,6 @@ type QuickAssignOverlayProps = {
   showAvailableOnly: boolean;
   onOptionClick: (value: string, additive: boolean) => void;
   onToggleSelect: (value: string) => void;
-  onApply: () => void;
   onClose: () => void;
   onHighlightChange: (index: number) => void;
   onShowAvailableOnlyChange: (value: boolean) => void;
@@ -44,7 +42,6 @@ export function QuickAssignOverlay({
   showAvailableOnly,
   onOptionClick,
   onToggleSelect,
-  onApply,
   onClose,
   onHighlightChange,
   onShowAvailableOnlyChange,
@@ -89,53 +86,40 @@ export function QuickAssignOverlay({
     return null;
   }
 
+  const selectedCount = selectedValues.length;
+
   return (
     <div
       ref={containerRef}
-      className="absolute z-30 overflow-hidden rounded-lg border bg-background shadow-xl"
+      className="absolute z-30 w-72 overflow-hidden rounded-xl border border-border/60 bg-background shadow-2xl"
       style={{
         top: position.top,
         left: position.left,
-        minWidth: Math.max(position.minWidth, 260),
+        minWidth: Math.max(position.minWidth, 280),
       }}
     >
-      <div className="border-b px-3 py-2">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-              Schnellzuweisung
-            </div>
-            <div className="mt-1 text-sm">
-              {filterText ? (
-                <span>
-                  Suche: <span className="font-medium">{filterText}</span>
-                </span>
-              ) : (
-                <span className="text-muted-foreground">
-                  Tippen zum Filtern
-                </span>
-              )}
-            </div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              Enter wählt aus, Cmd/Ctrl+Enter übernimmt.
-            </div>
+      {/* Search + filter bar */}
+      <div className="px-3 py-2 border-b">
+        <div className="flex items-center gap-2">
+          <div className="flex flex-1 items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm focus-within:border-sky-400 focus-within:ring-1 focus-within:ring-sky-400/30">
+            <Search className="size-3.5 shrink-0 text-muted-foreground" />
+            {filterText ? (
+              <span className="flex-1 truncate">{filterText}</span>
+            ) : (
+              <span className="flex-1 truncate text-muted-foreground">
+                Tippen zum Filtern...
+              </span>
+            )}
           </div>
-
-          <Button
+          <button
             type="button"
-            variant="default"
-            size="sm"
-            className="shrink-0"
-            onClick={onApply}
-            aria-label="Auswahl übernehmen"
-            title="Auswahl übernehmen"
+            onClick={onClose}
+            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <span>Speichern</span>
-            <Save className="size-4" />
-          </Button>
+            <X className="size-4" />
+          </button>
         </div>
-        <label className="mt-2 flex items-center justify-end gap-1.5 text-[10px] text-muted-foreground">
-          <span>Alle</span>
+        <label className="mt-2 flex cursor-pointer items-center gap-1.5 text-[11px] text-muted-foreground select-none">
           <Switch
             checked={showAvailableOnly}
             onCheckedChange={onShowAvailableOnlyChange}
@@ -143,10 +127,17 @@ export function QuickAssignOverlay({
             aria-label="Nur verfuegbare Aerzte anzeigen"
             className="scale-75"
           />
-          <span>Verfuegbar</span>
+          <span>Nur verfuegbare anzeigen</span>
         </label>
-        {selectedValues.length > 0 ? (
-          <div className="mt-2 flex flex-wrap gap-1">
+      </div>
+
+      {/* Selected doctors chips */}
+      {selectedCount > 0 ? (
+        <div className="border-b px-3 py-2">
+          <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            Zugewiesen ({selectedCount})
+          </div>
+          <div className="flex flex-wrap gap-1">
             {selectedValues.map((value) => {
               const option = options.find((entry) => entry.value === value);
 
@@ -159,61 +150,72 @@ export function QuickAssignOverlay({
                   key={value}
                   type="button"
                   onClick={() => onToggleSelect(value)}
-                  className="cursor-pointer rounded-full border border-border/70 bg-muted/50 px-1 py-0.5 transition-colors hover:bg-muted"
+                  className="group inline-flex cursor-pointer items-center gap-1 rounded-full border border-border/50 bg-muted/40 py-0.5 pl-1 pr-1.5 text-xs transition-colors hover:border-red-300 hover:bg-red-50 dark:hover:border-red-800 dark:hover:bg-red-950/40"
                 >
                   <Pill
                     color={option.color ?? undefined}
                     showX={option.hasConflict ?? false}
-                    className="inline-flex items-center gap-1 text-xs"
+                    className="text-xs"
                   >
-                    <span>{option.label}</span>
-                    <Trash2 className="size-3" />
+                    {option.label}
                   </Pill>
+                  <Trash2 className="size-3 text-muted-foreground group-hover:text-red-500" />
                 </button>
               );
             })}
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
-      <div className="max-h-64 overflow-auto p-1">
+      {/* Options list */}
+      <div className="max-h-56 overflow-auto py-1">
         {filteredOptions.length === 0 ? (
-          <div className="px-3 py-2 text-sm text-muted-foreground">
-            Keine passenden AErzte gefunden.
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+            Keine passenden Aerzte gefunden.
           </div>
         ) : (
-          filteredOptions.map((option, index) => (
-            <button
-              key={option.value}
-              type="button"
-              className={cn(
-                "flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm hover:bg-accent",
-                index === highlightedIndex && "bg-accent",
-                selectedValues.includes(option.value) && "bg-accent/70",
-              )}
-              onMouseEnter={() => onHighlightChange(index)}
-              onClick={(event) =>
-                onOptionClick(option.value, event.metaKey || event.ctrlKey)
-              }
-            >
-              <Pill
-                color={option.color ?? undefined}
-                showX={option.hasConflict ?? false}
-                className="text-xs"
+          filteredOptions.map((option, index) => {
+            const isSelected = selectedValues.includes(option.value);
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className={cn(
+                  "flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left text-sm transition-colors",
+                  index === highlightedIndex && "bg-accent",
+                  isSelected &&
+                    index !== highlightedIndex &&
+                    "bg-sky-50/60 dark:bg-sky-950/20",
+                )}
+                onMouseEnter={() => onHighlightChange(index)}
+                onClick={(event) =>
+                  onOptionClick(option.value, event.metaKey || event.ctrlKey)
+                }
               >
-                {option.label}
-              </Pill>
-              <div className="flex items-center gap-2">
-                {selectedValues.includes(option.value) ? (
-                  <Check className="size-4" />
-                ) : index === highlightedIndex ? (
-                  <div className="size-4 rounded-full border" />
-                ) : null}
-              </div>
-            </button>
-          ))
+                <div
+                  className={cn(
+                    "flex size-4 shrink-0 items-center justify-center rounded border transition-colors",
+                    isSelected
+                      ? "border-sky-500 bg-sky-500 text-white"
+                      : "border-border",
+                  )}
+                >
+                  {isSelected ? <Check className="size-3" /> : null}
+                </div>
+                <Pill
+                  color={option.color ?? undefined}
+                  showX={option.hasConflict ?? false}
+                  className="flex-1 text-xs"
+                >
+                  {option.label}
+                </Pill>
+              </button>
+            );
+          })
         )}
       </div>
+
     </div>
   );
 }
