@@ -36,6 +36,8 @@ type CalendarContentProps = {
   allShifts: Shift[];
   unavailableByDoctor: Record<number, Set<string>>;
   approvedVacationsByDate: Record<string, string[]>;
+  manualApprovedVacationsByDate: Record<string, string[]>;
+  automaticNightVacationsByDate: Record<string, string[]>;
   selectedTargets?: readonly CalendarShiftTarget[];
   selectedCellKeys?: ReadonlySet<string>;
   onRowClick?: (date: Date, shiftTypes: readonly string[]) => void;
@@ -70,6 +72,8 @@ export function CalendarContent({
   allShifts,
   unavailableByDoctor,
   approvedVacationsByDate,
+  manualApprovedVacationsByDate,
+  automaticNightVacationsByDate,
   selectedTargets,
   selectedCellKeys,
   onRowClick,
@@ -95,6 +99,10 @@ export function CalendarContent({
     tableView === "shifts" ? SHIFT_TABLE_COLUMNS : DEPARTMENT_SHIFT_COLUMNS;
   const activeShiftTypes =
     tableView === "shifts" ? SHIFT_TYPES : DEPARTMENT_SHIFT_TYPES;
+  const selectableColumnIds = React.useMemo(
+    () => new Set(activeShiftTypes),
+    [activeShiftTypes],
+  );
 
   const statisticsContent = (
     <ClientOnly
@@ -220,8 +228,16 @@ export function CalendarContent({
                 shifts={allShifts}
                 doctors={doctors}
                 unavailableByDoctor={unavailableByDoctor}
+                considerUnavailableDates={tableView === "shifts"}
                 approvedVacationsByDate={approvedVacationsByDate}
+                vacationColumnByDate={
+                  tableView === "departments"
+                    ? manualApprovedVacationsByDate
+                    : approvedVacationsByDate
+                }
+                automaticNightVacationsByDate={automaticNightVacationsByDate}
                 columns={activeColumns}
+                selectableColumnIds={selectableColumnIds}
                 disableWeekendSelection={tableView === "departments"}
                 selectedTargets={selectedTargets}
                 selectedCellKeys={selectedCellKeys}

@@ -18,21 +18,25 @@ import {
   isDayDutyShiftType,
   isShiftType,
 } from "@/lib/shifts";
-import { useDragToScroll } from "@/lib/use-drag-to-scroll";
 import { cn } from "@/lib/utils";
 import {
   getMonthTableDays,
   MonthlyTableBase,
 } from "@/components/shifts/MonthlyTableBase";
 import { HOLIDAY_DAY_SET } from "@/lib/holidays";
+import { NIGHT_FREE_COLUMN_ID } from "@/lib/night-shift-vacations";
 
 interface MonthlyShiftTableProps {
   month: Date;
   shifts: Shift[];
   doctors: Doctor[];
   unavailableByDoctor?: Record<number, Set<string>>;
+  considerUnavailableDates?: boolean;
   approvedVacationsByDate?: Record<string, string[]>;
+  vacationColumnByDate?: Record<string, string[]>;
+  automaticNightVacationsByDate?: Record<string, string[]>;
   columns?: readonly CalendarShiftColumn[];
+  selectableColumnIds?: ReadonlySet<string>;
   disableWeekendSelection?: boolean;
   selectedTargets?: readonly CalendarShiftTarget[];
   selectedCellKeys?: ReadonlySet<string>;
@@ -63,8 +67,12 @@ export function MonthlyShiftTable({
   shifts,
   doctors,
   unavailableByDoctor = {},
+  considerUnavailableDates = true,
   approvedVacationsByDate = {},
+  vacationColumnByDate = approvedVacationsByDate,
+  automaticNightVacationsByDate = {},
   columns = SHIFT_TABLE_COLUMNS,
+  selectableColumnIds,
   disableWeekendSelection = false,
   selectedTargets = [],
   selectedCellKeys,
@@ -110,6 +118,10 @@ export function MonthlyShiftTable({
     () => new Set(columns.map((column) => column.id)),
     [columns],
   );
+  const interactiveColumnIds = React.useMemo(
+    () => selectableColumnIds ?? activeColumnIds,
+    [activeColumnIds, selectableColumnIds],
+  );
 
   // Helper function to check if a shift assignment violates constraints
   const hasDoctorConflict = React.useCallback(
@@ -119,9 +131,9 @@ export function MonthlyShiftTable({
       date: string,
       byType: Record<string, Shift>,
     ): boolean => {
-      const hasDateConflict = doesCalendarShiftUnavailableDateClash(
-        shift.shiftType,
-      )
+      const hasDateConflict =
+        considerUnavailableDates &&
+        doesCalendarShiftUnavailableDateClash(shift.shiftType)
         ? (unavailableByDoctor[doctorId]?.has(date) ?? false)
         : false;
 
@@ -149,7 +161,7 @@ export function MonthlyShiftTable({
 
       return hasDateConflict || hasShiftTypeConflict || hasNightOverlap;
     },
-    [doctorById, unavailableByDoctor],
+    [considerUnavailableDates, doctorById, unavailableByDoctor],
   );
 
   const hasShiftConflict = React.useCallback(
@@ -167,13 +179,11 @@ export function MonthlyShiftTable({
   const canCellClick = typeof onCellClick === "function";
   const canChangeSelection = typeof onSelectionChange === "function";
   const isInteractive = canRowClick || canCellClick;
-  const { containerRef, isDragging, dragHandlers } =
-    useDragToScroll<HTMLDivElement>();
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
   const dragSelectionRef = React.useRef<{
     anchorRowIndex: number;
     anchorColumnIndex: number;
-    mode: "add" | "remove";
-    baselineTargets: CalendarShiftTarget[];
+    hasMoved: boolean;
   } | null>(null);
   const cellRefs = React.useRef(new Map<string, HTMLTableCellElement>());
   const suppressNextSelectionClickRef = React.useRef(false);
@@ -205,69 +215,66 @@ export function MonthlyShiftTable({
     [disableWeekendSelection],
   );
 
+  const isSelectionDisabledForCell = React.useCallback(
+    (date: Date, shiftType: string) => {
+      if (shiftType === "night") {
+        return false;
+      }
+
+      return isSelectionDisabledForDate(date);
+    },
+    [isSelectionDisabledForDate],
+  );
+
   const buildSelectionTargets = React.useCallback(
     (
-      baselineTargets: readonly CalendarShiftTarget[],
-      mode: "add" | "remove",
       fromRowIndex: number,
       fromColumnIndex: number,
       toRowIndex: number,
-      toColumnIndex: number,
     ) => {
-      const nextTargets = new Map(
-        baselineTargets.map((target) => [getShiftTargetKey(target), target]),
-      );
+      const nextTargets: CalendarShiftTarget[] = [];
       const startRow = Math.min(fromRowIndex, toRowIndex);
       const endRow = Math.max(fromRowIndex, toRowIndex);
-      const startColumn = Math.min(fromColumnIndex, toColumnIndex);
-      const endColumn = Math.max(fromColumnIndex, toColumnIndex);
+      const shiftType = columns[fromColumnIndex]?.id;
+
+      if (!shiftType || !interactiveColumnIds.has(shiftType)) {
+        return nextTargets;
+      }
 
       for (let row = startRow; row <= endRow; row += 1) {
         const date = days[row];
 
-        if (!date || isSelectionDisabledForDate(date)) {
+        if (!date) {
           continue;
         }
 
-        for (let column = startColumn; column <= endColumn; column += 1) {
-          const shiftType = columns[column]?.id;
-
-          if (!shiftType) {
-            continue;
-          }
-
-          const target = { date, shiftType };
-          const targetKey = getShiftTargetKey(target);
-
-          if (mode === "add") {
-            nextTargets.set(targetKey, target);
-          } else {
-            nextTargets.delete(targetKey);
-          }
+        if (isSelectionDisabledForCell(date, shiftType)) {
+          continue;
         }
+
+        nextTargets.push({ date, shiftType });
       }
 
-      return Array.from(nextTargets.values());
+      return nextTargets;
     },
-    [columns, days, isSelectionDisabledForDate],
+    [columns, days, interactiveColumnIds, isSelectionDisabledForCell],
   );
 
   const updateDragSelection = React.useCallback(
-    (rowIndex: number, columnIndex: number) => {
+    (rowIndex: number) => {
       const dragSelection = dragSelectionRef.current;
 
       if (!dragSelection || !canChangeSelection) {
         return;
       }
 
+      dragSelection.hasMoved = true;
+
       onSelectionChange(
         buildSelectionTargets(
-          dragSelection.baselineTargets,
-          dragSelection.mode,
           dragSelection.anchorRowIndex,
           dragSelection.anchorColumnIndex,
           rowIndex,
-          columnIndex,
         ),
       );
     },
@@ -306,7 +313,9 @@ export function MonthlyShiftTable({
     }
 
     const selectableTargets = selectedTargets.filter(
-      (target) => !isSelectionDisabledForDate(target.date),
+      (target) =>
+        !isSelectionDisabledForCell(target.date, target.shiftType) &&
+        interactiveColumnIds.has(target.shiftType),
     );
 
     if (selectableTargets.length === selectedTargets.length) {
@@ -316,7 +325,8 @@ export function MonthlyShiftTable({
     onSelectionChange(selectableTargets);
   }, [
     canChangeSelection,
-    isSelectionDisabledForDate,
+    interactiveColumnIds,
+    isSelectionDisabledForCell,
     onSelectionChange,
     selectedTargets,
   ]);
@@ -332,9 +342,12 @@ export function MonthlyShiftTable({
         }
       });
 
-      const vacationDoctors = approvedVacationsByDate[dateKey] ?? [];
+      const vacationDoctors = vacationColumnByDate[dateKey] ?? [];
+      const conflictVacationDoctors = approvedVacationsByDate[dateKey] ?? [];
+      const automaticNightVacationDoctors =
+          automaticNightVacationsByDate[dateKey] ?? [];
       const vacationDoctorIds = new Set<number>(
-        vacationDoctors
+        conflictVacationDoctors
           .map((doctorName) => doctorIdByName.get(doctorName))
           .filter(
             (doctorId): doctorId is number => typeof doctorId === "number",
@@ -362,21 +375,24 @@ export function MonthlyShiftTable({
         (doctorId) => assignedDoctorIds.has(doctorId),
       );
 
-      return {
-        visibleByType,
-        vacationDoctors,
-        vacationDoctorIds,
-        hasVacationConflict,
-        rowConflict: hasShiftConflictInRow || hasVacationConflict,
+        return {
+          visibleByType,
+          vacationDoctors,
+          automaticNightVacationDoctors,
+          vacationDoctorIds,
+          hasVacationConflict,
+          rowConflict: hasShiftConflictInRow || hasVacationConflict,
       };
     },
     [
       activeColumnIds,
       approvedVacationsByDate,
+      automaticNightVacationsByDate,
       columns,
       doctorIdByName,
       hasShiftConflict,
       shiftIndex,
+      vacationColumnByDate,
     ],
   );
 
@@ -539,8 +555,6 @@ export function MonthlyShiftTable({
       month={month}
       wrapperRef={wrapperRef}
       containerRef={containerRef}
-      containerClassName={cn("cursor-move", isDragging && "cursor-grabbing")}
-      containerProps={dragHandlers}
       headerCells={
         <>
           {columns.map((column, index) => (
@@ -572,8 +586,7 @@ export function MonthlyShiftTable({
         const isRowClickDisabled = disableWeekendSelection && (isWeekend || isHoliday);
 
         return {
-          onClick: (event) => {
-            if (event.ctrlKey || event.metaKey) return;
+          onClick: () => {
             if (isRowClickDisabled) return;
             if (!canRowClick) return;
             onRowClick(date);
@@ -596,11 +609,11 @@ export function MonthlyShiftTable({
         const {
           visibleByType,
           vacationDoctors,
+          automaticNightVacationDoctors,
           vacationDoctorIds,
           hasVacationConflict,
         } = getRowState(dateKey);
         const isWeekendOrHoliday = isHoliday || isWeekend;
-        const isSelectionDisabled = disableWeekendSelection && (isWeekend || isHoliday);
 
         return (
           <>
@@ -611,6 +624,11 @@ export function MonthlyShiftTable({
                 shiftType: column.id,
               };
               const cellKey = getShiftTargetKey(cellTarget);
+              const isInteractiveColumn = interactiveColumnIds.has(column.id);
+              const isSelectionDisabled = isSelectionDisabledForCell(
+                date,
+                column.id,
+              );
               const isSelectedCell = selectedCellKeys?.has(cellKey) ?? false;
               const hasShiftCellConflict = shift
                 ? hasShiftConflict(shift, dateKey, visibleByType)
@@ -651,29 +669,24 @@ export function MonthlyShiftTable({
                       return;
                     }
 
-                    if (event.ctrlKey || event.metaKey) {
-                      event.preventDefault();
-                      event.stopPropagation();
-
-                      if (!canChangeSelection || event.button !== 0) {
-                        return;
-                      }
-
-                      onSelectionInteractionChange?.(true);
-
-                      clearSuppressedSelectionClick();
-
-                      const selectionMode = isSelectedCell ? "remove" : "add";
-
-                      dragSelectionRef.current = {
-                        anchorRowIndex: rowIndex,
-                        anchorColumnIndex: index,
-                        mode: selectionMode,
-                        baselineTargets: [...selectedTargets],
-                      };
-                      suppressNextSelectionClickRef.current = true;
-                      updateDragSelection(rowIndex, index);
+                    if (!isInteractiveColumn) {
+                      return;
                     }
+
+                    if (!canChangeSelection || event.button !== 0) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    clearSuppressedSelectionClick();
+
+                    dragSelectionRef.current = {
+                      anchorRowIndex: rowIndex,
+                      anchorColumnIndex: index,
+                      hasMoved: false,
+                    };
                   }}
                   onMouseEnter={(event) => {
                     if ((event.buttons & 1) !== 1) {
@@ -686,15 +699,28 @@ export function MonthlyShiftTable({
 
                     event.preventDefault();
                     event.stopPropagation();
-                    updateDragSelection(rowIndex, index);
+                    onSelectionInteractionChange?.(true);
+                    suppressNextSelectionClickRef.current = true;
+                    updateDragSelection(rowIndex);
                   }}
-                  onContextMenu={(event) => {
-                    if (event.ctrlKey || event.metaKey) {
-                      event.preventDefault();
+                  onMouseUp={() => {
+                    const dragSelection = dragSelectionRef.current;
+
+                    if (!dragSelection) {
+                      return;
+                    }
+
+                    if (dragSelection.hasMoved) {
+                      suppressNextSelectionClickRef.current = true;
                     }
                   }}
                   onClick={(event) => {
                     if (isSelectionDisabled) {
+                      event.stopPropagation();
+                      return;
+                    }
+
+                    if (!isInteractiveColumn) {
                       event.stopPropagation();
                       return;
                     }
@@ -710,11 +736,17 @@ export function MonthlyShiftTable({
 
                     event.stopPropagation();
                     onCellClick(date, column.id, {
-                      additive: event.ctrlKey || event.metaKey,
+                      additive: false,
                     });
                   }}
                 >
-                  {shift ? (
+                  {column.id === NIGHT_FREE_COLUMN_ID ? (
+                    automaticNightVacationDoctors.length > 0 ? (
+                      <span>{automaticNightVacationDoctors.join("/")}</span>
+                    ) : (
+                      "-"
+                    )
+                  ) : shift ? (
                     shift.doctorIds.length > 0 ? (
                       <span>
                         {shift.doctors

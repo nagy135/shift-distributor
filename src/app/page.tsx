@@ -102,6 +102,8 @@ export default function CalendarPage() {
     shiftsLoading,
     unavailableByDoctor,
     approvedVacationsByDate,
+    manualApprovedVacationsByDate,
+    automaticNightVacationsByDate,
     assignShiftMutation,
     invalidateShifts,
     monthPublication,
@@ -191,9 +193,9 @@ export default function CalendarPage() {
 
         return selectedTargets.some((target) => {
           const dateKey = format(target.date, "yyyy-MM-dd");
-          const dateConflict = doesCalendarShiftUnavailableDateClash(
-            target.shiftType,
-          )
+          const dateConflict =
+            tableView === "shifts" &&
+            doesCalendarShiftUnavailableDateClash(target.shiftType)
             ? (unavailableByDoctor[doctorId]?.has(dateKey) ?? false)
             : false;
           const shiftTypeConflict =
@@ -246,6 +248,7 @@ export default function CalendarPage() {
       doctorById,
       doctors,
       selectedTargets,
+      tableView,
       unavailableByDoctor,
     ],
   );
@@ -420,37 +423,47 @@ export default function CalendarPage() {
       return;
     }
 
-    if (options.additive) {
-      const nextTarget = { date, shiftType };
-      const nextKey = getShiftTargetKey(nextTarget);
+    void options;
 
-      setSelectedTargets((previousTargets) => {
-        const hasTarget = previousTargets.some(
-          (target) => getShiftTargetKey(target) === nextKey,
-        );
+    const nextTarget = { date, shiftType };
+    const nextKey = getShiftTargetKey(nextTarget);
+    const popupAnchorKey =
+      selectedTargets.length > 0
+        ? getShiftTargetKey(selectedTargets[selectedTargets.length - 1]!)
+        : null;
+    const isSingleSelectedTarget =
+      selectedTargets.length === 1 &&
+      getShiftTargetKey(selectedTargets[0]!) === nextKey;
+    const isPopupAnchorTarget = popupAnchorKey === nextKey;
 
-        if (hasTarget) {
-          return previousTargets.filter(
-            (target) => getShiftTargetKey(target) !== nextKey,
-          );
-        }
+    if (assignmentMode === "quick") {
+      if (isPopupAnchorTarget && isQuickAssignOpen) {
+          closeQuickAssign();
+          clearSelectedTargets();
+          return;
+      }
 
-        return [...previousTargets, nextTarget];
-      });
+      if (isSingleSelectedTarget) {
+        setIsQuickAssignOpen(true);
+        return;
+      }
+
+      closeQuickAssign();
+      setSelectedTargets([nextTarget]);
       return;
     }
 
-    if (assignmentMode === "quick") {
-      closeQuickAssign();
-      setSelectedTargets([{ date, shiftType }]);
+    if (isSingleSelectedTarget && isAssignModalOpen) {
+      setIsAssignModalOpen(false);
+      clearSelectedTargets();
       return;
     }
 
     closeQuickAssign();
-    clearSelectedTargets();
     setSelectedDate(date);
     setSelectedShiftTypes([...shiftTypes]);
     setSelectedShiftType(shiftType);
+    setSelectedTargets([nextTarget]);
     setIsAssignModalOpen(true);
   };
 
@@ -884,6 +897,8 @@ export default function CalendarPage() {
           allShifts={allShifts}
           unavailableByDoctor={unavailableByDoctor}
           approvedVacationsByDate={approvedVacationsByDate}
+          manualApprovedVacationsByDate={manualApprovedVacationsByDate}
+          automaticNightVacationsByDate={automaticNightVacationsByDate}
           selectedTargets={selectedTargets}
           selectedCellKeys={selectedCellKeys}
           onRowClick={canEditCurrentView ? openAssignModalForDate : undefined}
@@ -936,6 +951,7 @@ export default function CalendarPage() {
         focusShiftType={selectedShiftType}
         onAssign={handleShiftAssignments}
         unavailableByDoctor={unavailableByDoctor}
+        considerUnavailableDates={tableView === "shifts"}
         approvedVacationsByDate={approvedVacationsByDate}
       />
 

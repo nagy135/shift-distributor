@@ -3,6 +3,10 @@
 import React from "react";
 import { format, isSameMonth } from "date-fns";
 import { HOLIDAY_DATE_SET } from "@/lib/holidays";
+import {
+  getAutomaticNightShiftVacationDays,
+  NIGHT_FREE_COLUMN_ID,
+} from "@/lib/night-shift-vacations";
 import { useDragToScroll } from "@/lib/use-drag-to-scroll";
 import { cn } from "@/lib/utils";
 import type { Doctor, Shift } from "@/lib/api";
@@ -55,6 +59,8 @@ export function DoctorShiftCounts({
   }, [columns, view]);
 
   const shiftCounts = React.useMemo(() => {
+    const automaticNightVacations = getAutomaticNightShiftVacationDays(shifts);
+
     return doctors
       .filter(
         (doctor) => !doctor.disabled && (view === "departments" || !doctor.oa),
@@ -63,6 +69,22 @@ export function DoctorShiftCounts({
         const counts = Object.fromEntries(
           displayColumns.map((column) => [column.id, 0]),
         ) as Record<string, number>;
+
+        if (view === "departments") {
+          automaticNightVacations.forEach((vacation) => {
+            if (vacation.doctorId !== doctor.id) {
+              return;
+            }
+
+            if (!isSameMonth(new Date(vacation.date), month)) {
+              return;
+            }
+
+            if (NIGHT_FREE_COLUMN_ID in counts) {
+              counts[NIGHT_FREE_COLUMN_ID] += 1;
+            }
+          });
+        }
 
         for (const shift of shifts) {
           if (!Array.isArray(shift.doctorIds)) continue;

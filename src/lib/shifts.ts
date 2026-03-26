@@ -1,4 +1,7 @@
+import { NIGHT_FREE_COLUMN_ID } from "@/lib/night-shift-vacations";
+
 type DepartmentDefinition = {
+  id?: string;
   label: string;
   count: number;
   headerNote?: string | readonly string[];
@@ -69,7 +72,7 @@ export const DEPARTMENT_DEFS: readonly DepartmentDefinition[] = [
   { label: "A3.2", count: 1, headerNote: "GER" },
   { label: "A4.1", count: 1, headerNote: "GER/INN" },
   { label: "A4.2", count: 1, headerNote: "GER/INN" },
-  { label: "ND-frei", count: 1 },
+  { id: NIGHT_FREE_COLUMN_ID, label: "ND-frei", count: 1 },
 ];
 
 export const DEPARTMENT_SHIFT_COLUMNS: readonly CalendarShiftColumn[] = (() => {
@@ -97,9 +100,13 @@ export const DEPARTMENT_SHIFT_COLUMNS: readonly CalendarShiftColumn[] = (() => {
           : definition.headerNote;
 
         return {
-          id: hasDuplicates
-            ? `${definition.label}-${nextIndex}`
-            : definition.label,
+          id: definition.id
+            ? definition.count > 1
+              ? `${definition.id}-${nextIndex}`
+              : definition.id
+            : hasDuplicates
+              ? `${definition.label}-${nextIndex}`
+              : definition.label,
           label: definition.label,
           slotLabel: hasDuplicates
             ? `${definition.label} ${nextIndex}`
@@ -117,7 +124,9 @@ export const DEPARTMENT_SHIFT_COLUMNS: readonly CalendarShiftColumn[] = (() => {
 })();
 
 export const DEPARTMENT_SHIFT_TYPES: readonly string[] =
-  DEPARTMENT_SHIFT_COLUMNS.map((column) => column.id);
+  DEPARTMENT_SHIFT_COLUMNS
+    .filter((column) => column.id !== NIGHT_FREE_COLUMN_ID)
+    .map((column) => column.id);
 
 export const ALL_CALENDAR_SHIFT_TYPES: readonly string[] = Array.from(
   new Set([...SHIFT_TYPES, ...DEPARTMENT_SHIFT_TYPES]),

@@ -21,9 +21,11 @@ import { useApiClient } from "@/lib/use-api-client";
 import { useAnchoredOverlay } from "@/lib/use-anchored-overlay";
 import { useMediaQuery } from "@/lib/use-media-query";
 import {
+  DISPLAY_VACATION_COLORS,
   VACATION_COLORS,
   VACATION_COLOR_STYLES,
   VACATION_DAYS_PER_YEAR,
+  type DisplayVacationColor,
   type VacationColor,
 } from "@/lib/vacations";
 import { isAssigner } from "@/lib/roles";
@@ -48,6 +50,10 @@ import {
 } from "react-day-picker";
 import { MonthlySingleColumnTable } from "@/components/shifts/MonthlySingleColumnTable";
 import { RealPill } from "@/components/ui/real-pill";
+import {
+  type VacationDisplayDay,
+  getAutomaticNightShiftVacationDays,
+} from "@/lib/night-shift-vacations";
 
 const EMPTY_VACATION_DAYS: VacationDay[] = [];
 const ALL_DOCTORS_VALUE = "all";
@@ -67,6 +73,15 @@ const createColorCountMap = (): Record<VacationColor, number> =>
     {} as Record<VacationColor, number>,
   );
 
+const createDisplayColorCountMap = (): Record<DisplayVacationColor, number> =>
+  DISPLAY_VACATION_COLORS.reduce(
+    (acc, color) => {
+      acc[color] = 0;
+      return acc;
+    },
+    {} as Record<DisplayVacationColor, number>,
+  );
+
 const countColors = (input: Record<string, VacationColor>) => {
   return Object.values(input).reduce((acc, color) => {
     acc[color] += 1;
@@ -76,16 +91,19 @@ const countColors = (input: Record<string, VacationColor>) => {
 
 const dayToKey = (day: Date) => format(day, "yyyy-MM-dd");
 
-const getVacationDoctorName = (entry: VacationDay) =>
+const getVacationDoctorName = (entry: VacationDisplayDay) =>
   entry.doctorName?.trim() || `Arzt #${entry.doctorId ?? "?"}`;
 
-const compareVacationColors = (left: VacationColor, right: VacationColor) =>
+const compareVacationColors = (
+  left: DisplayVacationColor,
+  right: DisplayVacationColor,
+) =>
   alphabeticCollator.compare(
     VACATION_COLOR_STYLES[left].label,
     VACATION_COLOR_STYLES[right].label,
   );
 
-const sortVacationEntries = (entries: VacationDay[]) => {
+const sortVacationEntries = (entries: VacationDisplayDay[]) => {
   return [...entries].sort((left, right) => {
     const doctorComparison = alphabeticCollator.compare(
       getVacationDoctorName(left),
@@ -116,8 +134,8 @@ const getSortedUniqueNames = (names: Array<string | null | undefined>) => {
   ).sort((left, right) => alphabeticCollator.compare(left, right));
 };
 
-const getDayColors = (entries: VacationDay[]) => {
-  const map = new Map<string, VacationDay[]>();
+const getDayColors = (entries: VacationDisplayDay[]) => {
+  const map = new Map<string, VacationDisplayDay[]>();
   entries.forEach((entry) => {
     const list = map.get(entry.date) ?? [];
     list.push(entry);
@@ -137,9 +155,9 @@ type VacationMonthCalendarProps = {
   openDate: string | null;
   pickerSearchTerm: string;
   selectedDoctorIdsByDate: Map<string, string[]>;
-  modifiers?: Record<VacationColor, Date[]>;
-  modifierClasses?: Record<VacationColor, string>;
-  vacationsByDate: Map<string, VacationDay[]>;
+  modifiers?: Record<DisplayVacationColor, Date[]>;
+  modifierClasses?: Record<DisplayVacationColor, string>;
+  vacationsByDate: Map<string, VacationDisplayDay[]>;
   hasPendingByDate: Map<string, boolean>;
   onOpenMonthTable: (month: Date) => void;
   onOpenDateChange: (date: string | null) => void;
@@ -302,9 +320,9 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
             const tooltip = getSortedUniqueNames(
               entries.map((entry) => entry.doctorName),
             ).join("\n");
-            const colors = Array.from(
-              new Set(entries.map((entry: VacationDay) => entry.color)),
-            ).sort(compareVacationColors) as VacationColor[];
+            const colors = Array.from(new Set(entries.map((entry) => entry.color))).sort(
+              compareVacationColors,
+            ) as DisplayVacationColor[];
             const hasPendingApproval = hasPendingByDate.get(dayKey) ?? false;
             const pendingQuestionMarkClass =
               colors.length > 0
@@ -478,7 +496,7 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
 
 export default function VacationsPage() {
   const { user, isLoading } = useAuth();
-  const { doctorsApi, vacationsApi } = useApiClient();
+  const { doctorsApi, shiftsApi, vacationsApi } = useApiClient();
   const queryClient = useQueryClient();
   const doctorId = user?.doctorId ?? null;
   const canApprove = user?.role === "secretary";
@@ -509,10 +527,39 @@ export default function VacationsPage() {
     queryFn: () => vacationsApi.getByYear(year),
     enabled: canViewVacations,
   });
+  const { data: allShifts = [] } = useQuery({
+    queryKey: ["shifts"],
+    queryFn: shiftsApi.getAll,
+    enabled: canViewVacations,
+  });
   const [optimisticVacationDays, setOptimisticVacationDays] = useState<
     VacationDay[] | null
   >(null);
-  const vacationDays = optimisticVacationDays ?? data ?? EMPTY_VACATION_DAYS;
+  const manualVacationDays = optimisticVacationDays ?? data ?? EMPTY_VACATION_DAYS;
+  const automaticVacationDays = useMemo(
+    () =>
+      getAutomaticNightShiftVacationDays(allShifts, doctors).filter((entry) =>
+        entry.date.startsWith(`${year}-`),
+      ),
+    [allShifts, doctors, year],
+  );
+  const vacationDays = useMemo(() => {
+    const manualDayKeys = new Set(
+      manualVacationDays.map(
+        (entry) => `${entry.doctorId ?? "unknown"}:${entry.date}:${entry.color}`,
+      ),
+    );
+
+    return [
+      ...manualVacationDays,
+      ...automaticVacationDays.filter(
+        (entry) =>
+          !manualDayKeys.has(
+            `${entry.doctorId ?? "unknown"}:${entry.date}:${entry.color}`,
+          ),
+      ),
+    ] as VacationDisplayDay[];
+  }, [automaticVacationDays, manualVacationDays]);
 
   const [dayColors, setDayColors] = useState<Record<string, VacationColor>>({});
   const [activeColor, setActiveColor] = useState<VacationColor | null>(null);
@@ -588,7 +635,7 @@ export default function VacationsPage() {
       return;
     }
 
-    const next = vacationDays.reduce<Record<string, VacationColor>>(
+    const next = manualVacationDays.reduce<Record<string, VacationColor>>(
       (acc, entry) => {
         if (entry.doctorId !== editableDoctorId) {
           return acc;
@@ -600,7 +647,7 @@ export default function VacationsPage() {
       {},
     );
     setDayColors(next);
-  }, [editableDoctorId, vacationDays]);
+  }, [editableDoctorId, manualVacationDays]);
 
   const colorCounts = useMemo(() => countColors(dayColors), [dayColors]);
 
@@ -759,18 +806,18 @@ export default function VacationsPage() {
         return;
       }
 
-      const existingEntry = vacationDays.find(
+      const existingEntry = manualVacationDays.find(
         (entry) =>
           entry.date === date &&
           entry.doctorId === parsedDoctorId &&
           entry.color === activeColor,
       );
-      const activeColorEntriesForDate = vacationDays.filter(
+      const activeColorEntriesForDate = manualVacationDays.filter(
         (entry) => entry.date === date && entry.color === activeColor,
       );
       const yearlyLimit = VACATION_DAYS_PER_YEAR[activeColor];
       const isUnlimited = !Number.isFinite(yearlyLimit);
-      const usedDays = vacationDays.reduce((count, entry) => {
+      const usedDays = manualVacationDays.reduce((count, entry) => {
         if (
           entry.doctorId === parsedDoctorId &&
           entry.color === activeColor &&
@@ -802,7 +849,7 @@ export default function VacationsPage() {
       );
       const nextVacationDays = (() => {
         if (existingEntry) {
-          return vacationDays.filter(
+          return manualVacationDays.filter(
             (entry) =>
               !(
                 entry.date === date &&
@@ -820,7 +867,7 @@ export default function VacationsPage() {
           approved: false,
         };
 
-        const filtered = vacationDays.filter(
+        const filtered = manualVacationDays.filter(
           (entry) =>
             !(entry.date === date && entry.doctorId === parsedDoctorId),
         );
@@ -855,7 +902,7 @@ export default function VacationsPage() {
         });
       });
     },
-    [activeColor, canEditAllVacations, doctors, updateMutation, vacationDays],
+    [activeColor, canEditAllVacations, doctors, manualVacationDays, updateMutation],
   );
 
   const visibleVacationDays = useMemo(() => {
@@ -872,8 +919,8 @@ export default function VacationsPage() {
     return getDayColors(visibleVacationDays);
   }, [visibleVacationDays]);
 
-  const selectedVacations = useMemo<VacationDay[]>(() => {
-    if (!selectedDate || !canApprove) return [] as VacationDay[];
+  const selectedVacations = useMemo<VacationDisplayDay[]>(() => {
+    if (!selectedDate || !canApprove) return [] as VacationDisplayDay[];
     return vacationsByDate.get(selectedDate) ?? [];
   }, [canApprove, selectedDate, vacationsByDate]);
 
@@ -900,7 +947,7 @@ export default function VacationsPage() {
       });
     });
 
-    vacationDays.forEach((entry) => {
+    manualVacationDays.forEach((entry) => {
       const doctorId = String(entry.doctorId ?? "unknown");
       const doctorName = entry.doctorName ?? `Arzt #${entry.doctorId ?? "?"}`;
       if (!next.has(doctorId)) {
@@ -915,7 +962,7 @@ export default function VacationsPage() {
     return Array.from(next.values()).sort((a, b) =>
       a.name.localeCompare(b.name),
     );
-  }, [doctors, vacationDays]);
+  }, [doctors, manualVacationDays]);
 
   const doctorNameById = useMemo(
     () => new Map(availableDoctors.map((doctor) => [doctor.id, doctor.name])),
@@ -949,7 +996,7 @@ export default function VacationsPage() {
       return next;
     }
 
-    vacationDays.forEach((entry) => {
+    manualVacationDays.forEach((entry) => {
       if (entry.color !== activeColor || typeof entry.doctorId !== "number") {
         return;
       }
@@ -971,31 +1018,31 @@ export default function VacationsPage() {
     });
 
     return next;
-  }, [activeColor, availableDoctors, vacationDays]);
+  }, [activeColor, doctorNameById, manualVacationDays]);
 
   const approverStats = useMemo(() => {
     if (!canApprove) {
       return {
         approved: 0,
         unapproved: 0,
-        doctors: [] as Array<{
-          key: string;
-          doctorName: string;
-          approved: Record<VacationColor, number>;
-          unapproved: Record<VacationColor, number>;
-        }>,
-      };
+          doctors: [] as Array<{
+            key: string;
+            doctorName: string;
+            approved: Record<DisplayVacationColor, number>;
+            unapproved: Record<DisplayVacationColor, number>;
+          }>,
+        };
     }
 
     const byDoctor = new Map<
       string,
-      {
-        key: string;
-        doctorName: string;
-        approved: Record<VacationColor, number>;
-        unapproved: Record<VacationColor, number>;
-      }
-    >();
+        {
+          key: string;
+          doctorName: string;
+          approved: Record<DisplayVacationColor, number>;
+          unapproved: Record<DisplayVacationColor, number>;
+        }
+      >();
 
     let approved = 0;
     let unapproved = 0;
@@ -1008,13 +1055,13 @@ export default function VacationsPage() {
         ({
           key,
           doctorName,
-          approved: createColorCountMap(),
-          unapproved: createColorCountMap(),
+          approved: createDisplayColorCountMap(),
+          unapproved: createDisplayColorCountMap(),
         } as {
           key: string;
           doctorName: string;
-          approved: Record<VacationColor, number>;
-          unapproved: Record<VacationColor, number>;
+          approved: Record<DisplayVacationColor, number>;
+          unapproved: Record<DisplayVacationColor, number>;
         });
 
       if (entry.approved) {
@@ -1040,28 +1087,26 @@ export default function VacationsPage() {
   }, [canApprove, vacationDays]);
 
   const modifiers = useMemo(() => {
-    const byColor = VACATION_COLORS.reduce(
+    const byColor = DISPLAY_VACATION_COLORS.reduce(
       (acc, color) => {
         acc[color] = [];
         return acc;
       },
-      {} as Record<VacationColor, Date[]>,
+      {} as Record<DisplayVacationColor, Date[]>,
     );
-    Object.entries(dayColors).forEach(([date, color]) => {
-      if (color in byColor) {
-        byColor[color].push(parseISO(date));
-      }
+    visibleVacationDays.forEach((entry) => {
+      byColor[entry.color].push(parseISO(entry.date));
     });
     return byColor;
-  }, [dayColors]);
+  }, [visibleVacationDays]);
 
   const modifierClasses = useMemo(() => {
-    return VACATION_COLORS.reduce(
+    return DISPLAY_VACATION_COLORS.reduce(
       (acc, color) => {
         acc[color] = cn(VACATION_COLOR_STYLES[color].classes, "rounded-md");
         return acc;
       },
-      {} as Record<VacationColor, string>,
+      {} as Record<DisplayVacationColor, string>,
     );
   }, []);
 
@@ -1077,14 +1122,14 @@ export default function VacationsPage() {
 
     return months.map((month) => {
       const prefix = format(month, "yyyy-MM");
-      return VACATION_COLORS.reduce(
+      return DISPLAY_VACATION_COLORS.reduce(
         (acc, color) => {
           acc[color] = (modifiers[color] ?? []).filter((date) =>
             format(date, "yyyy-MM").startsWith(prefix),
           );
           return acc;
         },
-        {} as Record<VacationColor, Date[]>,
+        {} as Record<DisplayVacationColor, Date[]>,
       );
     });
   }, [isOverviewMode, modifiers, months]);
@@ -1092,7 +1137,7 @@ export default function VacationsPage() {
   const vacationsByMonth = useMemo(() => {
     return months.map((month) => {
       const prefix = format(month, "yyyy-MM");
-      const next = new Map<string, VacationDay[]>();
+      const next = new Map<string, VacationDisplayDay[]>();
 
       vacationsByDate.forEach((entries, date) => {
         if (date.startsWith(prefix)) {
@@ -1242,7 +1287,7 @@ export default function VacationsPage() {
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
                       <th className="py-2 pr-2 font-medium">Arzt</th>
-                      {VACATION_COLORS.map((color) => (
+                       {DISPLAY_VACATION_COLORS.map((color) => (
                         <th
                           key={`header-${color}`}
                           className="py-2 pr-2 font-medium"
@@ -1261,7 +1306,7 @@ export default function VacationsPage() {
                         <td className="py-2 pr-2 font-medium">
                           {doctor.doctorName}
                         </td>
-                        {VACATION_COLORS.map((color) => (
+                         {DISPLAY_VACATION_COLORS.map((color) => (
                           <td
                             key={`${doctor.key}-${color}`}
                             className="py-2 pr-2"
@@ -1551,7 +1596,7 @@ export default function VacationsPage() {
                 <div className="text-sm">Kein Urlaub für diesen Tag.</div>
               ) : (
                 <div className="space-y-3">
-                  {selectedVacations.map((vacation: VacationDay) => (
+                  {selectedVacations.map((vacation) => (
                     <div
                       key={
                         vacation.id ?? `${vacation.doctorId}-${vacation.date}`
@@ -1571,10 +1616,15 @@ export default function VacationsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">
-                          {vacation.approved ? "Genehmigt" : "Ausstehend"}
+                          {vacation.isAutomatic
+                            ? "Automatisch"
+                            : vacation.approved
+                              ? "Genehmigt"
+                              : "Ausstehend"}
                         </span>
                         <Switch
                           checked={!!vacation.approved}
+                          disabled={vacation.isAutomatic || !vacation.id}
                           onCheckedChange={(checked) => {
                             if (!vacation.id) return;
                             approvalMutation.mutate({
@@ -1587,6 +1637,7 @@ export default function VacationsPage() {
                           type="button"
                           size="sm"
                           variant="destructive"
+                          disabled={vacation.isAutomatic || !vacation.id}
                           onClick={() => {
                             if (!vacation.id) return;
                             denyMutation.mutate(vacation.id);

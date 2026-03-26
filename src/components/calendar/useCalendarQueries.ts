@@ -8,6 +8,10 @@ import {
   type UnavailableDate,
   type VacationDay,
 } from "@/lib/api";
+import {
+  getAutomaticNightShiftVacationDays,
+  getDoctorNamesByDate,
+} from "@/lib/night-shift-vacations";
 import { useApiClient } from "@/lib/use-api-client";
 
 export function useCalendarQueries(month: Date) {
@@ -91,7 +95,7 @@ export function useCalendarQueries(month: Date) {
     queryFn: () => monthPublicationsApi.getByMonth(monthKey),
   });
 
-  const approvedVacationsByDate = useMemo(() => {
+  const manualApprovedVacationsByDate = useMemo(() => {
     const doctorNameById = new Map(
       doctors.map((doctor) => [doctor.id, doctor.name]),
     );
@@ -115,6 +119,28 @@ export function useCalendarQueries(month: Date) {
 
     return map;
   }, [doctors, vacationDays]);
+
+  const automaticNightVacationsByDate = useMemo(() => {
+    const automaticVacationDays = getAutomaticNightShiftVacationDays(
+      allShifts,
+      doctors,
+    ).filter((entry) => entry.date.startsWith(`${year}-`));
+
+    return getDoctorNamesByDate(automaticVacationDays);
+  }, [allShifts, doctors, year]);
+
+  const combinedApprovedVacationsByDate = useMemo(() => {
+    const next: Record<string, string[]> = { ...manualApprovedVacationsByDate };
+
+    Object.entries(automaticNightVacationsByDate).forEach(([date, names]) => {
+      const current = next[date] ?? [];
+      next[date] = Array.from(new Set([...current, ...names])).sort((left, right) =>
+        left.localeCompare(right, "de"),
+      );
+    });
+
+    return next;
+  }, [automaticNightVacationsByDate, manualApprovedVacationsByDate]);
 
   const assignShiftMutation = useMutation({
     mutationFn: (data: {
@@ -155,7 +181,9 @@ export function useCalendarQueries(month: Date) {
     monthPublication,
     monthPublicationLoading,
     unavailableByDoctor,
-    approvedVacationsByDate,
+    approvedVacationsByDate: combinedApprovedVacationsByDate,
+    manualApprovedVacationsByDate,
+    automaticNightVacationsByDate,
     assignShiftMutation,
     invalidateShifts,
     invalidateMonthPublication,

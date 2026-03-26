@@ -1,9 +1,17 @@
 export const VACATION_COLORS = ["red", "orange", "yellow", "blue"] as const;
 
+export const AUTO_GENERATED_VACATION_COLOR = "green" as const;
+
+export const DISPLAY_VACATION_COLORS = [
+  ...VACATION_COLORS,
+  AUTO_GENERATED_VACATION_COLOR,
+] as const;
+
 export type VacationColor = (typeof VACATION_COLORS)[number];
+export type DisplayVacationColor = (typeof DISPLAY_VACATION_COLORS)[number];
 
 export const VACATION_COLOR_STYLES: Record<
-  VacationColor,
+  DisplayVacationColor,
   { label: string; classes: string; ring: string; questionMark: string }
 > = {
   red: {
@@ -28,6 +36,12 @@ export const VACATION_COLOR_STYLES: Record<
     label: "Blau",
     classes: "bg-blue-600 text-white hover:bg-blue-500",
     ring: "ring-blue-600",
+    questionMark: "text-white",
+  },
+  green: {
+    label: "Gruen",
+    classes: "bg-green-600 text-white hover:bg-green-500",
+    ring: "ring-green-600",
     questionMark: "text-white",
   },
 };

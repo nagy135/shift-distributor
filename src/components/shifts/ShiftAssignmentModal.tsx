@@ -41,6 +41,7 @@ interface ShiftAssignmentModalProps {
   onAssign: (assignments: ShiftAssignment[]) => Promise<void>;
   shiftTypes?: readonly string[];
   unavailableByDoctor?: Record<number, Set<string>>;
+  considerUnavailableDates?: boolean;
   approvedVacationsByDate?: Record<string, string[]>;
   focusShiftType?: string | null;
 }
@@ -58,6 +59,7 @@ export function ShiftAssignmentModal({
   onAssign,
   shiftTypes = SHIFT_TYPES,
   unavailableByDoctor = {},
+  considerUnavailableDates = true,
   approvedVacationsByDate = {},
   focusShiftType = null,
 }: ShiftAssignmentModalProps) {
@@ -173,7 +175,9 @@ export function ShiftAssignmentModal({
 
       return targetsForType.some((target) => {
         const dateKey = format(target.date, "yyyy-MM-dd");
-        const dateConflict = doesCalendarShiftUnavailableDateClash(target.shiftType)
+        const dateConflict =
+          considerUnavailableDates &&
+          doesCalendarShiftUnavailableDateClash(target.shiftType)
           ? (unavailableByDoctor[doctorId]?.has(dateKey) ?? false)
           : false;
         const doctor = doctors.find((entry) => entry.id === doctorId);
@@ -213,6 +217,7 @@ export function ShiftAssignmentModal({
     },
     [
       approvedVacationsByDate,
+      considerUnavailableDates,
       doctors,
       isDoctorAssignedToDateShift,
       shiftTargetsMap,

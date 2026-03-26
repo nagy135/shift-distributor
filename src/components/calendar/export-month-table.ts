@@ -11,6 +11,11 @@ import {
   SHIFT_TABLE_COLUMNS,
 } from "@/lib/shifts";
 import type { Shift } from "@/lib/api";
+import {
+  getAutomaticNightShiftVacationDays,
+  getDoctorNamesByDate,
+  NIGHT_FREE_COLUMN_ID,
+} from "@/lib/night-shift-vacations";
 
 type ExportMonthTableParams = {
   month: Date;
@@ -81,6 +86,9 @@ export async function exportMonthTable({
   }
 
   const isDepartmentTable = tableView === "departments";
+  const automaticNightVacationsByDate = isDepartmentTable
+    ? getDoctorNamesByDate(getAutomaticNightShiftVacationDays(allShifts))
+    : {};
   const tableColumns = isDepartmentTable
     ? DEPARTMENT_SHIFT_COLUMNS
     : SHIFT_TABLE_COLUMNS;
@@ -107,6 +115,10 @@ export async function exportMonthTable({
       dayNumber,
       dayNameShort,
       ...tableColumns.map((column) => {
+        if (column.id === NIGHT_FREE_COLUMN_ID) {
+          return automaticNightVacationsByDate[key]?.join(", ") ?? "-";
+        }
+
         const type = column.id;
         const shift = byType[type];
         return shift
