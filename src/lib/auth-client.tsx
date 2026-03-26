@@ -29,6 +29,7 @@ type AuthContextValue = {
   user: User;
   accessToken: string | null;
   isLoading: boolean;
+  reloadUser: () => Promise<void>;
   refreshAccessToken: () => Promise<string | null>;
   clearAuth: () => void;
   login: (email: string, password: string) => Promise<void>;
@@ -81,6 +82,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null;
     }
   }, [loadMe]);
+
+  const reloadUser = useCallback(async () => {
+    if (!accessToken) {
+      setUser(null);
+      return;
+    }
+
+    await loadMe(accessToken);
+  }, [accessToken, loadMe]);
 
   const clearAuth = useCallback(() => {
     setUser(null);
@@ -144,6 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       accessToken,
       isLoading,
+      reloadUser,
       refreshAccessToken,
       clearAuth,
       login,
@@ -154,6 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       accessToken,
       isLoading,
+      reloadUser,
       refreshAccessToken,
       clearAuth,
       login,

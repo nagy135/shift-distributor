@@ -2,11 +2,13 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AdminUser } from "@/lib/api";
+import { useAuth } from "@/lib/auth-client";
 import { useApiClient } from "@/lib/use-api-client";
 
 export function useAdminUsersQueries(enabled: boolean) {
   const queryClient = useQueryClient();
   const { adminUsersApi, doctorsApi } = useApiClient();
+  const { user, reloadUser } = useAuth();
 
   const usersQuery = useQuery({
     queryKey: ["admin-users"],
@@ -30,12 +32,18 @@ export function useAdminUsersQueries(enabled: boolean) {
       userId: number;
       payload: Parameters<typeof adminUsersApi.update>[1];
     }) => adminUsersApi.update(userId, payload),
-    onSuccess: (updatedUser) => {
+    onSuccess: async (updatedUser) => {
       queryClient.setQueryData<AdminUser[]>(["admin-users"], (currentUsers) =>
         (currentUsers ?? []).map((user) =>
           user.id === updatedUser.id ? { ...user, ...updatedUser } : user,
         ),
       );
+
+      await queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+
+      if (updatedUser.id === user?.id) {
+        await reloadUser();
+      }
     },
   });
 
