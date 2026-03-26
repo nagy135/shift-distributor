@@ -114,7 +114,7 @@ export function QuickAssignOverlay({
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="shrink-0 cursor-pointer rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <X className="size-4" />
           </button>
@@ -133,7 +133,7 @@ export function QuickAssignOverlay({
 
       {/* Selected doctors chips */}
       {selectedCount > 0 ? (
-        <div className="border-b px-3 py-2">
+        <div className="border-b-2 border-border bg-muted/50 px-3 py-3 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.1)]">
           <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             Zugewiesen ({selectedCount})
           </div>
@@ -197,7 +197,7 @@ export function QuickAssignOverlay({
                   className={cn(
                     "flex size-4 shrink-0 items-center justify-center rounded border transition-colors",
                     isSelected
-                      ? "border-sky-500 bg-sky-500 text-white"
+                      ? "border-foreground bg-foreground text-background"
                       : "border-border",
                   )}
                 >
