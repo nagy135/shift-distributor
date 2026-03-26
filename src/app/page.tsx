@@ -128,6 +128,11 @@ export default function CalendarPage() {
     setQuickAssignDoctorIds((current) => (current.length === 0 ? current : []));
   }, []);
 
+  const closeQuickAssignAndClearSelection = useCallback(() => {
+    closeQuickAssign();
+    clearSelectedTargets();
+  }, [clearSelectedTargets, closeQuickAssign]);
+
   useEffect(() => {
     if (canEditCurrentView) {
       return;
@@ -592,7 +597,7 @@ export default function CalendarPage() {
 
       if (event.key === "Escape") {
         event.preventDefault();
-        closeQuickAssign();
+        closeQuickAssignAndClearSelection();
         return;
       }
 
@@ -660,7 +665,7 @@ export default function CalendarPage() {
   }, [
     assignmentMode,
     canEditCurrentView,
-    closeQuickAssign,
+    closeQuickAssignAndClearSelection,
     filteredQuickAssignOptions,
     handleQuickAssignToggle,
     isAssignModalOpen,
@@ -888,7 +893,7 @@ export default function CalendarPage() {
           onQuickAssignToggle={(value) => {
             void handleQuickAssignToggle(value);
           }}
-          onQuickAssignClose={closeQuickAssign}
+          onQuickAssignClose={closeQuickAssignAndClearSelection}
           onQuickAssignHighlightChange={setQuickAssignHighlightedIndex}
           onQuickAssignShowAvailableOnlyChange={setQuickAssignShowAvailableOnly}
         />

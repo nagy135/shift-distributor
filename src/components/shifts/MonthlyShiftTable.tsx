@@ -409,26 +409,26 @@ export function MonthlyShiftTable({
       if (isSelected) {
         return cn(
           "outline-2 outline-offset-[-2px] outline-solid outline-sky-500 bg-sky-100 dark:bg-sky-950/60",
-          isInteractive && !isDisabled && "hover:bg-sky-200 dark:hover:bg-sky-900/80",
+          isInteractive && !isDisabled && "cursor-cell hover:bg-sky-200 dark:hover:bg-sky-900/80",
         );
       }
 
       if (isConflict) {
         return cn(
           "bg-red-300 dark:bg-red-700/80",
-          isInteractive && !isDisabled && "hover:bg-red-400 dark:hover:bg-red-700",
+          isInteractive && !isDisabled && "cursor-cell hover:bg-red-400 dark:hover:bg-red-700",
         );
       }
 
       if (isWeekendOrHoliday) {
         return cn(
           "bg-gray-200 dark:bg-gray-700",
-          isInteractive && !isDisabled && "hover:bg-gray-300 dark:hover:bg-gray-600",
+          isInteractive && !isDisabled && "cursor-cell hover:bg-gray-300 dark:hover:bg-gray-600",
         );
       }
 
       return isInteractive && !isDisabled
-        ? "bg-white hover:bg-gray-100 dark:bg-background dark:hover:bg-muted/60"
+        ? "cursor-cell bg-white hover:bg-gray-100 dark:bg-background dark:hover:bg-muted/60"
         : undefined;
     },
     [isInteractive],
@@ -447,19 +447,19 @@ export function MonthlyShiftTable({
       if (isConflict) {
         return cn(
           "bg-red-100 dark:bg-red-800/40",
-          isInteractive && !isDisabled && "hover:bg-red-200 dark:hover:bg-red-700/50",
+          isInteractive && !isDisabled && "cursor-cell hover:bg-red-200 dark:hover:bg-red-700/50",
         );
       }
 
       if (isWeekendOrHoliday) {
         return cn(
           "bg-gray-200 dark:bg-gray-700",
-          isInteractive && !isDisabled && "hover:bg-gray-300 dark:hover:bg-gray-600",
+          isInteractive && !isDisabled && "cursor-cell hover:bg-gray-300 dark:hover:bg-gray-600",
         );
       }
 
       return isInteractive && !isDisabled
-        ? "bg-white hover:bg-gray-100 dark:bg-background dark:hover:bg-muted/60"
+        ? "cursor-cell bg-white hover:bg-gray-100 dark:bg-background dark:hover:bg-muted/60"
         : undefined;
     },
     [isInteractive],

@@ -155,6 +155,7 @@ type VacationMonthCalendarProps = {
   openDate: string | null;
   pickerSearchTerm: string;
   selectedDoctorIdsByDate: Map<string, string[]>;
+  pickerMarkerClassName?: string;
   modifiers?: Record<DisplayVacationColor, Date[]>;
   modifierClasses?: Record<DisplayVacationColor, string>;
   vacationsByDate: Map<string, VacationDisplayDay[]>;
@@ -174,6 +175,50 @@ type VacationColorControlsProps = {
   colorCounts: Record<VacationColor, number>;
   onColorSelect: (color: VacationColor) => void;
 };
+
+type VacationEntryPillsProps = {
+  entries: VacationDisplayDay[];
+  emptyText?: string;
+};
+
+function VacationEntryPills({
+  entries,
+  emptyText = "Kein Urlaub für diesen Tag.",
+}: VacationEntryPillsProps) {
+  if (entries.length === 0) {
+    return <p className="text-sm text-muted-foreground">{emptyText}</p>;
+  }
+
+  const sortedEntries = sortVacationEntries(entries);
+
+  return (
+    <div className="space-y-2">
+      <div className="text-xs text-muted-foreground">Urlaube an diesem Tag</div>
+      <div className="flex flex-wrap gap-1.5">
+        {sortedEntries.map((entry) => {
+          const doctorKey = String(entry.doctorId ?? entry.doctorName ?? entry.date);
+          const doctorName = getVacationDoctorName(entry);
+
+          return (
+            <RealPill
+              key={`${entry.date}-${doctorKey}-${entry.color}`}
+              className="max-w-full border border-border/70 bg-muted/40 text-foreground"
+              title={`${doctorName} - ${VACATION_COLOR_STYLES[entry.color].label}`}
+            >
+              <span
+                className={cn(
+                  "mr-1.5 inline-block h-2.5 w-2.5 shrink-0 rounded-full",
+                  VACATION_COLOR_STYLES[entry.color].classes,
+                )}
+              />
+              <span className="truncate">{doctorName}</span>
+            </RealPill>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function VacationColorControls({
   canEditAllVacations,
@@ -257,6 +302,7 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
   openDate,
   pickerSearchTerm,
   selectedDoctorIdsByDate,
+  pickerMarkerClassName,
   modifiers,
   modifierClasses,
   vacationsByDate,
@@ -270,6 +316,7 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
 }: VacationMonthCalendarProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const cellRefs = useRef(new Map<string, HTMLButtonElement>());
+  const openDateEntries = openDate ? vacationsByDate.get(openDate) ?? [] : [];
   const pickerPosition = useAnchoredOverlay({
     anchorKey: openDate,
     anchorRefs: cellRefs,
@@ -427,17 +474,21 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
               {format(new Date(`${openDate}T00:00:00`), "dd.MM.yyyy")}
             </div>
           </div>
+          <div className="mb-3">
+            <VacationEntryPills entries={openDateEntries} />
+          </div>
           {pickerEnabled ? (
             <DoctorPicker
               open={openDate != null}
               doctors={availableDoctors}
               searchTerm={pickerSearchTerm}
               selectedDoctorIds={selectedDoctorIdsByDate.get(openDate) ?? []}
+              selectionMarkerClassName={pickerMarkerClassName}
               onSearchTermChange={onPickerSearchTermChange}
               onToggleDoctor={(doctorId) => {
                 onToggleDoctor(openDate, doctorId);
-                onOpenDateChange(null);
               }}
+              onClose={() => onOpenDateChange(null)}
             />
           ) : (
             <p className="text-sm text-muted-foreground">
@@ -466,6 +517,11 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
                 {isUpdating ? (
                   <Loader2 className="absolute right-0 top-0 size-4 animate-spin text-muted-foreground" />
                 ) : null}
+                <div className="mb-3">
+                  <VacationEntryPills
+                    entries={vacationsByDate.get(openDate) ?? []}
+                  />
+                </div>
                 {pickerEnabled ? (
                   <DoctorPicker
                     open={openDate != null}
@@ -474,10 +530,10 @@ const VacationMonthCalendar = memo(function VacationMonthCalendar({
                     selectedDoctorIds={
                       selectedDoctorIdsByDate.get(openDate) ?? []
                     }
+                    selectionMarkerClassName={pickerMarkerClassName}
                     onSearchTermChange={onPickerSearchTermChange}
                     onToggleDoctor={(doctorId) => {
                       onToggleDoctor(openDate, doctorId);
-                      onOpenDateChange(null);
                     }}
                   />
                 ) : (
@@ -1211,6 +1267,10 @@ export default function VacationsPage() {
     activeTableMonthIndex >= 0
       ? (tableValuesByMonth[activeTableMonthIndex] ?? new Map())
       : new Map<string, { text: string; title?: string }>();
+  const activeTableVacationsByDate =
+    activeTableMonthIndex >= 0
+      ? (vacationsByMonth[activeTableMonthIndex] ?? new Map())
+      : new Map<string, VacationDisplayDay[]>();
 
   const pendingByMonth = useMemo(() => {
     return months.map((month) => {
@@ -1362,6 +1422,9 @@ export default function VacationsPage() {
               openDate={openDate}
               pickerSearchTerm={pickerSearchTerm}
               selectedDoctorIdsByDate={selectedDoctorIdsByDate}
+              pickerMarkerClassName={
+                activeColor ? VACATION_COLOR_STYLES[activeColor].classes : undefined
+              }
               modifiers={monthSpecificModifiers[index]}
               modifierClasses={modifierClasses}
               vacationsByDate={vacationsByMonth[index] ?? new Map()}
@@ -1484,6 +1547,11 @@ export default function VacationsPage() {
                       )}
                     </div>
                   </div>
+                  <div className="mb-3">
+                    <VacationEntryPills
+                      entries={activeTableVacationsByDate.get(tableOpenDate) ?? []}
+                    />
+                  </div>
                   {activeColor ? (
                     <DoctorPicker
                       open={tableOpenDate != null}
@@ -1492,11 +1560,16 @@ export default function VacationsPage() {
                       selectedDoctorIds={
                         selectedDoctorIdsByDate.get(tableOpenDate) ?? []
                       }
+                      selectionMarkerClassName={
+                        activeColor
+                          ? VACATION_COLOR_STYLES[activeColor].classes
+                          : undefined
+                      }
                       onSearchTermChange={setPickerSearchTerm}
                       onToggleDoctor={(doctorId) => {
                         handleToggleDoctor(tableOpenDate, doctorId);
-                        setTableOpenDate(null);
                       }}
+                      onClose={() => setTableOpenDate(null)}
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">
@@ -1558,6 +1631,11 @@ export default function VacationsPage() {
                 {updateMutation.isPending ? (
                   <Loader2 className="absolute right-0 top-0 size-4 animate-spin text-muted-foreground" />
                 ) : null}
+                <div className="mb-3">
+                  <VacationEntryPills
+                    entries={activeTableVacationsByDate.get(tableOpenDate) ?? []}
+                  />
+                </div>
                 {activeColor ? (
                   <DoctorPicker
                     open={tableOpenDate != null}
@@ -1566,10 +1644,14 @@ export default function VacationsPage() {
                     selectedDoctorIds={
                       selectedDoctorIdsByDate.get(tableOpenDate) ?? []
                     }
+                    selectionMarkerClassName={
+                      activeColor
+                        ? VACATION_COLOR_STYLES[activeColor].classes
+                        : undefined
+                    }
                     onSearchTermChange={setPickerSearchTerm}
                     onToggleDoctor={(doctorId) => {
                       handleToggleDoctor(tableOpenDate, doctorId);
-                      setTableOpenDate(null);
                     }}
                   />
                 ) : (

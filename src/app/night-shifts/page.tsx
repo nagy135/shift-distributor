@@ -242,8 +242,8 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
             onSearchTermChange={onPickerSearchTermChange}
             onToggleDoctor={(doctorId) => {
               onToggleDoctor(openDate, doctorId);
-              onOpenDateChange(null);
             }}
+            onClose={() => onOpenDateChange(null)}
           />
         </div>
       ) : null}
@@ -277,7 +277,6 @@ const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
                   onSearchTermChange={onPickerSearchTermChange}
                   onToggleDoctor={(doctorId) => {
                     onToggleDoctor(openDate, doctorId);
-                    onOpenDateChange(null);
                   }}
                 />
               </div>
@@ -728,8 +727,8 @@ export default function NightShiftsPage() {
                     onSearchTermChange={setPickerSearchTerm}
                     onToggleDoctor={(doctorId) => {
                       handleToggleDoctor(tableOpenDate, doctorId);
-                      setTableOpenDate(null);
                     }}
+                    onClose={() => setTableOpenDate(null)}
                   />
                 </div>
               ) : null}
@@ -824,7 +823,6 @@ export default function NightShiftsPage() {
                   onSearchTermChange={setPickerSearchTerm}
                   onToggleDoctor={(doctorId) => {
                     handleToggleDoctor(tableOpenDate, doctorId);
-                    setTableOpenDate(null);
                   }}
                 />
               </div>
