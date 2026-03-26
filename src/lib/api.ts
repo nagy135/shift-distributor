@@ -364,6 +364,15 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
   };
 
   const monthCalendarEmailsApi = {
+    preview: async (
+      month: string,
+      scope: "shifts" | "departments",
+    ): Promise<MonthCalendarEmailResult> => {
+      const response = await apiFetch(
+        `/api/month-calendar-emails/${month}?scope=${scope}`,
+      );
+      return readJson(response, "Failed to preview month calendar emails");
+    },
     send: async (
       month: string,
       scope: "shifts" | "departments",

@@ -571,13 +571,21 @@ function addDeliveredResult(
   result.deliveredCount += 1;
 }
 
-export async function sendMonthCalendarEmails(
+type PlannedCalendarEmail = {
+  email: string;
+  doctorName: string;
+  shiftCount: number;
+  emailContent: CalendarEmailContent;
+};
+
+function createMonthCalendarEmailResult(
   month: string,
   scope: "shifts" | "departments",
-): Promise<MonthCalendarEmailResult> {
+): MonthCalendarEmailResult {
   const mockFolder = process.env[MOCK_EMAIL_FOLDER_ENV]?.trim();
   const mockBasePath = mockFolder ? path.resolve(mockFolder) : null;
-  const result: MonthCalendarEmailResult = {
+
+  return {
     month,
     scope,
     mode: mockBasePath ? "mock" : "smtp",
@@ -587,7 +595,13 @@ export async function sendMonthCalendarEmails(
     deliveries: [],
     skipped: [],
   };
+}
 
+async function buildMonthCalendarEmailPlan(
+  month: string,
+  scope: "shifts" | "departments",
+) {
+  const result = createMonthCalendarEmailResult(month, scope);
   const recipients: MonthCalendarRecipient[] = await db
     .select({
       email: users.email,
@@ -620,15 +634,7 @@ export async function sendMonthCalendarEmails(
     });
   });
 
-  if (mockBasePath) {
-    await mkdir(mockBasePath, { recursive: true });
-  }
-
-  const smtpConfig = mockBasePath ? null : resolveSmtpConfig();
-  const effectiveFrom = smtpConfig?.from ?? process.env.SMTP_FROM?.trim() ?? "shift-distributor@example.invalid";
-  const transporter = smtpConfig
-    ? nodemailer.createTransport(smtpConfig)
-    : null;
+  const plannedDeliveries: PlannedCalendarEmail[] = [];
 
   for (const recipient of recipients) {
     if (typeof recipient.doctorId !== "number" || !recipient.doctorName) {
@@ -648,10 +654,67 @@ export async function sendMonthCalendarEmails(
       continue;
     }
 
+    plannedDeliveries.push({
+      email: recipient.email,
+      doctorName: recipient.doctorName,
+      shiftCount: emailContent.shiftCount,
+      emailContent,
+    });
+  }
+
+  return {
+    result,
+    plannedDeliveries,
+  };
+}
+
+export async function previewMonthCalendarEmails(
+  month: string,
+  scope: "shifts" | "departments",
+): Promise<MonthCalendarEmailResult> {
+  const { result, plannedDeliveries } = await buildMonthCalendarEmailPlan(
+    month,
+    scope,
+  );
+
+  plannedDeliveries.forEach((delivery) => {
+    addDeliveredResult(result, {
+      email: delivery.email,
+      doctorName: delivery.doctorName,
+      shiftCount: delivery.shiftCount,
+      outputPath: null,
+      messageId: null,
+    });
+  });
+
+  return result;
+}
+
+export async function sendMonthCalendarEmails(
+  month: string,
+  scope: "shifts" | "departments",
+): Promise<MonthCalendarEmailResult> {
+  const { result, plannedDeliveries } = await buildMonthCalendarEmailPlan(
+    month,
+    scope,
+  );
+  const mockBasePath = result.mockBasePath;
+
+  if (mockBasePath) {
+    await mkdir(mockBasePath, { recursive: true });
+  }
+
+  const smtpConfig = mockBasePath ? null : resolveSmtpConfig();
+  const effectiveFrom = smtpConfig?.from ?? process.env.SMTP_FROM?.trim() ?? "shift-distributor@example.invalid";
+  const transporter = smtpConfig
+    ? nodemailer.createTransport(smtpConfig)
+    : null;
+
+  for (const recipient of plannedDeliveries) {
     const mailOptions = buildCalendarMailOptions(
       effectiveFrom,
       recipient.email,
-      emailContent,
+      recipient.emailContent,
     );
 
     try {
@@ -669,10 +732,10 @@ export async function sendMonthCalendarEmails(
           recipientEmail: recipient.email,
           doctorName: recipient.doctorName,
           month,
-          shiftCount: emailContent.shiftCount,
-          text: emailContent.text,
-          html: emailContent.html,
-          icalEvent: emailContent.icalEvent,
+          shiftCount: recipient.shiftCount,
+          text: recipient.emailContent.text,
+          html: recipient.emailContent.html,
+          icalEvent: recipient.emailContent.icalEvent,
           rawMime,
         });
 
@@ -682,7 +745,7 @@ export async function sendMonthCalendarEmails(
         addDeliveredResult(result, {
           email: recipient.email,
           doctorName: recipient.doctorName,
-          shiftCount: emailContent.shiftCount,
+          shiftCount: recipient.shiftCount,
           outputPath,
           messageId: null,
         });
@@ -701,7 +764,7 @@ export async function sendMonthCalendarEmails(
       addDeliveredResult(result, {
         email: recipient.email,
         doctorName: recipient.doctorName,
-        shiftCount: emailContent.shiftCount,
+        shiftCount: recipient.shiftCount,
         outputPath: null,
         messageId: info.messageId ?? null,
       });

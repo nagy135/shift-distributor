@@ -616,6 +616,10 @@ export default function VacationsPage() {
       ),
     ] as VacationDisplayDay[];
   }, [automaticVacationDays, manualVacationDays]);
+  const visibleCalendarVacationDays = useMemo(
+    () => vacationDays.filter((entry) => entry.color !== "green"),
+    [vacationDays],
+  );
 
   const [dayColors, setDayColors] = useState<Record<string, VacationColor>>({});
   const [activeColor, setActiveColor] = useState<VacationColor | null>(null);
@@ -963,13 +967,13 @@ export default function VacationsPage() {
 
   const visibleVacationDays = useMemo(() => {
     if (selectedDoctorId === ALL_DOCTORS_VALUE) {
-      return vacationDays;
+      return visibleCalendarVacationDays;
     }
 
-    return vacationDays.filter(
+    return visibleCalendarVacationDays.filter(
       (entry) => String(entry.doctorId ?? "unknown") === selectedDoctorId,
     );
-  }, [selectedDoctorId, vacationDays]);
+  }, [selectedDoctorId, visibleCalendarVacationDays]);
 
   const vacationsByDate = useMemo(() => {
     return getDayColors(visibleVacationDays);
@@ -1103,7 +1107,7 @@ export default function VacationsPage() {
     let approved = 0;
     let unapproved = 0;
 
-    vacationDays.forEach((entry) => {
+    visibleCalendarVacationDays.forEach((entry) => {
       const key = `${entry.doctorId ?? "unknown"}`;
       const doctorName = entry.doctorName ?? `Arzt #${entry.doctorId ?? "?"}`;
       const existing =
@@ -1140,7 +1144,7 @@ export default function VacationsPage() {
       unapproved,
       doctors,
     };
-  }, [canApprove, vacationDays]);
+  }, [canApprove, visibleCalendarVacationDays]);
 
   const modifiers = useMemo(() => {
     const byColor = DISPLAY_VACATION_COLORS.reduce(

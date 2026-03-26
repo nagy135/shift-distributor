@@ -85,7 +85,7 @@ export const vacationDays = sqliteTable("vacation_days", {
   date: text("date").notNull(), // YYYY-MM-DD format
   color: text("color").notNull(),
   approved: integer("approved", { mode: "boolean" })
-    .default(sql`0`)
+    .default(sql`1`)
     .notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
     () => new Date(),

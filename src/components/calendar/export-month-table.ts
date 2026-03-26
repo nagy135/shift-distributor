@@ -21,6 +21,7 @@ type ExportMonthTableParams = {
   month: Date;
   allShifts: Shift[];
   tableView?: "shifts" | "departments";
+  vacationColumnByDate?: Record<string, string[]>;
 };
 
 type BorderLineStyle = "thin" | "medium";
@@ -69,6 +70,7 @@ export async function exportMonthTable({
   month,
   allShifts,
   tableView = "shifts",
+  vacationColumnByDate = {},
 }: ExportMonthTableParams) {
   const days = eachDayOfInterval({
     start: startOfMonth(month),
@@ -100,6 +102,7 @@ export async function exportMonthTable({
       if (!isDepartmentTable && column.id === "20shift") return "20:00 Dienst";
       return column.slotLabel ?? column.label;
     }),
+    ...(isDepartmentTable ? ["Urlaub"] : []),
   ];
   const title = "Ärztlicher Dienstplan Medizinische Klinik KKH Schlüchtern";
   const monthLabel = format(month, "yyyy MMMM", { locale: de });
@@ -127,6 +130,9 @@ export async function exportMonthTable({
             : "-"
           : "-";
       }),
+      ...(isDepartmentTable
+        ? [vacationColumnByDate[key]?.join(", ") ?? "-"]
+        : []),
     ];
 
     return row;
@@ -143,6 +149,7 @@ export async function exportMonthTable({
     { width: 4 },
     { width: 6 },
     ...tableColumns.map(() => ({ width: 16 })),
+    ...(isDepartmentTable ? [{ width: 18 }] : []),
   ];
 
   const gridBorder: BorderStyle = {

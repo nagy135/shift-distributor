@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
           doctorId,
           date: entry.date,
           color: entry.color,
-          approved: approvalMap.get(entry.date) ?? false,
+          approved: approvalMap.get(entry.date) ?? true,
         })),
       );
     }

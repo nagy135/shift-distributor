@@ -28,7 +28,6 @@ export function DoctorPicker({
   doctors,
   searchTerm,
   selectedDoctorIds,
-  selectionMarkerClassName,
   onSearchTermChange,
   onToggleDoctor,
   onClose,
@@ -109,14 +108,6 @@ export function DoctorPicker({
                   color={doctor.color}
                   className="inline-flex items-center gap-1 text-xs"
                 >
-                  {selectionMarkerClassName ? (
-                    <span
-                      className={cn(
-                        "h-2.5 w-2.5 shrink-0 rounded-full border border-background/60",
-                        selectionMarkerClassName,
-                      )}
-                    />
-                  ) : null}
                   <span>{doctor.name}</span>
                 </Pill>
                 <Trash2 className="size-3 text-muted-foreground group-hover:text-red-500" />
@@ -145,8 +136,8 @@ export function DoctorPicker({
                   isSelected && "bg-sky-50/60 dark:bg-sky-950/20",
                 )}
                 onClick={() => onToggleDoctor(doctor.id)}
-              >
-                <div
+                >
+                  <div
                   className={cn(
                     "flex size-4 shrink-0 items-center justify-center rounded border transition-colors",
                     isSelected
@@ -155,19 +146,11 @@ export function DoctorPicker({
                   )}
                 >
                   {isSelected ? <Check className="size-3" /> : null}
-                </div>
-                <Pill color={doctor.color} className="inline-flex items-center gap-1 text-xs">
-                  {selectionMarkerClassName ? (
-                    <span
-                      className={cn(
-                        "h-2.5 w-2.5 shrink-0 rounded-full border border-background/60",
-                        selectionMarkerClassName,
-                      )}
-                    />
-                  ) : null}
-                  {doctor.name}
-                </Pill>
-              </button>
+                  </div>
+                  <Pill color={doctor.color} className="inline-flex items-center gap-1 text-xs">
+                   {doctor.name}
+                 </Pill>
+               </button>
             );
           })
         )}

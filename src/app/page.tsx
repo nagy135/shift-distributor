@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle as AlertTriangleIcon } from "lucide-react";
 import {
   format,
@@ -55,15 +56,26 @@ import {
   isAssigner,
   isShiftAssigner,
 } from "@/lib/roles";
+import type { MonthCalendarEmailResult } from "@/lib/api";
 
 type ShiftAssignment = CalendarShiftTarget & {
   doctorIds: number[];
 };
 
+const getCalendarTableViewFromParam = (
+  value: string | null,
+): CalendarTableView =>
+  value === "departments" ? "departments" : "shifts";
+
 export default function CalendarPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const { shiftsApi, monthCalendarEmailsApi } = useApiClient();
-  const [tableView, setTableView] = useState<CalendarTableView>("shifts");
+  const [tableView, setTableView] = useState<CalendarTableView>(() =>
+    getCalendarTableViewFromParam(searchParams.get("type")),
+  );
   const canEditCurrentView = canEditCalendarView(user?.role, tableView);
   const canManageMonthPublication = isAssigner(user?.role);
   const canToggleSharedLock = isAssigner(user?.role);
@@ -75,6 +87,12 @@ export default function CalendarPage() {
   const { month } = useMonthStore();
   const [isDistributing, setIsDistributing] = useState(false);
   const [isSendingCalendars, setIsSendingCalendars] = useState(false);
+  const [isSendCalendarsConfirmOpen, setIsSendCalendarsConfirmOpen] =
+    useState(false);
+  const [isSendCalendarsPreviewLoading, setIsSendCalendarsPreviewLoading] =
+    useState(false);
+  const [sendCalendarsPreview, setSendCalendarsPreview] =
+    useState<MonthCalendarEmailResult | null>(null);
   const [isDistributeConfirmOpen, setIsDistributeConfirmOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isQuickAssignOpen, setIsQuickAssignOpen] = useState(false);
@@ -133,6 +151,32 @@ export default function CalendarPage() {
     clearSelectedTargets();
   }, [clearSelectedTargets, closeQuickAssign]);
 
+  const closeSendCalendarsConfirm = useCallback(() => {
+    setIsSendCalendarsConfirmOpen(false);
+    setIsSendCalendarsPreviewLoading(false);
+    setSendCalendarsPreview(null);
+  }, []);
+
+  useEffect(() => {
+    const nextTableView = getCalendarTableViewFromParam(searchParams.get("type"));
+
+    setTableView((current) =>
+      current === nextTableView ? current : nextTableView,
+    );
+  }, [searchParams]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (params.get("type") === tableView) {
+      return;
+    }
+
+    params.set("type", tableView);
+
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [pathname, router, searchParams, tableView]);
+
   useEffect(() => {
     if (canEditCurrentView) {
       return;
@@ -140,9 +184,10 @@ export default function CalendarPage() {
 
     setIsAssignModalOpen(false);
     setIsQuickAssignOpen(false);
+    closeSendCalendarsConfirm();
     setIsSelectionInteractionActive(false);
     clearSelectedTargets();
-  }, [canEditCurrentView, clearSelectedTargets]);
+  }, [canEditCurrentView, clearSelectedTargets, closeSendCalendarsConfirm]);
 
   const selectedCellKeys = useMemo(
     () => new Set(selectedTargets.map((target) => getShiftTargetKey(target))),
@@ -732,7 +777,15 @@ export default function CalendarPage() {
 
   const handleExportMonthTable = async () => {
     try {
-      await exportMonthTable({ month, allShifts, tableView });
+      await exportMonthTable({
+        month,
+        allShifts,
+        tableView,
+        vacationColumnByDate:
+          tableView === "departments"
+            ? manualApprovedVacationsByDate
+            : approvedVacationsByDate,
+      });
     } catch (error) {
       console.error("Export failed", error);
     }
@@ -749,6 +802,7 @@ export default function CalendarPage() {
       tableView === "departments" ? "Stationskalender" : "Dienstkalender";
 
     try {
+      setIsSendCalendarsConfirmOpen(false);
       setIsSendingCalendars(true);
       const result = await monthCalendarEmailsApi.send(monthKey, tableView);
       const messagePrefix =
@@ -775,6 +829,36 @@ export default function CalendarPage() {
   }, [
     canToggleSharedLock,
     isSendingCalendars,
+    month,
+    monthCalendarEmailsApi,
+    tableView,
+  ]);
+
+  const handleOpenSendMonthCalendarsConfirm = useCallback(async () => {
+    if (!canToggleSharedLock || isSendingCalendars || isSendCalendarsPreviewLoading) {
+      return;
+    }
+
+    const monthKey = format(month, "yyyy-MM");
+
+    setIsSendCalendarsConfirmOpen(true);
+    setIsSendCalendarsPreviewLoading(true);
+    setSendCalendarsPreview(null);
+
+    try {
+      const preview = await monthCalendarEmailsApi.preview(monthKey, tableView);
+      setSendCalendarsPreview(preview);
+    } catch (error) {
+      console.error("Error previewing month calendar emails:", error);
+      toast.error("E-Mail-Vorschau konnte nicht geladen werden.");
+      setIsSendCalendarsConfirmOpen(false);
+    } finally {
+      setIsSendCalendarsPreviewLoading(false);
+    }
+  }, [
+    canToggleSharedLock,
+    isSendingCalendars,
+    isSendCalendarsPreviewLoading,
     month,
     monthCalendarEmailsApi,
     tableView,
@@ -812,7 +896,7 @@ export default function CalendarPage() {
             onDistribute={handleDistributeMonth}
             onToggleLocked={toggleLocked}
             onSendCalendars={() => {
-              void handleSendMonthCalendars();
+              void handleOpenSendMonthCalendarsConfirm();
             }}
             sendCalendarsLabel={
               tableView === "departments"
@@ -943,6 +1027,124 @@ export default function CalendarPage() {
               disabled={isDistributing}
             >
               Verteilung starten
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isSendCalendarsConfirmOpen && canToggleSharedLock}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeSendCalendarsConfirm();
+            return;
+          }
+
+          setIsSendCalendarsConfirmOpen(true);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {tableView === "departments"
+                ? "Stationskalender senden?"
+                : "Dienstkalender senden?"}
+            </DialogTitle>
+            <DialogDescription>
+              {`Es werden die Kalender fuer ${format(month, "MMMM yyyy", { locale: de })} wie folgt erstellt und versendet.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {isSendCalendarsPreviewLoading ? (
+            <div className="rounded-md border px-4 py-6 text-center text-sm text-muted-foreground">
+              Vorschau wird geladen...
+            </div>
+          ) : sendCalendarsPreview ? (
+            <div className="space-y-4 text-sm">
+              <div className="rounded-md border bg-muted/30 px-4 py-3">
+                <p>
+                  {`${sendCalendarsPreview.deliveredCount} E-Mails werden ${sendCalendarsPreview.mode === "mock" ? "als Mock-Dateien erstellt" : "per SMTP versendet"}.`}
+                </p>
+                <p className="text-muted-foreground">
+                  {sendCalendarsPreview.skippedCount > 0
+                    ? `${sendCalendarsPreview.skippedCount} Empfaenger werden uebersprungen.`
+                    : "Es gibt keine uebersprungenen Empfaenger."}
+                </p>
+              </div>
+
+              <div className="max-h-80 space-y-4 overflow-y-auto pr-1">
+                <div className="space-y-2">
+                  <h3 className="font-medium">Wird gesendet an</h3>
+                  {sendCalendarsPreview.deliveries.length > 0 ? (
+                    <div className="rounded-md border">
+                      {sendCalendarsPreview.deliveries.map((delivery) => (
+                        <div
+                          key={delivery.email}
+                          className="flex items-start justify-between gap-3 border-b px-3 py-2 last:border-b-0"
+                        >
+                          <div>
+                            <p className="font-medium">{delivery.doctorName}</p>
+                            <p className="text-muted-foreground">{delivery.email}</p>
+                          </div>
+                          <p className="shrink-0 text-muted-foreground">
+                            {delivery.shiftCount} Dienste
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-md border px-3 py-2 text-muted-foreground">
+                      Keine E-Mails zum Senden.
+                    </div>
+                  )}
+                </div>
+
+                {sendCalendarsPreview.skipped.length > 0 ? (
+                  <div className="space-y-2">
+                    <h3 className="font-medium">Wird uebersprungen</h3>
+                    <div className="rounded-md border">
+                      {sendCalendarsPreview.skipped.map((entry) => (
+                        <div
+                          key={`${entry.email}-${entry.reason}`}
+                          className="border-b px-3 py-2 last:border-b-0"
+                        >
+                          <p className="font-medium">{entry.email}</p>
+                          <p className="text-muted-foreground">{entry.reason}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-md border px-4 py-6 text-center text-sm text-muted-foreground">
+              Keine Vorschau verfuegbar.
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeSendCalendarsConfirm}
+              disabled={isSendingCalendars || isSendCalendarsPreviewLoading}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                void handleSendMonthCalendars();
+              }}
+              disabled={
+                isSendingCalendars ||
+                isSendCalendarsPreviewLoading ||
+                !sendCalendarsPreview ||
+                sendCalendarsPreview.deliveredCount === 0
+              }
+            >
+              Senden
             </Button>
           </DialogFooter>
         </DialogContent>
