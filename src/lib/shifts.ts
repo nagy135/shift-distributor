@@ -61,7 +61,7 @@ export const SHIFT_TABLE_COLUMNS: readonly CalendarShiftColumn[] = (
 }));
 
 export const DEPARTMENT_DEFS: readonly DepartmentDefinition[] = [
-  { label: "INT", count: 2, headerNote: ["8:00-16:30", "14:00-22:30"] },
+  { label: "ITS", count: 2, headerNote: ["8:00-16:30", "14:00-22:30"] },
   { label: "INA", count: 1 },
   { label: "A1.1", count: 1, headerNote: "INN" },
   { label: "A1.4", count: 1, headerNote: "INN" },
@@ -91,8 +91,7 @@ export const DEPARTMENT_SHIFT_COLUMNS: readonly CalendarShiftColumn[] = (() => {
       const nextIndex = (usedCountsByLabel.get(definition.label) ?? 0) + 1;
       usedCountsByLabel.set(definition.label, nextIndex);
 
-      const hasDuplicates =
-        (totalCountsByLabel.get(definition.label) ?? 0) > 1;
+      const hasDuplicates = (totalCountsByLabel.get(definition.label) ?? 0) > 1;
       const headerNote = Array.isArray(definition.headerNote)
         ? definition.headerNote[slotIndex]
         : definition.headerNote;
@@ -129,9 +128,9 @@ export const DEPARTMENT_SHIFT_COLUMNS: readonly CalendarShiftColumn[] = (() => {
 })();
 
 export const DEPARTMENT_SHIFT_TYPES: readonly string[] =
-  DEPARTMENT_SHIFT_COLUMNS
-    .filter((column) => column.id !== NIGHT_FREE_COLUMN_ID)
-    .map((column) => column.id);
+  DEPARTMENT_SHIFT_COLUMNS.filter(
+    (column) => column.id !== NIGHT_FREE_COLUMN_ID,
+  ).map((column) => column.id);
 
 export const ALL_CALENDAR_SHIFT_TYPES: readonly string[] = Array.from(
   new Set([...SHIFT_TYPES, ...DEPARTMENT_SHIFT_TYPES]),

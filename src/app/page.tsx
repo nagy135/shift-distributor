@@ -206,6 +206,10 @@ export default function CalendarPage() {
     () => new Map(doctors.map((doctor) => [doctor.id, doctor])),
     [doctors],
   );
+  const doctorIdByName = useMemo(
+    () => new Map(doctors.map((doctor) => [doctor.name, doctor.id])),
+    [doctors],
+  );
 
   const quickAssignOptions = useMemo<QuickAssignOption[]>(
     () => {
@@ -777,6 +781,22 @@ export default function CalendarPage() {
           unavailableDatesByDoctor[doctorId].add(shift.date);
         }
       }
+
+      Object.entries(approvedVacationsByDate).forEach(([dateKey, doctorNames]) => {
+        doctorNames.forEach((doctorName) => {
+          const doctorId = doctorIdByName.get(doctorName);
+
+          if (typeof doctorId !== "number") {
+            return;
+          }
+
+          if (!unavailableDatesByDoctor[doctorId]) {
+            unavailableDatesByDoctor[doctorId] = new Set();
+          }
+
+          unavailableDatesByDoctor[doctorId].add(dateKey);
+        });
+      });
 
       const assignments = generateAssignmentsForMonth({
         dates,

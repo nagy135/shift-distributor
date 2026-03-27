@@ -471,6 +471,11 @@ export function MonthlyShiftTable({
     [isInteractive],
   );
 
+  const getEmptyCellLabel = React.useCallback(
+    (isEditable: boolean) => (isEditable ? "-" : ""),
+    [],
+  );
+
   const finishDragSelection = React.useCallback(() => {
     dragSelectionRef.current = null;
     clearSuppressedSelectionClick();
@@ -633,6 +638,7 @@ export function MonthlyShiftTable({
                 date,
                 column.id,
               );
+              const isEditableCell = isInteractiveColumn && !isSelectionDisabled;
               const isSelectedCell = selectedCellKeys?.has(cellKey) ?? false;
               const hasShiftCellConflict = shift
                 ? hasShiftConflict(shift, dateKey, visibleByType)
@@ -748,20 +754,20 @@ export function MonthlyShiftTable({
                     automaticNightVacationDoctors.length > 0 ? (
                       <span>{automaticNightVacationDoctors.join("/")}</span>
                     ) : (
-                      "-"
+                      getEmptyCellLabel(isEditableCell)
                     )
                   ) : shift ? (
                     shift.doctorIds.length > 0 ? (
                       <span>
                         {shift.doctors
                           .map((assignedDoctor) => assignedDoctor.name)
-                          .join("/")}
+                           .join("/")}
                       </span>
                     ) : (
-                      "-"
+                      getEmptyCellLabel(isEditableCell)
                     )
                   ) : (
-                    "-"
+                    getEmptyCellLabel(isEditableCell)
                   )}
                 </td>
               );
@@ -778,7 +784,7 @@ export function MonthlyShiftTable({
                 event.stopPropagation();
               }}
             >
-              {vacationDoctors.length > 0 ? vacationDoctors.join("/") : "-"}
+              {vacationDoctors.length > 0 ? vacationDoctors.join("/") : ""}
             </td>
           </>
         );

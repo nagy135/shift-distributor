@@ -924,7 +924,7 @@ export default function VacationsPage() {
           doctorName: doctor?.name ?? `Arzt #${parsedDoctorId}`,
           date,
           color: activeColor,
-          approved: false,
+          approved: true,
         };
 
         const filtered = manualVacationDays.filter(

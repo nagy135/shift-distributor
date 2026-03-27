@@ -6,6 +6,7 @@ import {
   isSameMonth,
 } from "date-fns";
 import { de } from "date-fns/locale";
+import { HOLIDAY_DAY_SET } from "@/lib/holidays";
 import {
   DEPARTMENT_SHIFT_COLUMNS,
   SHIFT_TABLE_COLUMNS,
@@ -35,7 +36,7 @@ type ExcelCell = {
     right: BorderStyle;
   };
   alignment?: { vertical?: string; horizontal?: string };
-  font?: { bold?: boolean };
+  font?: { bold?: boolean; size?: number };
   fill?: { type: "pattern"; pattern: "solid"; fgColor: { argb: string } };
 };
 type ExcelRow = {
@@ -69,6 +70,29 @@ type ExcelJSPackage = { Workbook: new () => ExcelWorkbook };
 
 const EXCEL_FONT = '11pt Aptos, Calibri, "Helvetica Neue", Arial, sans-serif';
 const EXCEL_WIDTH_PADDING = 10;
+
+function isExportCellEditable(
+  day: Date,
+  columnId: string,
+  isDepartmentTable: boolean,
+) {
+  if (columnId === NIGHT_FREE_COLUMN_ID) {
+    return false;
+  }
+
+  if (!isDepartmentTable || columnId === "night") {
+    return true;
+  }
+
+  const dayKey = format(day, "MM-dd");
+  const isWeekend = [0, 6].includes(day.getDay());
+
+  return !isWeekend && !HOLIDAY_DAY_SET.has(dayKey);
+}
+
+function getEmptyExportCellLabel(isEditable: boolean) {
+  return isEditable ? "-" : "";
+}
 
 function createTextWidthMeasurer() {
   if (typeof document === "undefined") {
@@ -148,6 +172,16 @@ export async function exportMonthTable({
     }),
     ...(isDepartmentTable ? ["Urlaub"] : []),
   ];
+  const subheader = [
+    "",
+    "",
+    ...tableColumns.flatMap((column, columnIndex) => {
+      const note = column.headerNote ?? "";
+
+      return columnIndex === exportSpacerIndex ? ["", note] : [note];
+    }),
+    ...(isDepartmentTable ? [""] : []),
+  ];
   const title = isDepartmentTable
     ? `Stationverteilung ${format(month, "MMMM yyyy", { locale: de })}`
     : "Ärztlicher Dienstplan Medizinische Klinik KKH Schlüchtern";
@@ -164,6 +198,7 @@ export async function exportMonthTable({
       dayNumber,
       dayNameShort,
       ...tableColumns.flatMap((column, columnIndex) => {
+        const isEditableCell = isExportCellEditable(day, column.id, isDepartmentTable);
         const value = (() => {
           if (column.id === NIGHT_FREE_COLUMN_ID) {
             return automaticNightVacationsByDate[key]?.join(", ") ?? "";
@@ -174,8 +209,8 @@ export async function exportMonthTable({
           return shift
             ? shift.doctors.length > 0
               ? shift.doctors.map((doctor: { name: string }) => doctor.name).join(", ")
-              : ""
-            : "";
+              : getEmptyExportCellLabel(isEditableCell)
+            : getEmptyExportCellLabel(isEditableCell);
         })();
 
         return columnIndex === exportSpacerIndex ? ["", value] : [value];
@@ -246,6 +281,8 @@ export async function exportMonthTable({
 
   const headerRow = worksheet.addRow(header);
   const headerRowNumber = worksheet.lastRow?.number ?? 1;
+  const subheaderRow = worksheet.addRow(subheader);
+  const subheaderRowNumber = worksheet.lastRow?.number ?? headerRowNumber + 1;
   if (header.length > 0) {
     worksheet.mergeCells(titleRowNumber, 1, titleRowNumber, header.length);
   }
@@ -263,9 +300,14 @@ export async function exportMonthTable({
     monthCell.alignment = { vertical: "middle", horizontal: "center" };
   }
 
-  worksheet.views = [{ state: "frozen", ySplit: headerRowNumber }];
+  worksheet.views = [{ state: "frozen", ySplit: subheaderRowNumber }];
   headerRow.eachCell((cell) => {
     cell.font = { bold: true };
+    cell.alignment = { vertical: "middle", horizontal: "center" };
+    applyBorder(cell);
+  });
+  subheaderRow.eachCell((cell) => {
+    cell.font = { bold: false, size: 9 };
     cell.alignment = { vertical: "middle", horizontal: "center" };
     applyBorder(cell);
   });
@@ -308,7 +350,7 @@ export async function exportMonthTable({
   }
 
   const tableStartRow = headerRowNumber;
-  const tableEndRow = tableStartRow + rowsAoa.length;
+  const tableEndRow = subheaderRowNumber + rowsAoa.length;
   for (let r = tableStartRow; r <= tableEndRow; r++) {
     for (let c = 1; c <= header.length; c++) {
       const cell = worksheet.getCell(r, c);
