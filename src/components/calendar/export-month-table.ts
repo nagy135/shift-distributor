@@ -44,6 +44,7 @@ type ExcelRow = {
 };
 type ExcelWorksheet = {
   columns: { width: number }[];
+  views?: Array<{ state?: string; ySplit?: number }>;
   addRow: (values: Array<string | number | null | undefined>) => ExcelRow;
   getCell: (row: number, col: number) => ExcelCell;
   mergeCells: (
@@ -65,6 +66,40 @@ type ExcelWorkbook = {
   xlsx: { writeBuffer: () => Promise<ArrayBuffer> };
 };
 type ExcelJSPackage = { Workbook: new () => ExcelWorkbook };
+
+const EXCEL_FONT = '11pt Aptos, Calibri, "Helvetica Neue", Arial, sans-serif';
+const EXCEL_WIDTH_PADDING = 10;
+
+function createTextWidthMeasurer() {
+  if (typeof document === "undefined") {
+    return (value: string) => value.length * 7;
+  }
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return (value: string) => value.length * 7;
+  }
+
+  context.font = EXCEL_FONT;
+  return (value: string) => context.measureText(value).width;
+}
+
+function getExcelColumnWidth(
+  measureTextWidth: (value: string) => number,
+  values: Array<string | number | null | undefined>,
+  minWidth = 4,
+) {
+  const widestText = values.reduce<number>((maxWidth, value) => {
+    const normalized = value == null ? "" : String(value);
+    return Math.max(maxWidth, measureTextWidth(normalized));
+  }, 0);
+
+  return Math.max(
+    minWidth,
+    Math.min(60, Math.ceil((widestText + EXCEL_WIDTH_PADDING) / 7)),
+  );
+}
 
 export async function exportMonthTable({
   month,
@@ -94,17 +129,28 @@ export async function exportMonthTable({
   const tableColumns = isDepartmentTable
     ? DEPARTMENT_SHIFT_COLUMNS
     : SHIFT_TABLE_COLUMNS;
+  const exportSpacerIndex = isDepartmentTable
+    ? tableColumns.findIndex((column) => column.id === "night")
+    : -1;
   const header = [
     "",
     "",
-    ...tableColumns.map((column) => {
-      if (!isDepartmentTable && column.id === "oa") return "Hintergrund";
-      if (!isDepartmentTable && column.id === "20shift") return "20:00 Dienst";
-      return column.slotLabel ?? column.label;
+    ...tableColumns.flatMap((column, columnIndex) => {
+      const label = (() => {
+        if (!isDepartmentTable && column.id === "oa") return "Hintergrund";
+        if (!isDepartmentTable && column.id === "20shift") {
+          return "20:00 Dienst";
+        }
+        return column.slotLabel ?? column.label;
+      })();
+
+      return columnIndex === exportSpacerIndex ? ["", label] : [label];
     }),
     ...(isDepartmentTable ? ["Urlaub"] : []),
   ];
-  const title = "Ärztlicher Dienstplan Medizinische Klinik KKH Schlüchtern";
+  const title = isDepartmentTable
+    ? `Stationverteilung ${format(month, "MMMM yyyy", { locale: de })}`
+    : "Ärztlicher Dienstplan Medizinische Klinik KKH Schlüchtern";
   const monthLabel = format(month, "yyyy MMMM", { locale: de });
 
   const rowsAoa = days.map((day) => {
@@ -117,40 +163,54 @@ export async function exportMonthTable({
     const row: string[] = [
       dayNumber,
       dayNameShort,
-      ...tableColumns.map((column) => {
-        if (column.id === NIGHT_FREE_COLUMN_ID) {
-          return automaticNightVacationsByDate[key]?.join(", ") ?? "-";
-        }
+      ...tableColumns.flatMap((column, columnIndex) => {
+        const value = (() => {
+          if (column.id === NIGHT_FREE_COLUMN_ID) {
+            return automaticNightVacationsByDate[key]?.join(", ") ?? "";
+          }
 
-        const type = column.id;
-        const shift = byType[type];
-        return shift
-          ? shift.doctors.length > 0
-            ? shift.doctors.map((doctor: { name: string }) => doctor.name).join(", ")
-            : "-"
-          : "-";
+          const type = column.id;
+          const shift = byType[type];
+          return shift
+            ? shift.doctors.length > 0
+              ? shift.doctors.map((doctor: { name: string }) => doctor.name).join(", ")
+              : ""
+            : "";
+        })();
+
+        return columnIndex === exportSpacerIndex ? ["", value] : [value];
       }),
       ...(isDepartmentTable
-        ? [vacationColumnByDate[key]?.join(", ") ?? "-"]
+        ? [vacationColumnByDate[key]?.join(", ") ?? ""]
         : []),
     ];
 
     return row;
   });
 
+  const measureTextWidth = createTextWidthMeasurer();
+  const minimumContentColumnWidth = getExcelColumnWidth(measureTextWidth, [
+    "Ballouard",
+  ]);
+  const exportSpacerHeaderIndex = exportSpacerIndex >= 0 ? exportSpacerIndex + 2 : -1;
+  const columnWidths = header.map((headerValue, columnIndex) => ({
+    width: getExcelColumnWidth(measureTextWidth, [
+      headerValue,
+      ...rowsAoa.map((row) => row[columnIndex]),
+    ], columnIndex >= 2 ? minimumContentColumnWidth : 4),
+  }));
+
+  if (exportSpacerHeaderIndex >= 0) {
+    columnWidths[exportSpacerHeaderIndex] = { width: 8 };
+  }
+
   const ExcelJS = (await import("exceljs")) as unknown as ExcelJSPackage;
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Monat", {
     properties: { defaultRowHeight: 18 },
-    views: [{ state: "frozen", ySplit: 1 }],
   });
 
-  worksheet.columns = [
-    { width: 4 },
-    { width: 6 },
-    ...tableColumns.map(() => ({ width: 16 })),
-    ...(isDepartmentTable ? [{ width: 18 }] : []),
-  ];
+  worksheet.columns = columnWidths;
 
   const gridBorder: BorderStyle = {
     style: "thin",
@@ -173,12 +233,11 @@ export async function exportMonthTable({
     };
   };
 
-  let titleRowNumber = 1;
-  let monthRowNumber = 1;
+  worksheet.addRow([title]);
+  const titleRowNumber = worksheet.lastRow?.number ?? 1;
+  let monthRowNumber = titleRowNumber;
 
   if (!isDepartmentTable) {
-    worksheet.addRow([title]);
-    titleRowNumber = worksheet.lastRow?.number ?? 1;
     worksheet.addRow([]);
     worksheet.addRow([monthLabel]);
     monthRowNumber = worksheet.lastRow?.number ?? titleRowNumber + 2;
@@ -187,10 +246,24 @@ export async function exportMonthTable({
 
   const headerRow = worksheet.addRow(header);
   const headerRowNumber = worksheet.lastRow?.number ?? 1;
-  if (!isDepartmentTable && header.length > 0) {
+  if (header.length > 0) {
     worksheet.mergeCells(titleRowNumber, 1, titleRowNumber, header.length);
+  }
+  if (!isDepartmentTable && header.length > 0) {
     worksheet.mergeCells(monthRowNumber, 1, monthRowNumber, header.length);
   }
+
+  const titleCell = worksheet.getCell(titleRowNumber, 1);
+  titleCell.font = { bold: true };
+  titleCell.alignment = { vertical: "middle", horizontal: "center" };
+
+  if (!isDepartmentTable) {
+    const monthCell = worksheet.getCell(monthRowNumber, 1);
+    monthCell.font = { bold: true };
+    monthCell.alignment = { vertical: "middle", horizontal: "center" };
+  }
+
+  worksheet.views = [{ state: "frozen", ySplit: headerRowNumber }];
   headerRow.eachCell((cell) => {
     cell.font = { bold: true };
     cell.alignment = { vertical: "middle", horizontal: "center" };

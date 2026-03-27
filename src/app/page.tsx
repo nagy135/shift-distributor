@@ -104,6 +104,8 @@ export default function CalendarPage() {
   const [quickAssignDoctorIds, setQuickAssignDoctorIds] = useState<string[]>([]);
   const [quickAssignShowAvailableOnly, setQuickAssignShowAvailableOnly] =
     useState(false);
+  const [quickAssignShowOaDoctors, setQuickAssignShowOaDoctors] =
+    useState(false);
   const [selectedShiftType, setSelectedShiftType] = useState<string | null>(
     null,
   );
@@ -144,6 +146,7 @@ export default function CalendarPage() {
     setQuickAssignSearchTerm("");
     setQuickAssignHighlightedIndex(0);
     setQuickAssignDoctorIds((current) => (current.length === 0 ? current : []));
+    setQuickAssignShowOaDoctors(false);
   }, []);
 
   const closeQuickAssignAndClearSelection = useCallback(() => {
@@ -209,11 +212,20 @@ export default function CalendarPage() {
       const selectedTargetKeys = new Set(
         selectedTargets.map((target) => getShiftTargetKey(target)),
       );
+      const selectedDoctorIds = new Set(
+        quickAssignDoctorIds
+          .map((doctorId) => Number(doctorId))
+          .filter((doctorId) => Number.isInteger(doctorId)),
+      );
 
       const isDoctorAllowed = (doctor: (typeof doctors)[number]) =>
-        selectedTargets.every((target) =>
-          target.shiftType === "oa" ? doctor.oa : !doctor.oa,
-        );
+        selectedTargets.every((target) => {
+          if (target.shiftType === "oa") {
+            return doctor.oa;
+          }
+
+          return quickAssignShowOaDoctors || !doctor.oa;
+        });
 
       const isDoctorAssignedToTarget = (
         doctorId: number,
@@ -284,12 +296,15 @@ export default function CalendarPage() {
 
       return doctors
         .filter((doctor) => !doctor.disabled)
-        .filter(isDoctorAllowed)
+        .filter(
+          (doctor) => isDoctorAllowed(doctor) || selectedDoctorIds.has(doctor.id),
+        )
         .map((doctor) => ({
           value: doctor.id.toString(),
           label: doctor.name,
           color: doctor.color ?? undefined,
           hasConflict: hasDoctorConflict(doctor.id),
+          oa: doctor.oa,
         }));
     },
     [
@@ -297,10 +312,17 @@ export default function CalendarPage() {
       approvedVacationsByDate,
       doctorById,
       doctors,
+      quickAssignDoctorIds,
+      quickAssignShowOaDoctors,
       selectedTargets,
       tableView,
       unavailableByDoctor,
     ],
+  );
+
+  const quickAssignCanShowOaDoctors = useMemo(
+    () => selectedTargets.some((target) => target.shiftType !== "oa"),
+    [selectedTargets],
   );
 
   const filteredQuickAssignOptions = useMemo(() => {
@@ -971,6 +993,8 @@ export default function CalendarPage() {
           quickAssignOptions={quickAssignOptions}
           quickAssignSelectedValues={quickAssignDoctorIds}
           quickAssignShowAvailableOnly={quickAssignShowAvailableOnly}
+          quickAssignShowOaDoctors={quickAssignShowOaDoctors}
+          quickAssignCanShowOaDoctors={quickAssignCanShowOaDoctors}
           onQuickAssignOptionClick={(value, additive) => {
             void handleQuickAssignOptionClick(value, additive);
           }}
@@ -980,6 +1004,7 @@ export default function CalendarPage() {
           onQuickAssignClose={closeQuickAssignAndClearSelection}
           onQuickAssignHighlightChange={setQuickAssignHighlightedIndex}
           onQuickAssignShowAvailableOnlyChange={setQuickAssignShowAvailableOnly}
+          onQuickAssignShowOaDoctorsChange={setQuickAssignShowOaDoctors}
         />
       )}
 

@@ -54,11 +54,14 @@ interface MonthlyShiftTableProps {
   quickAssignOptions?: readonly QuickAssignOption[];
   quickAssignSelectedValues?: readonly string[];
   quickAssignShowAvailableOnly?: boolean;
+  quickAssignShowOaDoctors?: boolean;
+  quickAssignCanShowOaDoctors?: boolean;
   onQuickAssignOptionClick?: (value: string, additive: boolean) => void;
   onQuickAssignToggle?: (value: string) => void;
   onQuickAssignClose?: () => void;
   onQuickAssignHighlightChange?: (index: number) => void;
   onQuickAssignShowAvailableOnlyChange?: (value: boolean) => void;
+  onQuickAssignShowOaDoctorsChange?: (value: boolean) => void;
 }
 
 export function MonthlyShiftTable({
@@ -85,11 +88,14 @@ export function MonthlyShiftTable({
   quickAssignOptions = [],
   quickAssignSelectedValues = [],
   quickAssignShowAvailableOnly = false,
+  quickAssignShowOaDoctors = false,
+  quickAssignCanShowOaDoctors = false,
   onQuickAssignOptionClick,
   onQuickAssignToggle,
   onQuickAssignClose,
   onQuickAssignHighlightChange,
   onQuickAssignShowAvailableOnlyChange,
+  onQuickAssignShowOaDoctorsChange,
 }: MonthlyShiftTableProps) {
   const wrapperRef = React.useRef<HTMLDivElement | null>(null);
   const days = React.useMemo(() => getMonthTableDays(month), [month]);
@@ -786,6 +792,8 @@ export function MonthlyShiftTable({
         highlightedIndex={quickAssignHighlightedIndex}
         selectedValues={quickAssignSelectedValues}
         showAvailableOnly={quickAssignShowAvailableOnly}
+        showOaDoctors={quickAssignShowOaDoctors}
+        canShowOaDoctors={quickAssignCanShowOaDoctors}
         onOptionClick={(value, additive) =>
           onQuickAssignOptionClick?.(value, additive)
         }
@@ -794,6 +802,9 @@ export function MonthlyShiftTable({
         onHighlightChange={(index) => onQuickAssignHighlightChange?.(index)}
         onShowAvailableOnlyChange={(value) =>
           onQuickAssignShowAvailableOnlyChange?.(value)
+        }
+        onShowOaDoctorsChange={(value) =>
+          onQuickAssignShowOaDoctorsChange?.(value)
         }
       />
     </MonthlyTableBase>

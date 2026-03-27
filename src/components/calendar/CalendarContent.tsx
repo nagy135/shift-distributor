@@ -55,11 +55,14 @@ type CalendarContentProps = {
   quickAssignOptions?: readonly QuickAssignOption[];
   quickAssignSelectedValues?: readonly string[];
   quickAssignShowAvailableOnly?: boolean;
+  quickAssignShowOaDoctors?: boolean;
+  quickAssignCanShowOaDoctors?: boolean;
   onQuickAssignOptionClick?: (value: string, additive: boolean) => void;
   onQuickAssignToggle?: (value: string) => void;
   onQuickAssignClose?: () => void;
   onQuickAssignHighlightChange?: (index: number) => void;
   onQuickAssignShowAvailableOnlyChange?: (value: boolean) => void;
+  onQuickAssignShowOaDoctorsChange?: (value: boolean) => void;
 };
 
 export function CalendarContent({
@@ -85,11 +88,14 @@ export function CalendarContent({
   quickAssignOptions,
   quickAssignSelectedValues,
   quickAssignShowAvailableOnly,
+  quickAssignShowOaDoctors,
+  quickAssignCanShowOaDoctors,
   onQuickAssignOptionClick,
   onQuickAssignToggle,
   onQuickAssignClose,
   onQuickAssignHighlightChange,
   onQuickAssignShowAvailableOnlyChange,
+  onQuickAssignShowOaDoctorsChange,
 }: CalendarContentProps) {
   const [statisticsVisible, setStatisticsVisible] = React.useState(false);
 
@@ -258,6 +264,8 @@ export function CalendarContent({
                 quickAssignOptions={quickAssignOptions}
                 quickAssignSelectedValues={quickAssignSelectedValues}
                 quickAssignShowAvailableOnly={quickAssignShowAvailableOnly}
+                quickAssignShowOaDoctors={quickAssignShowOaDoctors}
+                quickAssignCanShowOaDoctors={quickAssignCanShowOaDoctors}
                 onQuickAssignOptionClick={onQuickAssignOptionClick}
                 onQuickAssignToggle={onQuickAssignToggle}
                 onQuickAssignClose={onQuickAssignClose}
@@ -265,6 +273,7 @@ export function CalendarContent({
                 onQuickAssignShowAvailableOnlyChange={
                   onQuickAssignShowAvailableOnlyChange
                 }
+                onQuickAssignShowOaDoctorsChange={onQuickAssignShowOaDoctorsChange}
               />
             )}
           </ClientOnly>

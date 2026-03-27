@@ -26,6 +26,7 @@ import {
 import { Pill } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
 import { MultiSelect } from "@/components/ui/multiselect";
+import { Switch } from "@/components/ui/switch";
 
 type ShiftAssignment = CalendarShiftTarget & {
   doctorIds: number[];
@@ -66,6 +67,7 @@ export function ShiftAssignmentModal({
   const [pendingAssignments, setPendingAssignments] = React.useState<
     Record<string, number[]>
   >({});
+  const [showOaDoctors, setShowOaDoctors] = React.useState(false);
 
   const assignmentTargets = React.useMemo(() => {
     if (targets.length > 0) {
@@ -102,26 +104,39 @@ export function ShiftAssignmentModal({
   );
 
   const isBatchMode = targets.length > 0;
+  const canShowOaDoctors = React.useMemo(
+    () => activeShiftTypes.some((shiftType) => shiftType !== "oa"),
+    [activeShiftTypes],
+  );
 
   const isDoctorAllowed = React.useCallback(
-    (doctor: Doctor, shiftType: string) =>
-      shiftType === "oa" ? doctor.oa : !doctor.oa,
-    [],
+    (doctor: Doctor, shiftType: string) => {
+      if (shiftType === "oa") {
+        return doctor.oa;
+      }
+
+      return showOaDoctors || !doctor.oa;
+    },
+    [showOaDoctors],
   );
 
   const getCurrentDoctorIds = React.useCallback(
     (target: CalendarShiftTarget) => {
       const shift = getShift(target.date, target.shiftType);
       return Array.isArray(shift?.doctorIds)
-        ? shift.doctorIds.filter((doctorId) => {
-            const doctor = doctors.find((entry) => entry.id === doctorId);
-            if (!doctor) return false;
-            return isDoctorAllowed(doctor, target.shiftType);
-          })
+        ? shift.doctorIds.filter((doctorId) =>
+            doctors.some((entry) => entry.id === doctorId),
+          )
         : [];
     },
-    [doctors, getShift, isDoctorAllowed],
+    [doctors, getShift],
   );
+
+  React.useEffect(() => {
+    if (open) {
+      setShowOaDoctors(false);
+    }
+  }, [open]);
 
   React.useEffect(() => {
     if (!open) {
@@ -278,25 +293,39 @@ export function ShiftAssignmentModal({
           <DialogTitle>{`Dienste zuweisen${titleSuffix}`}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {canShowOaDoctors ? (
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
+              <Switch
+                checked={showOaDoctors}
+                onCheckedChange={setShowOaDoctors}
+                aria-label="OA auch anzeigen"
+              />
+              <span>OA auch anzeigen</span>
+            </label>
+          ) : null}
           {activeShiftTypes.map((shiftType) => {
             const selectedDoctorIds = pendingAssignments[shiftType] ?? [];
             const targetsForType = shiftTargetsMap.get(shiftType) ?? [];
+            const selectedDoctorIdSet = new Set(selectedDoctorIds);
 
             const options = doctors
               .filter((doctor) => !doctor.disabled)
-              .filter((doctor) => isDoctorAllowed(doctor, shiftType))
+              .filter(
+                (doctor) =>
+                  isDoctorAllowed(doctor, shiftType) ||
+                  selectedDoctorIdSet.has(doctor.id),
+              )
               .map((doctor) => ({
                 value: doctor.id.toString(),
                 label: doctor.name,
                 color: doctor.color ?? undefined,
                 hasConflict: hasDoctorConflict(doctor.id, shiftType),
+                oa: doctor.oa,
               }));
 
-            const allowedSelectedDoctorIds = selectedDoctorIds.filter((doctorId) => {
-              const doctor = doctors.find((entry) => entry.id === doctorId);
-              if (!doctor) return false;
-              return isDoctorAllowed(doctor, shiftType);
-            });
+            const allowedSelectedDoctorIds = selectedDoctorIds.filter((doctorId) =>
+              doctors.some((entry) => entry.id === doctorId),
+            );
 
             const shiftSummary =
               targetsForType.length > 1

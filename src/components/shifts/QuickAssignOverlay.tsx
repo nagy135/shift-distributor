@@ -11,6 +11,7 @@ export type QuickAssignOption = {
   label: string;
   color?: string | null;
   hasConflict?: boolean;
+  oa?: boolean;
 };
 
 type QuickAssignOverlayProps = {
@@ -25,11 +26,14 @@ type QuickAssignOverlayProps = {
   highlightedIndex: number;
   selectedValues: readonly string[];
   showAvailableOnly: boolean;
+  showOaDoctors: boolean;
+  canShowOaDoctors: boolean;
   onOptionClick: (value: string, additive: boolean) => void;
   onToggleSelect: (value: string) => void;
   onClose: () => void;
   onHighlightChange: (index: number) => void;
   onShowAvailableOnlyChange: (value: boolean) => void;
+  onShowOaDoctorsChange: (value: boolean) => void;
 };
 
 export function QuickAssignOverlay({
@@ -40,11 +44,14 @@ export function QuickAssignOverlay({
   highlightedIndex,
   selectedValues,
   showAvailableOnly,
+  showOaDoctors,
+  canShowOaDoctors,
   onOptionClick,
   onToggleSelect,
   onClose,
   onHighlightChange,
   onShowAvailableOnlyChange,
+  onShowOaDoctorsChange,
 }: QuickAssignOverlayProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -129,6 +136,18 @@ export function QuickAssignOverlay({
           />
           <span>Nur verfuegbare anzeigen</span>
         </label>
+        {canShowOaDoctors ? (
+          <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[11px] text-muted-foreground select-none">
+            <Switch
+              checked={showOaDoctors}
+              onCheckedChange={onShowOaDoctorsChange}
+              onMouseDown={(event) => event.preventDefault()}
+              aria-label="OA auch anzeigen"
+              className="scale-75"
+            />
+            <span>OA auch anzeigen</span>
+          </label>
+        ) : null}
       </div>
 
       {/* Selected doctors chips */}
