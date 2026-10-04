@@ -257,7 +257,7 @@ export function UnavailableDatesDialog({
                             : "-"}
                         </div>
                         <div>
-                          <span className="font-medium text-rose-700">
+                          <span className="font-medium text-red-700 dark:text-red-300">
                             Entfernt:
                           </span>{" "}
                           {removed.length > 0

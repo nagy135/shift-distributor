@@ -51,7 +51,7 @@ export function DoctorList({
                     {doctor.name}
                   </Pill>
                   {doctor.disabled && (
-                    <span className="text-sm bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded">
+                    <span className="text-sm bg-red-300 text-red-950 dark:bg-red-400/50 dark:text-red-50 px-2 py-1 rounded">
                       Deaktiviert
                     </span>
                   )}

@@ -169,7 +169,7 @@ export function QuickAssignOverlay({
                   key={value}
                   type="button"
                   onClick={() => onToggleSelect(value)}
-                  className="group inline-flex cursor-pointer items-center gap-1 rounded-full border border-border/50 bg-muted/40 py-0.5 pl-1 pr-1.5 text-xs transition-colors hover:border-red-300 hover:bg-red-50 dark:hover:border-red-800 dark:hover:bg-red-950/40"
+                  className="group inline-flex cursor-pointer items-center gap-1 rounded-full border border-border/50 bg-muted/40 py-0.5 pl-1 pr-1.5 text-xs transition-colors hover:border-red-300 hover:bg-red-300 hover:text-red-950 dark:hover:border-red-400/50 dark:hover:bg-red-400/50 dark:hover:text-red-50"
                 >
                   <Pill
                     color={option.color ?? undefined}
@@ -178,7 +178,7 @@ export function QuickAssignOverlay({
                   >
                     {option.label}
                   </Pill>
-                  <Trash2 className="size-3 text-muted-foreground group-hover:text-red-500" />
+                  <Trash2 className="size-3 text-muted-foreground group-hover:text-red-950 dark:group-hover:text-red-50" />
                 </button>
               );
             })}

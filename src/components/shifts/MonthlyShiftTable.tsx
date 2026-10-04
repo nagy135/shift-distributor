@@ -361,10 +361,10 @@ export function MonthlyShiftTable({
 
       if (isConflict) {
         return cn(
-          "bg-red-300 dark:bg-red-700/80",
+          "bg-red-300 dark:bg-red-400/50",
           isInteractive &&
             !isDisabled &&
-            "cursor-cell hover:bg-red-400 dark:hover:bg-red-700",
+            "cursor-cell hover:bg-red-400 dark:hover:bg-red-400/60",
         );
       }
 
@@ -396,10 +396,10 @@ export function MonthlyShiftTable({
     }) => {
       if (isConflict) {
         return cn(
-          "bg-red-100 dark:bg-red-800/40",
+          "bg-red-300 dark:bg-red-400/50",
           isInteractive &&
             !isDisabled &&
-            "cursor-cell hover:bg-red-200 dark:hover:bg-red-700/50",
+            "cursor-cell hover:bg-red-400 dark:hover:bg-red-400/60",
         );
       }
 

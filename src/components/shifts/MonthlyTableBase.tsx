@@ -51,7 +51,7 @@ function DefaultDateCellContent({
       <span>{format(date, "d.", { locale: de })}</span>
       <span>
         {isHoliday ? (
-          <span className="text-red-600">{dayPrefix}</span>
+          <span className="text-red-700 dark:text-red-300">{dayPrefix}</span>
         ) : (
           dayPrefix
         )}

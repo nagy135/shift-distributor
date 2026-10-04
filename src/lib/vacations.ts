@@ -16,9 +16,10 @@ export const VACATION_COLOR_STYLES: Record<
 > = {
   red: {
     label: "Rot",
-    classes: "bg-red-600 text-white hover:bg-red-400",
-    ring: "ring-red-600",
-    questionMark: "text-white",
+    classes:
+      "bg-red-300 text-red-950 hover:bg-red-400 dark:bg-red-400/50 dark:text-red-50 dark:hover:bg-red-400/60",
+    ring: "ring-red-300 dark:ring-red-400/50",
+    questionMark: "text-red-950 dark:text-red-50",
   },
   orange: {
     label: "Orange",
