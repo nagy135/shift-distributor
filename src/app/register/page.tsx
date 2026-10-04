@@ -47,7 +47,7 @@ export default function RegisterPage() {
           type="password"
           required
         />
-        {error && <p className="text-red-500 text-sm">{error}</p>}
+        {error && <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>}
         <Button
           type="submit"
           disabled={loading}

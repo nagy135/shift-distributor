@@ -28,7 +28,7 @@ export function Pill({
         style={{ backgroundColor: markerColor }}
       />
       {children}
-      {showX && <X className="h-4 w-4 text-red-600" aria-hidden="true" />}
+      {showX && <X className="h-4 w-4 text-red-700 dark:text-red-300" aria-hidden="true" />}
     </span>
   );
 }

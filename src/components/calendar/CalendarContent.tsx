@@ -132,7 +132,28 @@ export function CalendarContent({
   );
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        className="hidden size-8 self-start md:inline-flex"
+        onClick={() => setStatisticsVisible((current) => !current)}
+        aria-expanded={statisticsVisible}
+        aria-controls="calendar-statistics"
+        aria-label={
+          statisticsVisible ? "Statistik ausblenden" : "Statistik einblenden"
+        }
+        title={
+          statisticsVisible ? "Statistik ausblenden" : "Statistik einblenden"
+        }
+      >
+        {statisticsVisible ? (
+          <ChevronLeft className="size-4" aria-hidden="true" />
+        ) : (
+          <ChartColumn className="size-4" aria-hidden="true" />
+        )}
+      </Button>
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
         <details className="group overflow-hidden rounded-xl border bg-card shadow-sm md:hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-1.5 select-none [&::-webkit-details-marker]:hidden">
@@ -150,45 +171,15 @@ export function CalendarContent({
           <div className="p-3 pt-0">{statisticsContent}</div>
         </details>
 
-        <div className="hidden md:flex md:items-start md:gap-3">
-          <div
-            className={[
-              "grid transition-[grid-template-columns,opacity,margin] duration-500 ease-in-out",
-              statisticsVisible
-                ? "mr-0 grid-cols-[minmax(0,1fr)] opacity-100"
-                : "mr-[-0.75rem] grid-cols-[0fr] opacity-0",
-            ].join(" ")}
+        {statisticsVisible && (
+          <aside
+            id="calendar-statistics"
+            aria-label="Statistik"
+            className="hidden min-w-0 md:block lg:shrink-0"
           >
-            <div className="min-w-0 overflow-hidden">
-              <div className="min-w-0 shrink-0">{statisticsContent}</div>
-            </div>
-          </div>
-
-          <Button
-            type="button"
-            size="icon"
-            variant="outline"
-            className="size-8 shrink-0 transition-all duration-500 ease-in-out"
-            onClick={() => setStatisticsVisible((current) => !current)}
-            aria-expanded={statisticsVisible}
-            aria-label={
-              statisticsVisible
-                ? "Statistik ausblenden"
-                : "Statistik einblenden"
-            }
-            title={
-              statisticsVisible
-                ? "Statistik ausblenden"
-                : "Statistik einblenden"
-            }
-          >
-            {statisticsVisible ? (
-              <ChevronLeft className="size-4" aria-hidden="true" />
-            ) : (
-              <ChartColumn className="size-4" aria-hidden="true" />
-            )}
-          </Button>
-        </div>
+            {statisticsContent}
+          </aside>
+        )}
 
         <div className="min-w-0 flex-1">
           <ClientOnly

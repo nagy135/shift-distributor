@@ -136,7 +136,7 @@ export function Navigation() {
                   >
                     <Bell className="h-4 w-4" />
                     {unreadCount > 0 && (
-                      <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-destructive px-1 text-[10px] font-semibold text-white">
+                      <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-red-300 px-1 text-[10px] font-semibold text-red-950 dark:bg-red-400/50 dark:text-red-50">
                         {unreadCount}
                       </span>
                     )}
