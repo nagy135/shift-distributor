@@ -16,13 +16,7 @@ import {
   SHIFT_TABLE_COLUMNS,
   SHIFT_TYPES,
 } from "@/lib/shifts";
-import {
-  Building2,
-  CalendarDays,
-  ChartColumn,
-  ChevronDown,
-  ChevronLeft,
-} from "lucide-react";
+import { ChartColumn, ChevronDown, ChevronLeft } from "lucide-react";
 import React from "react";
 
 export type CalendarTableView = "shifts" | "departments";
@@ -30,7 +24,6 @@ export type CalendarTableView = "shifts" | "departments";
 type CalendarContentProps = {
   month: Date;
   tableView: CalendarTableView;
-  onTableViewChange: (view: CalendarTableView) => void;
   shiftsLoading: boolean;
   doctors: Doctor[];
   allShifts: Shift[];
@@ -69,7 +62,6 @@ type CalendarContentProps = {
 export function CalendarContent({
   month,
   tableView,
-  onTableViewChange,
   shiftsLoading,
   doctors,
   allShifts,
@@ -141,29 +133,6 @@ export function CalendarContent({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex justify-center">
-        <div className="inline-flex flex-wrap items-center justify-center gap-2 rounded-md p-1">
-          <Button
-            type="button"
-            size="sm"
-            variant={tableView === "shifts" ? "default" : "outline"}
-            onClick={() => onTableViewChange("shifts")}
-          >
-            <CalendarDays className="size-4" />
-            Dienste
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={tableView === "departments" ? "default" : "outline"}
-            onClick={() => onTableViewChange("departments")}
-          >
-            <Building2 className="size-4" />
-            Station
-          </Button>
-        </div>
-      </div>
-
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
         <details className="group overflow-hidden rounded-xl border bg-card shadow-sm md:hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-1.5 select-none [&::-webkit-details-marker]:hidden">

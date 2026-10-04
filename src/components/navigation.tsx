@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell } from "lucide-react";
+import { Bell, CalendarClock } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
@@ -62,7 +62,18 @@ export function Navigation() {
   return (
     <nav className="flex flex-col">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dienstplan</h1>
+        <Link
+          href="/"
+          aria-label="Dienstplan – zum Kalender"
+          className="inline-flex shrink-0 items-center gap-2 rounded-lg py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          <span className="flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground sm:size-8">
+            <CalendarClock className="size-4 sm:size-5" aria-hidden="true" />
+          </span>
+          <h1 className="text-base font-semibold tracking-tight sm:text-lg">
+            Dienstplan
+          </h1>
+        </Link>
         <div className="flex items-center gap-1">
           <div className="hidden items-center gap-1 md:flex">
             {navItems.map((item) => (
