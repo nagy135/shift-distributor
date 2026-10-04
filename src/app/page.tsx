@@ -14,7 +14,7 @@ import {
   type CalendarCellClickOptions,
   type CalendarShiftTarget,
 } from "@/components/calendar/utils";
-import { MonthSelector } from "@/components/MonthSelector";
+import { CalendarToolbar } from "@/components/calendar/CalendarToolbar";
 import type { QuickAssignOption } from "@/components/shifts/QuickAssignOverlay";
 import { ShiftAssignmentModal } from "@/components/shifts/ShiftAssignmentModal";
 import { Button } from "@/components/ui/button";
@@ -939,8 +939,11 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <MonthSelector
-        rightActions={
+      <CalendarToolbar
+        tableView={tableView}
+        onTableViewChange={setTableView}
+        showViewSwitch={!shouldHideCalendarForDoctor}
+        actions={
           <CalendarHeaderActions
             onDistribute={handleDistributeMonth}
             onToggleLocked={toggleLocked}
@@ -992,7 +995,6 @@ export default function CalendarPage() {
         <CalendarContent
           month={month}
           tableView={tableView}
-          onTableViewChange={setTableView}
           shiftsLoading={shiftsLoading || !!dataError}
           doctors={doctors}
           allShifts={allShifts}
