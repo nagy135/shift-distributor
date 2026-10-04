@@ -179,7 +179,7 @@ export function Navigation() {
               <Popover>
                 <PopoverTrigger asChild>
                   <button
-                    aria-label="Account menu"
+                    aria-label="Kontomenü"
                     className="inline-flex cursor-pointer"
                   >
                     <Avatar>

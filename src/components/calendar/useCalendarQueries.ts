@@ -1,18 +1,21 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
-import {
-  type MonthPublication,
-  type UnavailableDate,
-  type VacationDay,
-} from "@/lib/api";
+import { type MonthPublication, type UnavailableDate } from "@/lib/api";
+import { schedulingRange } from "@/lib/dates";
 import {
   getAutomaticNightShiftVacationDays,
   getDoctorNamesByDate,
 } from "@/lib/night-shift-vacations";
+import { invalidateSchedule, queryKeys } from "@/lib/query-keys";
+import { indexAbsences } from "@/lib/scheduling-rules";
 import { useApiClient } from "@/lib/use-api-client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { useCallback, useMemo } from "react";
+
+const EMPTY_DOCTORS: import("@/lib/contracts").Doctor[] = [];
+const EMPTY_SHIFTS: import("@/lib/contracts").Shift[] = [];
+const EMPTY_VACATIONS: import("@/lib/contracts").VacationDay[] = [];
 
 export function useCalendarQueries(month: Date) {
   const queryClient = useQueryClient();
@@ -31,20 +34,20 @@ export function useCalendarQueries(month: Date) {
     ? format(new Date(), "yyyy-MM")
     : format(normalizedMonth, "yyyy-MM");
 
-  const { data: doctors = [] } = useQuery({
+  const doctorsQuery = useQuery({
     queryKey: ["doctors"],
     queryFn: doctorsApi.getAll,
   });
 
-  const { data: allShifts = [], isLoading: shiftsLoading } = useQuery({
-    queryKey: [
-      "shifts",
-      doctors?.map((doctor) => `${doctor.id}:${doctor.color ?? ""}`).join("|"),
-    ],
-    queryFn: shiftsApi.getAll,
+  const doctors = doctorsQuery.data ?? EMPTY_DOCTORS;
+  const range = schedulingRange(normalizedMonth);
+  const shiftsQuery = useQuery({
+    queryKey: queryKeys.shifts(range),
+    queryFn: () => shiftsApi.getAll(range),
   });
+  const allShifts = shiftsQuery.data ?? EMPTY_SHIFTS;
 
-  const { data: unavailableByDoctor = {} } = useQuery({
+  const unavailableQuery = useQuery({
     queryKey: [
       "unavailable-by-doctor",
       doctors?.map((doctor) => doctor.id).join("|"),
@@ -70,30 +73,47 @@ export function useCalendarQueries(month: Date) {
     enabled: (doctors ?? []).length > 0,
   });
 
-  const { data: vacationDays = [] } = useQuery({
-    queryKey: ["vacations", "calendar", year],
-    queryFn: async (): Promise<VacationDay[]> => {
-      try {
-        return await vacationsApi.getByYear(year);
-      } catch {
-        return [];
-      }
-    },
+  const unavailableByDoctor = unavailableQuery.data ?? {};
+  const vacationsQuery = useQuery({
+    queryKey: queryKeys.vacations(year),
+    queryFn: () => vacationsApi.getByYear(year),
   });
+  const vacationDays = vacationsQuery.data ?? EMPTY_VACATIONS;
+  const vacationDoctorIdsByDate = useMemo(
+    () =>
+      indexAbsences([
+        ...vacationDays,
+        ...getAutomaticNightShiftVacationDays(allShifts, doctors),
+      ]),
+    [vacationDays, allShifts, doctors],
+  );
 
-  const {
-    data: monthPublication = {
+  const publicationQuery = useQuery({
+    queryKey: ["month-publication", monthKey],
+    queryFn: () => monthPublicationsApi.getByMonth(monthKey),
+  });
+  const monthPublication =
+    publicationQuery.data ??
+    ({
       month: monthKey,
       isPublished: true,
       publishedAt: null,
       publishedByUserId: null,
       updatedAt: null,
-    } satisfies MonthPublication,
-    isLoading: monthPublicationLoading,
-  } = useQuery({
-    queryKey: ["month-publication", monthKey],
-    queryFn: () => monthPublicationsApi.getByMonth(monthKey),
-  });
+    } satisfies MonthPublication);
+  const monthPublicationLoading = publicationQuery.isPending;
+  const shiftsLoading =
+    doctorsQuery.isPending ||
+    shiftsQuery.isPending ||
+    vacationsQuery.isPending ||
+    publicationQuery.isPending ||
+    (doctors.length > 0 && unavailableQuery.isPending);
+  const dataError =
+    doctorsQuery.error ??
+    shiftsQuery.error ??
+    vacationsQuery.error ??
+    unavailableQuery.error ??
+    publicationQuery.error;
 
   const manualApprovedVacationsByDate = useMemo(() => {
     const doctorNameById = new Map(
@@ -134,8 +154,8 @@ export function useCalendarQueries(month: Date) {
 
     Object.entries(automaticNightVacationsByDate).forEach(([date, names]) => {
       const current = next[date] ?? [];
-      next[date] = Array.from(new Set([...current, ...names])).sort((left, right) =>
-        left.localeCompare(right, "de"),
+      next[date] = Array.from(new Set([...current, ...names])).sort(
+        (left, right) => left.localeCompare(right, "de"),
       );
     });
 
@@ -147,14 +167,15 @@ export function useCalendarQueries(month: Date) {
       date: string;
       shiftType: string;
       doctorIds: number[];
+      expectedVersion?: number;
     }) => shiftsApi.assign(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["shifts"] });
+      invalidateSchedule(queryClient);
     },
   });
 
   const invalidateShifts = useCallback(() => {
-    return queryClient.invalidateQueries({ queryKey: ["shifts"] });
+    return invalidateSchedule(queryClient);
   }, [queryClient]);
 
   const invalidateMonthPublication = useCallback(() => {
@@ -170,7 +191,7 @@ export function useCalendarQueries(month: Date) {
       queryClient.invalidateQueries({
         queryKey: ["month-publication", monthKey],
       });
-      queryClient.invalidateQueries({ queryKey: ["shifts"] });
+      invalidateSchedule(queryClient);
     },
   });
 
@@ -178,6 +199,8 @@ export function useCalendarQueries(month: Date) {
     doctors,
     allShifts,
     shiftsLoading,
+    dataError,
+    vacationDoctorIdsByDate,
     monthPublication,
     monthPublicationLoading,
     unavailableByDoctor,

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   shift-distributor:
     container_name: shift-distributor
@@ -12,4 +10,5 @@ services:
       - NODE_ENV=production
     volumes:
       - ./data:/app/data:rw
-    user: "root"
+    env_file: .env
+    restart: unless-stopped

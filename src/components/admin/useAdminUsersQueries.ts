@@ -1,9 +1,9 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AdminUser } from "@/lib/api";
 import { useAuth } from "@/lib/auth-client";
 import { useApiClient } from "@/lib/use-api-client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function useAdminUsersQueries(enabled: boolean) {
   const queryClient = useQueryClient();
@@ -18,10 +18,13 @@ export function useAdminUsersQueries(enabled: boolean) {
   });
 
   const doctorsQuery = useQuery({
-    queryKey: ["admin-users", "doctors"],
+    queryKey: ["doctors"],
     queryFn: doctorsApi.getAll,
     enabled,
-    select: (doctors) => doctors.slice().sort((left, right) => left.name.localeCompare(right.name)),
+    select: (doctors) =>
+      doctors
+        .slice()
+        .sort((left, right) => left.name.localeCompare(right.name)),
   });
 
   const updateUserMutation = useMutation({

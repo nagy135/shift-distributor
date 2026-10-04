@@ -1,32 +1,33 @@
 "use client";
 
-import React from "react";
-import { format } from "date-fns";
-import { de } from "date-fns/locale";
+import {
+  getShiftTargetKey,
+  type CalendarShiftTarget,
+} from "@/components/calendar/utils";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { MultiSelect } from "@/components/ui/multiselect";
+import { Pill } from "@/components/ui/pill";
+import { Switch } from "@/components/ui/switch";
 import type { Doctor, Shift } from "@/lib/api";
+import {
+  getAssignmentConflicts,
+  isDoctorEligible,
+} from "@/lib/scheduling-rules";
 import {
   ALL_CALENDAR_SHIFT_TYPES,
   SHIFT_TYPES,
-  doesCalendarShiftUnavailableDateClash,
   getShiftLabel,
-  isDayDutyShiftType,
-  isShiftType,
 } from "@/lib/shifts";
-import {
-  getShiftTargetKey,
-  type CalendarShiftTarget,
-} from "@/components/calendar/utils";
-import { Pill } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
-import { MultiSelect } from "@/components/ui/multiselect";
-import { Switch } from "@/components/ui/switch";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
+import React from "react";
 
 type ShiftAssignment = CalendarShiftTarget & {
   doctorIds: number[];
@@ -42,13 +43,13 @@ interface ShiftAssignmentModalProps {
   onAssign: (assignments: ShiftAssignment[]) => Promise<void>;
   shiftTypes?: readonly string[];
   unavailableByDoctor?: Record<number, Set<string>>;
-  considerUnavailableDates?: boolean;
-  approvedVacationsByDate?: Record<string, string[]>;
+  vacationDoctorIdsByDate?: Record<string, number[]>;
   focusShiftType?: string | null;
 }
 
 const areDoctorListsEqual = (left: number[], right: number[]) =>
-  left.length === right.length && left.every((doctorId, index) => doctorId === right[index]);
+  left.length === right.length &&
+  left.every((doctorId, index) => doctorId === right[index]);
 
 export function ShiftAssignmentModal({
   open,
@@ -60,13 +61,14 @@ export function ShiftAssignmentModal({
   onAssign,
   shiftTypes = SHIFT_TYPES,
   unavailableByDoctor = {},
-  considerUnavailableDates = true,
-  approvedVacationsByDate = {},
+  vacationDoctorIdsByDate = {},
   focusShiftType = null,
 }: ShiftAssignmentModalProps) {
   const [pendingAssignments, setPendingAssignments] = React.useState<
     Record<string, number[]>
   >({});
+  const saving = React.useRef(false);
+  const [isSaving, setIsSaving] = React.useState(false);
   const [showOaDoctors, setShowOaDoctors] = React.useState(false);
 
   const assignmentTargets = React.useMemo(() => {
@@ -111,11 +113,7 @@ export function ShiftAssignmentModal({
 
   const isDoctorAllowed = React.useCallback(
     (doctor: Doctor, shiftType: string) => {
-      if (shiftType === "oa") {
-        return doctor.oa;
-      }
-
-      return showOaDoctors || !doctor.oa;
+      return isDoctorEligible(doctor, shiftType, showOaDoctors);
     },
     [showOaDoctors],
   );
@@ -188,51 +186,37 @@ export function ShiftAssignmentModal({
     (doctorId: number, shiftType: string) => {
       const targetsForType = shiftTargetsMap.get(shiftType) ?? [];
 
-      return targetsForType.some((target) => {
-        const dateKey = format(target.date, "yyyy-MM-dd");
-        const dateConflict =
-          considerUnavailableDates &&
-          doesCalendarShiftUnavailableDateClash(target.shiftType)
-          ? (unavailableByDoctor[doctorId]?.has(dateKey) ?? false)
-          : false;
-        const doctor = doctors.find((entry) => entry.id === doctorId);
-        const shiftTypeConflict =
-          isShiftType(target.shiftType) &&
-          doctor?.unavailableShiftTypes &&
-          Array.isArray(doctor.unavailableShiftTypes)
-            ? doctor.unavailableShiftTypes.includes(target.shiftType)
-            : false;
-        const vacationConflict =
-          !!doctor?.name &&
-          (approvedVacationsByDate[dateKey] ?? []).includes(doctor.name);
-
-        const nightOverlapConflict =
-          target.shiftType === "night"
-            ? ALL_CALENDAR_SHIFT_TYPES.some(
-                (type) =>
-                  isDayDutyShiftType(type) &&
-                  isDoctorAssignedToDateShift(doctorId, {
-                    date: target.date,
-                    shiftType: type,
-                  }),
-              )
-            : isDayDutyShiftType(target.shiftType) &&
-              isDoctorAssignedToDateShift(doctorId, {
-                date: target.date,
-                shiftType: "night",
-              });
-
-        return (
-          dateConflict ||
-          shiftTypeConflict ||
-          vacationConflict ||
-          nightOverlapConflict
-        );
-      });
+      const doctor = doctors.find((entry) => entry.id === doctorId);
+      return (
+        !!doctor &&
+        targetsForType.some(
+          (target) =>
+            getAssignmentConflicts(
+              doctor,
+              format(target.date, "yyyy-MM-dd"),
+              target.shiftType,
+              {
+                shifts: ALL_CALENDAR_SHIFT_TYPES.map((type) => ({
+                  date: format(target.date, "yyyy-MM-dd"),
+                  shiftType: type,
+                  doctorIds: doctors
+                    .filter((entry) =>
+                      isDoctorAssignedToDateShift(entry.id, {
+                        date: target.date,
+                        shiftType: type,
+                      }),
+                    )
+                    .map((entry) => entry.id),
+                })),
+                unavailableByDoctor,
+                vacationDoctorIdsByDate,
+              },
+            ).length > 0,
+        )
+      );
     },
     [
-      approvedVacationsByDate,
-      considerUnavailableDates,
+      vacationDoctorIdsByDate,
       doctors,
       isDoctorAssignedToDateShift,
       shiftTargetsMap,
@@ -260,6 +244,9 @@ export function ShiftAssignmentModal({
       return;
     }
 
+    if (saving.current) return;
+    saving.current = true;
+    setIsSaving(true);
     try {
       await onAssign(
         assignmentTargets.map((target) => ({
@@ -270,6 +257,9 @@ export function ShiftAssignmentModal({
       onOpenChange(false);
     } catch (error) {
       console.error("Failed to apply shift assignments", error);
+    } finally {
+      saving.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -281,9 +271,7 @@ export function ShiftAssignmentModal({
       return ` - ${assignmentTargets.length} Felder / ${uniqueDays.size} Tage`;
     }
 
-    return date
-      ? ` - ${format(date, "d. MMM yyyy", { locale: de })}`
-      : "";
+    return date ? ` - ${format(date, "d. MMM yyyy", { locale: de })}` : "";
   }, [assignmentTargets, date, isBatchMode]);
 
   return (
@@ -323,8 +311,8 @@ export function ShiftAssignmentModal({
                 oa: doctor.oa,
               }));
 
-            const allowedSelectedDoctorIds = selectedDoctorIds.filter((doctorId) =>
-              doctors.some((entry) => entry.id === doctorId),
+            const allowedSelectedDoctorIds = selectedDoctorIds.filter(
+              (doctorId) => doctors.some((entry) => entry.id === doctorId),
             );
 
             const shiftSummary =
@@ -372,7 +360,10 @@ export function ShiftAssignmentModal({
                         <Pill
                           key={`${assignedDoctor.id}-${shiftType}`}
                           color={assignedDoctor.color || undefined}
-                          showX={hasDoctorConflict(assignedDoctor.id, shiftType)}
+                          showX={hasDoctorConflict(
+                            assignedDoctor.id,
+                            shiftType,
+                          )}
                           className={cn("text-xs")}
                         >
                           {assignedDoctor.name}
@@ -385,7 +376,11 @@ export function ShiftAssignmentModal({
             );
           })}
 
-          <Button onClick={handleApply} className="w-full border-2 border-green-200">
+          <Button
+            disabled={isSaving}
+            onClick={handleApply}
+            className="w-full border-2 border-green-200"
+          >
             Übernehmen
           </Button>
         </div>

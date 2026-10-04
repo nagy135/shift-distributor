@@ -1,19 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
 import { getUserFromAuthHeader } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { monthPublications } from "@/lib/db/schema";
-import {
-  getMonthPublication,
-  isValidMonthKey,
-} from "@/lib/month-publications";
+import { getMonthPublication, isValidMonthKey } from "@/lib/month-publications";
 import { isAssigner } from "@/lib/roles";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ month: string }> },
 ) {
-  const user = await getUserFromAuthHeader(request.headers.get("authorization"));
+  const user = await getUserFromAuthHeader(
+    request.headers.get("authorization"),
+  );
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -31,7 +29,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ month: string }> },
 ) {
-  const user = await getUserFromAuthHeader(request.headers.get("authorization"));
+  const user = await getUserFromAuthHeader(
+    request.headers.get("authorization"),
+  );
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -56,38 +56,16 @@ export async function PATCH(
   }
 
   const now = new Date();
-  const existing = await db
-    .select({ id: monthPublications.id })
-    .from(monthPublications)
-    .where(eq(monthPublications.month, month))
-    .get();
-
-  if (isPublished) {
-    if (existing) {
-      await db
-        .delete(monthPublications)
-        .where(eq(monthPublications.id, existing.id));
-    }
-  } else if (existing) {
-    await db
-      .update(monthPublications)
-      .set({
-        isPublished: false,
-        publishedAt: null,
-        publishedByUserId: user.id,
-        updatedAt: now,
-      })
-      .where(eq(monthPublications.id, existing.id));
-  } else {
-    await db.insert(monthPublications).values({
-      month,
-      isPublished: false,
-      publishedAt: null,
-      publishedByUserId: user.id,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
+  const values = {
+    isPublished,
+    publishedAt: isPublished ? now : null,
+    publishedByUserId: user.id,
+    updatedAt: now,
+  };
+  await db
+    .insert(monthPublications)
+    .values({ month, ...values })
+    .onConflictDoUpdate({ target: monthPublications.month, set: values });
 
   const publication = await getMonthPublication(month);
   return NextResponse.json(publication);

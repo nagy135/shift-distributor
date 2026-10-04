@@ -1,12 +1,13 @@
-import { inArray } from "drizzle-orm";
-import { db } from "@/lib/db";
+import { db, type AppDatabase } from "@/lib/db";
 import { doctors } from "@/lib/db/schema";
+import { inArray } from "drizzle-orm";
 
 type ShiftRowLike = {
   id: number;
   date: string;
   shiftType: string;
   doctorIds: unknown;
+  version?: number;
 };
 
 export type HydratedShiftDoctor = {
@@ -40,21 +41,25 @@ export function parseDoctorIds(input: unknown): number[] {
   return Array.from(new Set(ids));
 }
 
-export async function hydrateShiftRows<T extends ShiftRowLike>(rows: T[]) {
+export function hydrateShiftRows<T extends ShiftRowLike>(
+  rows: T[],
+  database: Pick<AppDatabase, "select"> = db,
+) {
   const doctorIds = Array.from(
     new Set(rows.flatMap((row) => parseDoctorIds(row.doctorIds))),
   );
   const doctorMap = new Map<number, HydratedShiftDoctor>();
 
   if (doctorIds.length > 0) {
-    const doctorRows = await db
+    const doctorRows = database
       .select({
         id: doctors.id,
         name: doctors.name,
         color: doctors.color,
       })
       .from(doctors)
-      .where(inArray(doctors.id, doctorIds));
+      .where(inArray(doctors.id, doctorIds))
+      .all();
 
     for (const doctor of doctorRows) {
       doctorMap.set(doctor.id, {
@@ -73,10 +78,13 @@ export async function hydrateShiftRows<T extends ShiftRowLike>(rows: T[]) {
       date: row.date,
       shiftType: row.shiftType,
       doctorIds: normalizedDoctorIds,
+      version: row.version ?? 1,
       doctors: normalizedDoctorIds.map((doctorId) => {
         const doctor = doctorMap.get(doctorId);
 
-        return doctor ?? { id: doctorId, name: `Doctor #${doctorId}`, color: null };
+        return (
+          doctor ?? { id: doctorId, name: `Arzt #${doctorId}`, color: null }
+        );
       }),
     };
   });

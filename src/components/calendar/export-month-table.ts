@@ -1,22 +1,19 @@
-import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  eachDayOfInterval,
-  isSameMonth,
-} from "date-fns";
-import { de } from "date-fns/locale";
-import { HOLIDAY_DAY_SET } from "@/lib/holidays";
-import {
-  DEPARTMENT_SHIFT_COLUMNS,
-  SHIFT_TABLE_COLUMNS,
-} from "@/lib/shifts";
 import type { Shift } from "@/lib/api";
+import { isHoliday } from "@/lib/holidays";
 import {
   getAutomaticNightShiftVacationDays,
   getDoctorNamesByDate,
   NIGHT_FREE_COLUMN_ID,
 } from "@/lib/night-shift-vacations";
+import { DEPARTMENT_SHIFT_COLUMNS, SHIFT_TABLE_COLUMNS } from "@/lib/shifts";
+import {
+  eachDayOfInterval,
+  endOfMonth,
+  format,
+  isSameMonth,
+  startOfMonth,
+} from "date-fns";
+import { de } from "date-fns/locale";
 
 type ExportMonthTableParams = {
   month: Date;
@@ -28,45 +25,7 @@ type ExportMonthTableParams = {
 type BorderLineStyle = "thin" | "medium";
 type BorderStyle = { style: BorderLineStyle; color: { argb: string } };
 type BorderSide = "top" | "left" | "bottom" | "right";
-type ExcelCell = {
-  border?: {
-    top: BorderStyle;
-    left: BorderStyle;
-    bottom: BorderStyle;
-    right: BorderStyle;
-  };
-  alignment?: { vertical?: string; horizontal?: string };
-  font?: { bold?: boolean; size?: number };
-  fill?: { type: "pattern"; pattern: "solid"; fgColor: { argb: string } };
-};
-type ExcelRow = {
-  height?: number;
-  eachCell: (callback: (cell: ExcelCell, colNumber: number) => void) => void;
-};
-type ExcelWorksheet = {
-  columns: { width: number }[];
-  views?: Array<{ state?: string; ySplit?: number }>;
-  addRow: (values: Array<string | number | null | undefined>) => ExcelRow;
-  getCell: (row: number, col: number) => ExcelCell;
-  mergeCells: (
-    startRow: number,
-    startCol: number,
-    endRow: number,
-    endCol: number,
-  ) => void;
-  lastRow?: { number: number };
-};
-type ExcelWorkbook = {
-  addWorksheet: (
-    name: string,
-    opts?: {
-      properties?: { defaultRowHeight?: number };
-      views?: Array<{ state?: string; ySplit?: number }>;
-    },
-  ) => ExcelWorksheet;
-  xlsx: { writeBuffer: () => Promise<ArrayBuffer> };
-};
-type ExcelJSPackage = { Workbook: new () => ExcelWorkbook };
+type ExcelCell = import("exceljs").Cell;
 
 const EXCEL_FONT = '11pt Aptos, Calibri, "Helvetica Neue", Arial, sans-serif';
 const EXCEL_WIDTH_PADDING = 10;
@@ -84,10 +43,9 @@ function isExportCellEditable(
     return true;
   }
 
-  const dayKey = format(day, "MM-dd");
   const isWeekend = [0, 6].includes(day.getDay());
 
-  return !isWeekend && !HOLIDAY_DAY_SET.has(dayKey);
+  return !isWeekend && !isHoliday(day);
 }
 
 function getEmptyExportCellLabel(isEditable: boolean) {
@@ -198,7 +156,11 @@ export async function exportMonthTable({
       dayNumber,
       dayNameShort,
       ...tableColumns.flatMap((column, columnIndex) => {
-        const isEditableCell = isExportCellEditable(day, column.id, isDepartmentTable);
+        const isEditableCell = isExportCellEditable(
+          day,
+          column.id,
+          isDepartmentTable,
+        );
         const value = (() => {
           if (column.id === NIGHT_FREE_COLUMN_ID) {
             return automaticNightVacationsByDate[key]?.join(", ") ?? "";
@@ -208,7 +170,9 @@ export async function exportMonthTable({
           const shift = byType[type];
           return shift
             ? shift.doctors.length > 0
-              ? shift.doctors.map((doctor: { name: string }) => doctor.name).join(", ")
+              ? shift.doctors
+                  .map((doctor: { name: string }) => doctor.name)
+                  .join(", ")
               : getEmptyExportCellLabel(isEditableCell)
             : getEmptyExportCellLabel(isEditableCell);
         })();
@@ -227,19 +191,21 @@ export async function exportMonthTable({
   const minimumContentColumnWidth = getExcelColumnWidth(measureTextWidth, [
     "Ballouard",
   ]);
-  const exportSpacerHeaderIndex = exportSpacerIndex >= 0 ? exportSpacerIndex + 2 : -1;
+  const exportSpacerHeaderIndex =
+    exportSpacerIndex >= 0 ? exportSpacerIndex + 2 : -1;
   const columnWidths = header.map((headerValue, columnIndex) => ({
-    width: getExcelColumnWidth(measureTextWidth, [
-      headerValue,
-      ...rowsAoa.map((row) => row[columnIndex]),
-    ], columnIndex >= 2 ? minimumContentColumnWidth : 4),
+    width: getExcelColumnWidth(
+      measureTextWidth,
+      [headerValue, ...rowsAoa.map((row) => row[columnIndex])],
+      columnIndex >= 2 ? minimumContentColumnWidth : 4,
+    ),
   }));
 
   if (exportSpacerHeaderIndex >= 0) {
     columnWidths[exportSpacerHeaderIndex] = { width: 8 };
   }
 
-  const ExcelJS = (await import("exceljs")) as unknown as ExcelJSPackage;
+  const ExcelJS = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Monat", {
     properties: { defaultRowHeight: 18 },
@@ -314,7 +280,7 @@ export async function exportMonthTable({
 
   rowsAoa.forEach((rowVals, idx) => {
     const day = days[idx];
-    const isWeekend = [0, 6].includes(day.getDay());
+    const isWeekend = [0, 6].includes(day.getDay()) || isHoliday(day);
     const row = worksheet.addRow(rowVals);
     row.height = 18;
     row.eachCell((cell, colNumber: number) => {
@@ -364,8 +330,8 @@ export async function exportMonthTable({
   }
 
   const fileName = `${isDepartmentTable ? "Stationsplan" : "Dienstplan"}-${format(month, "yyyy-MM")}.xlsx`;
-  const buffer: ArrayBuffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([new Uint8Array(buffer).buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
   const url = URL.createObjectURL(blob);

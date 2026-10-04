@@ -1,3 +1,8 @@
+import type { Doctor, Shift, VacationDay } from "@/lib/api";
+import {
+  AUTO_GENERATED_VACATION_COLOR,
+  type DisplayVacationColor,
+} from "@/lib/vacations";
 import {
   addDays,
   differenceInCalendarDays,
@@ -6,12 +11,11 @@ import {
   parseISO,
   startOfISOWeek,
 } from "date-fns";
-import type { Doctor, Shift, VacationDay } from "@/lib/api";
-import { AUTO_GENERATED_VACATION_COLOR, type DisplayVacationColor } from "@/lib/vacations";
 
 export const NIGHT_FREE_COLUMN_ID = "night-free";
 
-export type VacationDisplayDay = Omit<VacationDay, "color"> & {
+export type VacationDisplayDay = Omit<VacationDay, "id" | "color"> & {
+  id?: number;
   color: DisplayVacationColor;
   isAutomatic?: boolean;
 };
@@ -33,7 +37,9 @@ const getDoctorName = (
   doctorId: number,
   doctorNameById?: ReadonlyMap<number, string>,
 ) => {
-  const fromShift = shift.doctors.find((doctor) => doctor.id === doctorId)?.name;
+  const fromShift = shift.doctors.find(
+    (doctor) => doctor.id === doctorId,
+  )?.name;
 
   return fromShift ?? doctorNameById?.get(doctorId) ?? `Arzt #${doctorId}`;
 };
@@ -95,7 +101,9 @@ export function getAutomaticNightShiftVacationDays(
   shifts: Shift[],
   doctors: Doctor[] = [],
 ): VacationDisplayDay[] {
-  const doctorNameById = new Map(doctors.map((doctor) => [doctor.id, doctor.name]));
+  const doctorNameById = new Map(
+    doctors.map((doctor) => [doctor.id, doctor.name]),
+  );
   const nightShifts = shifts.filter((shift) => shift.shiftType === "night");
   const weeksByDoctor = new Map<number, Map<string, NightShiftWeek>>();
 
@@ -106,7 +114,8 @@ export function getAutomaticNightShiftVacationDays(
     const isoDay = getISODay(shiftDate);
 
     shift.doctorIds.forEach((doctorId) => {
-      const doctorWeeks = weeksByDoctor.get(doctorId) ?? new Map<string, NightShiftWeek>();
+      const doctorWeeks =
+        weeksByDoctor.get(doctorId) ?? new Map<string, NightShiftWeek>();
       const existingWeek = doctorWeeks.get(weekKey);
 
       if (existingWeek) {
@@ -193,7 +202,9 @@ export function getDoctorNamesByDate(days: readonly VacationDisplayDay[]) {
       current.push(doctorName);
     }
 
-    next[day.date] = current.sort((left, right) => left.localeCompare(right, "de"));
+    next[day.date] = current.sort((left, right) =>
+      left.localeCompare(right, "de"),
+    );
   });
 
   return next;

@@ -1,13 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
+import { getUserFromAuthHeader } from "@/lib/authz";
+import { isDateKey } from "@/lib/dates";
 import { db } from "@/lib/db";
 import {
-  unavailableDates,
-  unavailableDateChangeLogs,
+  doctors,
   unavailableDateChangeLogEntries,
+  unavailableDateChangeLogs,
+  unavailableDates,
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { getUserFromAuthHeader } from "@/lib/authz";
 import { isAssigner } from "@/lib/roles";
+import { apiError, requireValue } from "@/lib/server/errors";
+import { and, eq, inArray } from "drizzle-orm";
+import { NextRequest, NextResponse } from "next/server";
 
 function getMonthAndDay(date: string) {
   const [year, month, day] = date.split("-");
@@ -31,7 +34,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    const doctorId = parseInt(id);
+    const doctorId = Number(id);
 
     const dates = await db
       .select()
@@ -61,10 +64,20 @@ export async function POST(
     }
 
     const { id } = await params;
-    const doctorId = parseInt(id);
+    const doctorId = Number(id);
     const { dates } = await request.json();
+    requireValue(
+      Number.isInteger(doctorId) &&
+        doctorId > 0 &&
+        db.select().from(doctors).where(eq(doctors.id, doctorId)).get(),
+      "Arzt nicht gefunden.",
+      404,
+    );
 
-    if (!isAssigner(user.role) && (!user.doctorId || user.doctorId !== doctorId)) {
+    if (
+      !isAssigner(user.role) &&
+      (user.role !== "doctor" || user.doctorId !== doctorId)
+    ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -75,6 +88,7 @@ export async function POST(
       );
     }
 
+    requireValue(dates.every(isDateKey), "Ungültige Sperrtage.");
     const normalizedDates = Array.from(
       new Set(
         dates
@@ -83,35 +97,35 @@ export async function POST(
       ),
     );
 
-    const existingDates = await db
-      .select({ date: unavailableDates.date })
-      .from(unavailableDates)
-      .where(eq(unavailableDates.doctorId, doctorId));
-
-    const existingDateSet = new Set(existingDates.map((entry) => entry.date));
-    const nextDateSet = new Set(normalizedDates);
-    const addedDates = normalizedDates.filter((date) => !existingDateSet.has(date));
-    const removedDates = existingDates
-      .map((entry) => entry.date)
-      .filter((date) => !nextDateSet.has(date));
-
     db.transaction((tx) => {
-      tx
-        .delete(unavailableDates)
+      const existingDates = tx
+        .select({ date: unavailableDates.date })
+        .from(unavailableDates)
         .where(eq(unavailableDates.doctorId, doctorId))
-        .run();
+        .all();
 
-      if (normalizedDates.length > 0) {
-        tx
-          .insert(unavailableDates)
-          .values(
-            normalizedDates.map((date) => ({
-              doctorId,
-              date,
-            })),
+      const existingDateSet = new Set(existingDates.map((entry) => entry.date));
+      const nextDateSet = new Set(normalizedDates);
+      const addedDates = normalizedDates.filter(
+        (date) => !existingDateSet.has(date),
+      );
+      const removedDates = existingDates
+        .map((entry) => entry.date)
+        .filter((date) => !nextDateSet.has(date));
+
+      if (removedDates.length)
+        tx.delete(unavailableDates)
+          .where(
+            and(
+              eq(unavailableDates.doctorId, doctorId),
+              inArray(unavailableDates.date, removedDates),
+            ),
           )
           .run();
-      }
+      if (addedDates.length)
+        tx.insert(unavailableDates)
+          .values(addedDates.map((date) => ({ doctorId, date })))
+          .run();
 
       if (addedDates.length === 0 && removedDates.length === 0) {
         return;
@@ -154,10 +168,6 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error updating unavailable dates:", error);
-    return NextResponse.json(
-      { error: "Failed to update unavailable dates" },
-      { status: 500 },
-    );
+    return apiError(error);
   }
 }

@@ -1,135 +1,35 @@
-import type { VacationColor } from "@/lib/vacations";
 import type { UserRole } from "@/lib/roles";
+import type { VacationColor } from "@/lib/vacations";
+import { ApiError } from "./api-error";
+import type {
+  AdminUser,
+  Doctor,
+  MonthCalendarEmailResult,
+  MonthPublication,
+  NightShift,
+  Notification,
+  Shift,
+  UnavailableDate,
+  UnavailableDateChangeLog,
+  VacationDay,
+} from "./contracts";
 
-type ApiFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+type ApiFetch = (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<Response>;
 
-export interface Doctor {
-  id: number;
-  name: string;
-  color?: string | null;
-  unavailableShiftTypes: string[];
-  disabled: boolean;
-  oa: boolean;
-  createdAt: string;
-}
-
-export interface ShiftDoctor {
-  id: number;
-  name: string;
-  color?: string | null;
-}
-
-export interface Shift {
-  id: number;
-  date: string;
-  shiftType: string;
-  doctorIds: number[];
-  doctors: ShiftDoctor[];
-}
-
-export interface NightShift {
-  id: number;
-  date: string;
-  shiftType: "night";
-  doctorIds: number[];
-  doctors: ShiftDoctor[];
-}
-
-export interface UnavailableDate {
-  id: number;
-  doctorId: number;
-  date: string;
-}
-
-export interface UnavailableDateChange {
-  date: string;
-  changeType: "added" | "removed";
-}
-
-export interface UnavailableDateChangeLog {
-  id: number;
-  doctorId: number;
-  userId: number;
-  userEmail: string;
-  addedCount: number;
-  removedCount: number;
-  createdAt: number | string;
-  changes: UnavailableDateChange[];
-}
-
-export interface VacationDay {
-  id?: number;
-  doctorId?: number;
-  date: string;
-  color: VacationColor;
-  approved?: boolean;
-  doctorName?: string | null;
-}
-
-export interface Notification {
-  id: number;
-  message: string;
-  createdAt?: number | string | null;
-}
-
-export interface MonthPublication {
-  month: string;
-  isPublished: boolean;
-  publishedAt?: number | string | null;
-  publishedByUserId?: number | null;
-  updatedAt?: number | string | null;
-}
-
-export interface MonthCalendarEmailDelivery {
-  email: string;
-  doctorName: string;
-  shiftCount: number;
-  outputPath: string | null;
-  messageId: string | null;
-}
-
-export interface MonthCalendarEmailSkip {
-  email: string;
-  reason: string;
-}
-
-export interface MonthCalendarEmailResult {
-  month: string;
-  scope: "shifts" | "departments";
-  mode: "mock" | "smtp";
-  mockBasePath: string | null;
-  deliveredCount: number;
-  skippedCount: number;
-  deliveries: MonthCalendarEmailDelivery[];
-  skipped: MonthCalendarEmailSkip[];
-}
-
-export interface AdminUser {
-  id: number;
-  email: string;
-  role: UserRole;
-  admin: boolean;
-  doctorId?: number | null;
-  doctorName?: string | null;
-  lastOnlineAt?: number | string | null;
-  isOnline?: boolean;
-  createdAt?: number | string | null;
-}
-
-async function readError(response: Response, fallback: string) {
-  try {
-    const text = await response.text();
-    return text || fallback;
-  } catch {
-    return fallback;
-  }
-}
+export type * from "./contracts";
 
 async function readJson<T>(response: Response, fallback: string): Promise<T> {
   if (!response.ok) {
-    throw new Error(await readError(response, fallback));
+    const body = await response.json().catch(() => null);
+    throw new ApiError(
+      body?.error ?? fallback,
+      response.status,
+      body?.code ?? "REQUEST_FAILED",
+    );
   }
-
   return response.json();
 }
 
@@ -180,8 +80,13 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
   };
 
   const shiftsApi = {
-    getAll: async (): Promise<Shift[]> => {
-      const response = await apiFetch("/api/shifts");
+    getAll: async (range?: {
+      start: string;
+      end: string;
+    }): Promise<Shift[]> => {
+      const response = await apiFetch(
+        range ? `/api/shifts?${new URLSearchParams(range)}` : "/api/shifts",
+      );
       return readJson(response, "Failed to fetch shifts");
     },
 
@@ -194,6 +99,7 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
       date: string;
       shiftType: string;
       doctorIds: number[];
+      expectedVersion?: number;
     }): Promise<Shift> => {
       const response = await apiFetch("/api/shifts", {
         method: "POST",
@@ -206,7 +112,12 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     },
 
     assignBatch: async (
-      shifts: { date: string; shiftType: string; doctorIds: number[] }[],
+      shifts: {
+        date: string;
+        shiftType: string;
+        doctorIds: number[];
+        expectedVersion?: number;
+      }[],
     ): Promise<Shift[]> => {
       const response = await apiFetch("/api/shifts", {
         method: "PUT",
@@ -227,13 +138,14 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     update: async (
       date: string,
       doctorIds: number[],
+      expectedVersion?: number,
     ): Promise<NightShift> => {
       const response = await apiFetch("/api/night-shifts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ date, doctorIds }),
+        body: JSON.stringify({ date, doctorIds, expectedVersion }),
       });
       return readJson(response, "Failed to update night shifts");
     },
@@ -254,7 +166,9 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
       return readJson(response, "Failed to fetch unavailable dates");
     },
     getByDoctor: async (doctorId: number): Promise<UnavailableDate[]> => {
-      const response = await apiFetch(`/api/doctors/${doctorId}/unavailable-dates`);
+      const response = await apiFetch(
+        `/api/doctors/${doctorId}/unavailable-dates`,
+      );
       return readJson(response, "Failed to fetch unavailable dates");
     },
 
@@ -288,40 +202,44 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
       const response = await apiFetch(`/api/vacations?year=${year}`);
       return readJson(response, "Failed to fetch vacation days");
     },
-    updateYear: async (
-      year: number,
-      days: VacationDay[],
-      doctorId?: number,
+    edit: async (
+      changes: {
+        doctorId: number;
+        date: string;
+        color: VacationColor | null;
+      }[],
     ): Promise<{ success: boolean }> => {
       const response = await apiFetch("/api/vacations", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ year, days, doctorId }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes }),
       });
-      return readJson(response, "Failed to update vacation days");
+      return readJson(response, "Urlaub konnte nicht gespeichert werden.");
     },
     updateApproval: async (
       id: number,
       approved: boolean,
+      expectedColor?: string,
     ): Promise<{ success: boolean }> => {
       const response = await apiFetch("/api/vacations", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ id, approved }),
+        body: JSON.stringify({ id, approved, expectedColor }),
       });
       return readJson(response, "Failed to update vacation approval");
     },
-    deny: async (id: number): Promise<{ success: boolean }> => {
+    deny: async (
+      id: number,
+      expectedColor?: string,
+    ): Promise<{ success: boolean }> => {
       const response = await apiFetch("/api/vacations", {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, expectedColor }),
       });
       return readJson(response, "Failed to deny vacation");
     },
@@ -376,11 +294,14 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     send: async (
       month: string,
       scope: "shifts" | "departments",
+      revision: string,
     ): Promise<MonthCalendarEmailResult> => {
       const response = await apiFetch(
         `/api/month-calendar-emails/${month}?scope=${scope}`,
         {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revision }),
         },
       );
       return readJson(response, "Failed to send month calendar emails");
@@ -427,15 +348,3 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
     adminUsersApi,
   };
 }
-
-export const {
-  doctorsApi,
-  shiftsApi,
-  nightShiftsApi,
-  unavailableDatesApi,
-  vacationsApi,
-  notificationsApi,
-  monthPublicationsApi,
-  monthCalendarEmailsApi,
-  adminUsersApi,
-} = createApiClient();

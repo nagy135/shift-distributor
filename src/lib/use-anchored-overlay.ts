@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useState, type MutableRefObject, type RefObject } from "react";
+import {
+  useEffect,
+  useState,
+  type MutableRefObject,
+  type RefObject,
+} from "react";
 
 type AnchoredOverlayPosition = {
   top: number;
@@ -31,7 +36,9 @@ export function useAnchoredOverlay<AnchorElement extends HTMLElement>({
   recalculateKey,
   onRequestClose,
 }: UseAnchoredOverlayOptions<AnchorElement>) {
-  const [position, setPosition] = useState<AnchoredOverlayPosition | null>(null);
+  const [position, setPosition] = useState<AnchoredOverlayPosition | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!isEnabled || !anchorKey) {
@@ -69,7 +76,10 @@ export function useAnchoredOverlay<AnchorElement extends HTMLElement>({
         : anchorRect.left - wrapperRect.left;
       const minLeft = viewportPadding - wrapperRect.left;
       const maxLeft =
-        window.innerWidth - viewportPadding - desiredMinWidth - wrapperRect.left;
+        window.innerWidth -
+        viewportPadding -
+        desiredMinWidth -
+        wrapperRect.left;
 
       setPosition({
         top: anchorRect.bottom - wrapperRect.top + 6,
@@ -80,9 +90,11 @@ export function useAnchoredOverlay<AnchorElement extends HTMLElement>({
 
     updatePosition();
     window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
 
     return () => {
       window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
     };
   }, [
     alignWithinViewport,

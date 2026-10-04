@@ -1,11 +1,13 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { type UnavailableDate, type UnavailableDateChangeLog } from "@/lib/api";
 import {
-  type UnavailableDate,
-  type UnavailableDateChangeLog,
-} from "@/lib/api";
+  invalidateDoctors,
+  invalidateSchedule,
+  queryKeys,
+} from "@/lib/query-keys";
 import { useApiClient } from "@/lib/use-api-client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 type UseDoctorsQueriesOptions = {
   selectedDoctorId?: number;
@@ -53,14 +55,14 @@ export function useDoctorsQueries({
   });
 
   const { data: allShifts = [] } = useQuery({
-    queryKey: ["shifts"],
-    queryFn: shiftsApi.getAll,
+    queryKey: queryKeys.shifts(),
+    queryFn: () => shiftsApi.getAll(),
   });
 
   const createDoctorMutation = useMutation({
     mutationFn: doctorsApi.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["doctors"] });
+      invalidateDoctors(queryClient);
       onDoctorCreated?.();
     },
   });
@@ -78,7 +80,7 @@ export function useDoctorsQueries({
         });
       }
       queryClient.invalidateQueries({ queryKey: ["unavailable-by-doctor"] });
-      queryClient.invalidateQueries({ queryKey: ["shifts"] });
+      invalidateSchedule(queryClient);
       onUnavailableUpdated?.();
     },
   });
@@ -107,8 +109,8 @@ export function useDoctorsQueries({
         oa,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["doctors"] });
-      queryClient.invalidateQueries({ queryKey: ["shifts"] });
+      invalidateDoctors(queryClient);
+      invalidateSchedule(queryClient);
       onDoctorUpdated?.();
     },
   });

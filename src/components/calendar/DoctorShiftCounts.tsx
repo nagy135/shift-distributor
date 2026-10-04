@@ -1,16 +1,16 @@
 "use client";
 
-import React from "react";
-import { format, isSameMonth } from "date-fns";
-import { HOLIDAY_DATE_SET } from "@/lib/holidays";
+import type { Doctor, Shift } from "@/lib/api";
+import { isHoliday as isHolidayDate } from "@/lib/holidays";
 import {
   getAutomaticNightShiftVacationDays,
   NIGHT_FREE_COLUMN_ID,
 } from "@/lib/night-shift-vacations";
+import type { CalendarShiftColumn } from "@/lib/shifts";
 import { useDragToScroll } from "@/lib/use-drag-to-scroll";
 import { cn } from "@/lib/utils";
-import type { Doctor, Shift } from "@/lib/api";
-import type { CalendarShiftColumn } from "@/lib/shifts";
+import { isSameMonth } from "date-fns";
+import React from "react";
 
 type DoctorShiftCountsView = "shifts" | "departments";
 
@@ -94,9 +94,9 @@ export function DoctorShiftCounts({
 
           if (view === "shifts") {
             const date = new Date(shift.date);
-            const dateKey = format(date, "yyyy-MM-dd");
+
             const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-            const isHoliday = HOLIDAY_DATE_SET.has(dateKey);
+            const isHoliday = isHolidayDate(date);
             const isWeekday = !isWeekend && !isHoliday;
 
             if (shift.shiftType === "night") {

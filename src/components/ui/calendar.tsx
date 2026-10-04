@@ -21,6 +21,7 @@ function Calendar({
   locale = de,
   formatters,
   components,
+  labels,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"];
@@ -29,6 +30,13 @@ function Calendar({
 
   return (
     <DayPicker
+      labels={{
+        labelNext: () => "Nächster Monat",
+        labelPrevious: () => "Vorheriger Monat",
+        labelMonthDropdown: () => "Monat auswählen",
+        labelYearDropdown: () => "Jahr auswählen",
+        ...labels,
+      }}
       showOutsideDays={showOutsideDays}
       weekStartsOn={1}
       className={cn(
@@ -40,7 +48,7 @@ function Calendar({
       captionLayout={captionLayout}
       formatters={{
         formatMonthDropdown: (date) =>
-          date.toLocaleString("default", { month: "short" }),
+          date.toLocaleString("de-DE", { month: "short" }),
         ...formatters,
       }}
       classNames={{

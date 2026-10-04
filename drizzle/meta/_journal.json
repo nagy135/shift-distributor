@@ -32,51 +32,114 @@
     },
     {
       "idx": 4,
+      "version": "7",
+      "when": 1756836109843,
+      "tag": "0003_legacy_doctor_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
       "version": "6",
       "when": 1756836580540,
       "tag": "0004_clever_radioactive_man",
       "breakpoints": true
     },
     {
-      "idx": 5,
+      "idx": 6,
       "version": "7",
       "when": 1759344000000,
       "tag": "0005_multi_doctor_shift",
       "breakpoints": true
     },
     {
-      "idx": 6,
+      "idx": 7,
       "version": "6",
       "when": 1764698832212,
       "tag": "0006_melted_puff_adder",
       "breakpoints": true
     },
     {
-      "idx": 7,
+      "idx": 8,
+      "version": "7",
+      "when": 1764698832213,
+      "tag": "0007_add_oa_to_doctors",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1764698832214,
+      "tag": "0008_add_user_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1764698832215,
+      "tag": "0009_add_user_doctor",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1764698832216,
+      "tag": "0010_add_vacation_days",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1764698832217,
+      "tag": "0011_add_vacation_approved",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1764698832218,
+      "tag": "0012_add_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1764698832219,
+      "tag": "0013_replace_admin_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
       "version": "7",
       "when": 1773139200000,
       "tag": "0014_add_user_last_online",
       "breakpoints": true
     },
     {
-      "idx": 8,
+      "idx": 16,
       "version": "7",
       "when": 1773139500000,
       "tag": "0015_add_unavailable_date_logs",
       "breakpoints": true
     },
     {
-      "idx": 9,
+      "idx": 17,
       "version": "6",
       "when": 1773233614011,
       "tag": "0009_flawless_warpath",
       "breakpoints": true
     },
     {
-      "idx": 10,
+      "idx": 18,
       "version": "6",
       "when": 1773525909805,
       "tag": "0010_blushing_captain_flint",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791062400000,
+      "tag": "0016_scheduling_integrity",
       "breakpoints": true
     }
   ]

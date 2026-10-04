@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { AuthRedirectError, useAuth } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
+import { useCallback } from "react";
 
 function withBearerToken(init: RequestInit | undefined, token: string) {
   const headers = new Headers(init?.headers);
@@ -16,11 +16,18 @@ function withBearerToken(init: RequestInit | undefined, token: string) {
 
 export function useAuthorizedFetch() {
   const router = useRouter();
-  const { accessToken, refreshAccessToken, clearAuth } = useAuth();
+  const { accessToken, refreshAccessToken, clearAuth, getSessionGeneration } =
+    useAuth();
 
   return useCallback(
     async (input: RequestInfo | URL, init?: RequestInit) => {
+      const generation = getSessionGeneration();
+      const ensureCurrentSession = () => {
+        if (generation !== getSessionGeneration())
+          throw new AuthRedirectError();
+      };
       const redirectToLogin = (): never => {
+        ensureCurrentSession();
         clearAuth();
         router.replace("/login");
         throw new AuthRedirectError();
@@ -32,6 +39,7 @@ export function useAuthorizedFetch() {
         token = await refreshAccessToken();
       }
 
+      ensureCurrentSession();
       if (!token) {
         redirectToLogin();
       }
@@ -39,6 +47,7 @@ export function useAuthorizedFetch() {
       const activeToken = token as string;
       let response = await fetch(input, withBearerToken(init, activeToken));
 
+      ensureCurrentSession();
       if (response.status !== 401) {
         return response;
       }
@@ -48,15 +57,17 @@ export function useAuthorizedFetch() {
         redirectToLogin();
       }
 
+      ensureCurrentSession();
       const refreshedToken = token as string;
       response = await fetch(input, withBearerToken(init, refreshedToken));
 
+      ensureCurrentSession();
       if (response.status === 401) {
         redirectToLogin();
       }
 
       return response;
     },
-    [accessToken, clearAuth, refreshAccessToken, router],
+    [accessToken, clearAuth, refreshAccessToken, getSessionGeneration, router],
   );
 }

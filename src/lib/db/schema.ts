@@ -1,13 +1,19 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
 import { DEFAULT_USER_ROLE, type UserRole } from "@/lib/roles";
+import { sql } from "drizzle-orm";
+import {
+  integer,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 export const doctors = sqliteTable("doctors", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   color: text("color").default("black"),
   unavailableShiftTypes: text("unavailable_shift_types", { mode: "json" })
-    .default("[]")
+    .$type<string[]>()
+    .default(sql`'[]'`)
     .notNull(), // JSON array of shift types the doctor cannot do
   disabled: integer("disabled", { mode: "boolean" }).default(false).notNull(),
   oa: integer("oa", { mode: "boolean" })
@@ -18,29 +24,45 @@ export const doctors = sqliteTable("doctors", {
   ),
 });
 
-export const shifts = sqliteTable("shifts", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  date: text("date").notNull(), // YYYY-MM-DD format
-  shiftType: text("shift_type").notNull(), // see SHIFT_TYPES in src/lib/shifts.ts
-  doctorIds: text("doctor_ids", { mode: "json" })
-    .$type<number[]>()
-    .notNull()
-    .$default(() => []),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
-    () => new Date(),
-  ),
-});
+export const shifts = sqliteTable(
+  "shifts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    date: text("date").notNull(), // YYYY-MM-DD format
+    shiftType: text("shift_type").notNull(), // see SHIFT_TYPES in src/lib/shifts.ts
+    doctorIds: text("doctor_ids", { mode: "json" })
+      .$type<number[]>()
+      .notNull()
+      .$default(() => []),
+    version: integer("version").notNull().default(1),
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+  },
+  (table) => [
+    uniqueIndex("shifts_date_type_unique").on(table.date, table.shiftType),
+  ],
+);
 
-export const unavailableDates = sqliteTable("unavailable_dates", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  doctorId: integer("doctor_id")
-    .references(() => doctors.id)
-    .notNull(),
-  date: text("date").notNull(), // YYYY-MM-DD format
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
-    () => new Date(),
-  ),
-});
+export const unavailableDates = sqliteTable(
+  "unavailable_dates",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    doctorId: integer("doctor_id")
+      .references(() => doctors.id)
+      .notNull(),
+    date: text("date").notNull(), // YYYY-MM-DD format
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+  },
+  (table) => [
+    uniqueIndex("unavailable_doctor_date_unique").on(
+      table.doctorId,
+      table.date,
+    ),
+  ],
+);
 
 export const unavailableDateChangeLogs = sqliteTable(
   "unavailable_date_change_logs",
@@ -77,20 +99,26 @@ export const unavailableDateChangeLogEntries = sqliteTable(
   },
 );
 
-export const vacationDays = sqliteTable("vacation_days", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  doctorId: integer("doctor_id")
-    .references(() => doctors.id)
-    .notNull(),
-  date: text("date").notNull(), // YYYY-MM-DD format
-  color: text("color").notNull(),
-  approved: integer("approved", { mode: "boolean" })
-    .default(sql`1`)
-    .notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
-    () => new Date(),
-  ),
-});
+export const vacationDays = sqliteTable(
+  "vacation_days",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    doctorId: integer("doctor_id")
+      .references(() => doctors.id)
+      .notNull(),
+    date: text("date").notNull(), // YYYY-MM-DD format
+    color: text("color").notNull(),
+    approved: integer("approved", { mode: "boolean" })
+      .default(sql`0`)
+      .notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
+      () => new Date(),
+    ),
+  },
+  (table) => [
+    uniqueIndex("vacation_doctor_date_unique").on(table.doctorId, table.date),
+  ],
+);
 
 export const monthPublications = sqliteTable("month_publications", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -113,7 +141,9 @@ export const users = sqliteTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   role: text("role").$type<UserRole>().notNull().default(DEFAULT_USER_ROLE),
-  admin: integer("admin", { mode: "boolean" }).default(sql`0`).notNull(),
+  admin: integer("admin", { mode: "boolean" })
+    .default(sql`0`)
+    .notNull(),
   doctorId: integer("doctor_id").references(() => doctors.id),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
     () => new Date(),
@@ -134,6 +164,18 @@ export const notifications = sqliteTable("notifications", {
     () => new Date(),
   ),
 });
+
+export const calendarEmailDeliveries = sqliteTable(
+  "calendar_email_deliveries",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    deliveryKey: text("delivery_key").notNull().unique(),
+    status: text("status").$type<"sending" | "sent" | "uncertain">().notNull(),
+    messageId: text("message_id"),
+    outputPath: text("output_path"),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+);
 
 export type Doctor = typeof doctors.$inferSelect;
 export type NewDoctor = typeof doctors.$inferInsert;

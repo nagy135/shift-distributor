@@ -61,17 +61,22 @@ export const SHIFT_TABLE_COLUMNS: readonly CalendarShiftColumn[] = (
 }));
 
 export const DEPARTMENT_DEFS: readonly DepartmentDefinition[] = [
-  { label: "ITS", count: 2, headerNote: ["8:00-16:30", "14:00-22:30"] },
-  { label: "INA", count: 1 },
-  { label: "A1.1", count: 1, headerNote: "INN" },
-  { label: "A1.4", count: 1, headerNote: "INN" },
-  { label: "500", count: 1, headerNote: "INN" },
-  { label: "C-600", count: 1, headerNote: "INN" },
-  { label: "Senior", count: 2 },
-  { label: "A3.1", count: 1, headerNote: "GER" },
-  { label: "A3.2", count: 1, headerNote: "GER" },
-  { label: "A4.1", count: 1, headerNote: "GER/INN" },
-  { label: "A4.2", count: 1, headerNote: "GER/INN" },
+  {
+    id: "ITS",
+    label: "ITS",
+    count: 2,
+    headerNote: ["8:00-16:30", "14:00-22:30"],
+  },
+  { id: "INA", label: "INA", count: 1 },
+  { id: "A1.1", label: "A1.1", count: 1, headerNote: "INN" },
+  { id: "A1.4", label: "A1.4", count: 1, headerNote: "INN" },
+  { id: "500", label: "500", count: 1, headerNote: "INN" },
+  { id: "C-600", label: "C-600", count: 1, headerNote: "INN" },
+  { id: "Senior", label: "Senior", count: 2 },
+  { id: "A3.1", label: "A3.1", count: 1, headerNote: "GER" },
+  { id: "A3.2", label: "A3.2", count: 1, headerNote: "GER" },
+  { id: "A4.1", label: "A4.1", count: 1, headerNote: "GER/INN" },
+  { id: "A4.2", label: "A4.2", count: 1, headerNote: "GER/INN" },
 ];
 
 export const DEPARTMENT_SHIFT_COLUMNS: readonly CalendarShiftColumn[] = (() => {
@@ -170,4 +175,6 @@ export const doesCalendarShiftUnavailableDateClash = (
     : DEPARTMENT_SHIFT_TYPE_SET.has(value);
 
 export const isDayDutyShiftType = (value: string): boolean =>
-  value !== "night" && value !== "oa";
+  ALL_CALENDAR_SHIFT_TYPES.includes(value) &&
+  value !== "night" &&
+  value !== "oa";

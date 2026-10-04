@@ -1,10 +1,10 @@
 "use client";
 
-import React from "react";
+import { isHoliday as isHolidayDate } from "@/lib/holidays";
+import { cn } from "@/lib/utils";
 import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
 import { de } from "date-fns/locale";
-import { HOLIDAY_DATE_SET } from "@/lib/holidays";
-import { cn } from "@/lib/utils";
+import React from "react";
 
 export type MonthlyTableRowContext = {
   date: Date;
@@ -49,7 +49,13 @@ function DefaultDateCellContent({
   return (
     <span className="inline-flex items-baseline gap-1">
       <span>{format(date, "d.", { locale: de })}</span>
-      <span>{isHoliday ? <span className="text-red-600">{dayPrefix}</span> : dayPrefix}</span>
+      <span>
+        {isHoliday ? (
+          <span className="text-red-600">{dayPrefix}</span>
+        ) : (
+          dayPrefix
+        )}
+      </span>
     </span>
   );
 }
@@ -69,10 +75,8 @@ export function MonthlyTableBase({
   children,
 }: MonthlyTableBaseProps) {
   const days = React.useMemo(() => getMonthTableDays(month), [month]);
-  const {
-    className: containerPropsClassName,
-    ...restContainerProps
-  } = containerProps ?? {};
+  const { className: containerPropsClassName, ...restContainerProps } =
+    containerProps ?? {};
 
   return (
     <div ref={wrapperRef} className="relative w-full">
@@ -98,7 +102,7 @@ export function MonthlyTableBase({
           <tbody className="divide-y divide-gray-400">
             {days.map((date, rowIndex) => {
               const dateKey = format(date, "yyyy-MM-dd");
-              const isHoliday = HOLIDAY_DATE_SET.has(dateKey);
+              const isHoliday = isHolidayDate(date);
               const dayName = format(date, "EEEE", { locale: de });
               const dayPrefix = dayName.slice(0, 2);
               const isWeekend = date.getDay() === 0 || date.getDay() === 6;
@@ -113,10 +117,8 @@ export function MonthlyTableBase({
               const rowProps = getRowProps?.(context) ?? {};
               const { className: rowClassName, ...restRowProps } = rowProps;
               const dateCellProps = getDateCellProps?.(context) ?? {};
-              const {
-                className: dateCellClassName,
-                ...restDateCellProps
-              } = dateCellProps;
+              const { className: dateCellClassName, ...restDateCellProps } =
+                dateCellProps;
 
               return (
                 <tr

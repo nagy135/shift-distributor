@@ -1,27 +1,33 @@
-import { NextRequest, NextResponse } from "next/server";
 import { getUserFromAuthHeader } from "@/lib/authz";
 import { isValidMonthKey } from "@/lib/month-publications";
-import { isAssigner } from "@/lib/roles";
+import { canEditCalendarView, isAssigner } from "@/lib/roles";
+import { apiError, readBody, requireValue } from "@/lib/server/errors";
 import {
   previewMonthCalendarEmails,
   sendMonthCalendarEmails,
 } from "@/lib/server/month-calendar-emails";
+import { NextRequest, NextResponse } from "next/server";
 
 async function resolveAuthorizedRequest(
   request: NextRequest,
   params: Promise<{ month: string }>,
 ) {
-  const user = await getUserFromAuthHeader(request.headers.get("authorization"));
+  const user = await getUserFromAuthHeader(
+    request.headers.get("authorization"),
+  );
 
   if (!user) {
     return {
-      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+      error: NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 }),
     };
   }
 
   if (!isAssigner(user.role)) {
     return {
-      error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+      error: NextResponse.json(
+        { error: "Keine Berechtigung." },
+        { status: 403 },
+      ),
     };
   }
 
@@ -36,16 +42,26 @@ async function resolveAuthorizedRequest(
 
   if (!isValidMonthKey(month)) {
     return {
-      error: NextResponse.json({ error: "Invalid month" }, { status: 400 }),
+      error: NextResponse.json({ error: "Ungültiger Monat." }, { status: 400 }),
     };
   }
 
   if (!scope) {
     return {
-      error: NextResponse.json({ error: "Invalid scope" }, { status: 400 }),
+      error: NextResponse.json(
+        { error: "Ungültiger Bereich." },
+        { status: 400 },
+      ),
     };
   }
 
+  if (!canEditCalendarView(user.role, scope))
+    return {
+      error: NextResponse.json(
+        { error: "Keine Berechtigung.", code: "FORBIDDEN" },
+        { status: 403 },
+      ),
+    };
   return {
     month,
     scope,
@@ -69,11 +85,7 @@ export async function GET(
     );
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Error previewing month calendar emails:", error);
-    return NextResponse.json(
-      { error: "Failed to preview month calendar emails" },
-      { status: 500 },
-    );
+    return apiError(error);
   }
 }
 
@@ -88,13 +100,18 @@ export async function POST(
   }
 
   try {
-    const result = await sendMonthCalendarEmails(resolved.month, resolved.scope);
+    const body = await readBody(request);
+    requireValue(
+      typeof body.revision === "string",
+      "Bitte zuerst Vorschau öffnen.",
+    );
+    const result = await sendMonthCalendarEmails(
+      resolved.month,
+      resolved.scope,
+      body.revision,
+    );
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Error sending month calendar emails:", error);
-    return NextResponse.json(
-      { error: "Failed to send month calendar emails" },
-      { status: 500 },
-    );
+    return apiError(error);
   }
 }

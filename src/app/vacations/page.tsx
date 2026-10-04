@@ -1,34 +1,12 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
-import { de } from "date-fns/locale";
-import { CircleHelp, Loader2, Table2 } from "lucide-react";
-import { toast } from "sonner";
-import { Calendar } from "@/components/ui/calendar";
-import { CalendarSkeleton } from "@/components/ui/calendar-skeleton";
-import { Button } from "@/components/ui/button";
 import {
   DoctorPicker,
   type DoctorPickerOption,
 } from "@/components/doctor-picker";
-import { cn } from "@/lib/utils";
-import { useAuth } from "@/lib/auth-client";
-import { type VacationDay } from "@/lib/api";
-import { useApiClient } from "@/lib/use-api-client";
-import { useAnchoredOverlay } from "@/lib/use-anchored-overlay";
-import { useMediaQuery } from "@/lib/use-media-query";
-import {
-  DISPLAY_VACATION_COLORS,
-  VACATION_COLORS,
-  VACATION_COLOR_STYLES,
-  VACATION_DAYS_PER_YEAR,
-  type DisplayVacationColor,
-  type VacationColor,
-} from "@/lib/vacations";
-import { isAssigner } from "@/lib/roles";
+import { MonthlySingleColumnTable } from "@/components/shifts/MonthlySingleColumnTable";
+import { Button } from "@/components/ui/button";
+import { CalendarSkeleton } from "@/components/ui/calendar-skeleton";
 import {
   Dialog,
   DialogContent,
@@ -36,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
+import { RealPill } from "@/components/ui/real-pill";
 import {
   Select,
   SelectContent,
@@ -44,516 +22,52 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { useVacationMutations } from "@/components/vacations/useVacationMutations";
+import { useAuth } from "@/lib/auth-client";
+import { schedulingRange } from "@/lib/dates";
 import {
-  getDefaultClassNames,
-  DayButton as RdpDayButton,
-} from "react-day-picker";
-import { MonthlySingleColumnTable } from "@/components/shifts/MonthlySingleColumnTable";
-import { RealPill } from "@/components/ui/real-pill";
-import {
-  type VacationDisplayDay,
   getAutomaticNightShiftVacationDays,
+  type VacationDisplayDay,
 } from "@/lib/night-shift-vacations";
+import { queryKeys } from "@/lib/query-keys";
+import { isAssigner } from "@/lib/roles";
+import { useAnchoredOverlay } from "@/lib/use-anchored-overlay";
+import { useApiClient } from "@/lib/use-api-client";
+import { useMediaQuery } from "@/lib/use-media-query";
+import { cn } from "@/lib/utils";
+import {
+  DISPLAY_VACATION_COLORS,
+  VACATION_COLOR_STYLES,
+  type DisplayVacationColor,
+  type VacationColor,
+} from "@/lib/vacations";
+import { useQuery } from "@tanstack/react-query";
+import { format, parseISO } from "date-fns";
+import { de } from "date-fns/locale";
+import { Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const EMPTY_VACATION_DAYS: VacationDay[] = [];
-const ALL_DOCTORS_VALUE = "all";
-const DEFAULT_DOCTOR_COLOR = "#64748b";
-const alphabeticCollator = new Intl.Collator("de", { sensitivity: "base" });
-const VACATION_TABLE_COLUMN = {
-  id: "vacation",
-  label: "Urlaub",
-} as const;
-
-const createColorCountMap = (): Record<VacationColor, number> =>
-  VACATION_COLORS.reduce(
-    (acc, color) => {
-      acc[color] = 0;
-      return acc;
-    },
-    {} as Record<VacationColor, number>,
-  );
-
-const createDisplayColorCountMap = (): Record<DisplayVacationColor, number> =>
-  DISPLAY_VACATION_COLORS.reduce(
-    (acc, color) => {
-      acc[color] = 0;
-      return acc;
-    },
-    {} as Record<DisplayVacationColor, number>,
-  );
-
-const countColors = (input: Record<string, VacationColor>) => {
-  return Object.values(input).reduce((acc, color) => {
-    acc[color] += 1;
-    return acc;
-  }, createColorCountMap());
-};
-
-const dayToKey = (day: Date) => format(day, "yyyy-MM-dd");
-
-const getVacationDoctorName = (entry: VacationDisplayDay) =>
-  entry.doctorName?.trim() || `Arzt #${entry.doctorId ?? "?"}`;
-
-const compareVacationColors = (
-  left: DisplayVacationColor,
-  right: DisplayVacationColor,
-) =>
-  alphabeticCollator.compare(
-    VACATION_COLOR_STYLES[left].label,
-    VACATION_COLOR_STYLES[right].label,
-  );
-
-const sortVacationEntries = (entries: VacationDisplayDay[]) => {
-  return [...entries].sort((left, right) => {
-    const doctorComparison = alphabeticCollator.compare(
-      getVacationDoctorName(left),
-      getVacationDoctorName(right),
-    );
-
-    if (doctorComparison !== 0) {
-      return doctorComparison;
-    }
-
-    const colorComparison = compareVacationColors(left.color, right.color);
-
-    if (colorComparison !== 0) {
-      return colorComparison;
-    }
-
-    return (left.doctorId ?? 0) - (right.doctorId ?? 0);
-  });
-};
-
-const getSortedUniqueNames = (names: Array<string | null | undefined>) => {
-  return Array.from(
-    new Set(
-      names
-        .map((name) => name?.trim())
-        .filter((name): name is string => Boolean(name)),
-    ),
-  ).sort((left, right) => alphabeticCollator.compare(left, right));
-};
-
-const getDayColors = (entries: VacationDisplayDay[]) => {
-  const map = new Map<string, VacationDisplayDay[]>();
-  entries.forEach((entry) => {
-    const list = map.get(entry.date) ?? [];
-    list.push(entry);
-    map.set(entry.date, sortVacationEntries(list));
-  });
-  return map;
-};
-
-type VacationMonthCalendarProps = {
-  month: Date;
-  showVacationOverview: boolean;
-  canManageWithPicker: boolean;
-  canOpenMonthTable: boolean;
-  isMobile: boolean;
-  isUpdating: boolean;
-  availableDoctors: DoctorPickerOption[];
-  openDate: string | null;
-  pickerSearchTerm: string;
-  selectedDoctorIdsByDate: Map<string, string[]>;
-  pickerMarkerClassName?: string;
-  modifiers?: Record<DisplayVacationColor, Date[]>;
-  modifierClasses?: Record<DisplayVacationColor, string>;
-  vacationsByDate: Map<string, VacationDisplayDay[]>;
-  hasPendingByDate: Map<string, boolean>;
-  onOpenMonthTable: (month: Date) => void;
-  onOpenDateChange: (date: string | null) => void;
-  onPickerSearchTermChange: (value: string) => void;
-  onToggleDoctor: (date: string, doctorId: string) => void;
-  onDayClick: (day: Date) => void;
-  pickerEnabled: boolean;
-};
-
-type VacationColorControlsProps = {
-  canEditAllVacations: boolean;
-  canUseVacationEditor: boolean;
-  activeColor: VacationColor | null;
-  colorCounts: Record<VacationColor, number>;
-  onColorSelect: (color: VacationColor) => void;
-};
-
-type VacationEntryPillsProps = {
-  entries: VacationDisplayDay[];
-  emptyText?: string;
-};
-
-function VacationEntryPills({
-  entries,
-  emptyText = "Kein Urlaub für diesen Tag.",
-}: VacationEntryPillsProps) {
-  if (entries.length === 0) {
-    return <p className="text-sm text-muted-foreground">{emptyText}</p>;
-  }
-
-  const sortedEntries = sortVacationEntries(entries);
-
-  return (
-    <div className="space-y-2">
-      <div className="text-xs text-muted-foreground">Urlaube an diesem Tag</div>
-      <div className="flex flex-wrap gap-1.5">
-        {sortedEntries.map((entry) => {
-          const doctorKey = String(entry.doctorId ?? entry.doctorName ?? entry.date);
-          const doctorName = getVacationDoctorName(entry);
-
-          return (
-            <RealPill
-              key={`${entry.date}-${doctorKey}-${entry.color}`}
-              className="max-w-full border border-border/70 bg-muted/40 text-foreground"
-              title={`${doctorName} - ${VACATION_COLOR_STYLES[entry.color].label}`}
-            >
-              <span
-                className={cn(
-                  "mr-1.5 inline-block h-2.5 w-2.5 shrink-0 rounded-full",
-                  VACATION_COLOR_STYLES[entry.color].classes,
-                )}
-              />
-              <span className="truncate">{doctorName}</span>
-            </RealPill>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function VacationColorControls({
-  canEditAllVacations,
-  canUseVacationEditor,
-  activeColor,
-  colorCounts,
-  onColorSelect,
-}: VacationColorControlsProps) {
-  if (!canUseVacationEditor) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        Wählen Sie sich selbst aus, um Urlaubstage zu bearbeiten.
-      </p>
-    );
-  }
-
-  return (
-    <>
-      <div className="flex flex-wrap gap-3">
-        {VACATION_COLORS.map((color) => {
-          const style = VACATION_COLOR_STYLES[color];
-          const used = colorCounts[color];
-          const yearlyLimit = VACATION_DAYS_PER_YEAR[color];
-          const isUnlimited = !Number.isFinite(yearlyLimit);
-          const remaining = isUnlimited
-            ? Number.POSITIVE_INFINITY
-            : Math.max(0, yearlyLimit - used);
-          const isActive = activeColor === color;
-          const showCounts = !canEditAllVacations;
-
-          return (
-            <Button
-              key={color}
-              type="button"
-              title={style.label}
-              aria-label={style.label}
-              className={cn(
-                style.classes,
-                "size-9 rounded-full px-0 sm:h-9 sm:w-auto sm:min-w-[88px] sm:rounded-md sm:px-3",
-                showCounts
-                  ? "justify-center sm:justify-between"
-                  : "justify-center sm:min-w-[88px]",
-                isActive ? `ring-2 ring-offset-2 ${style.ring}` : "",
-              )}
-              disabled={
-                showCounts && !isUnlimited && remaining === 0 && !isActive
-              }
-              onClick={() => onColorSelect(color)}
-            >
-              <span className="sr-only sm:not-sr-only">{style.label}</span>
-              {showCounts ? (
-                <span className="text-xs opacity-90">
-                  <span className="hidden sm:inline">
-                    {isUnlimited ? "∞" : `${remaining}/${yearlyLimit}`}
-                  </span>
-                </span>
-              ) : null}
-            </Button>
-          );
-        })}
-      </div>
-      {!activeColor ? (
-        <p className="text-xs text-muted-foreground">
-          {canEditAllVacations
-            ? "Wählen Sie eine Farbe und klicken Sie dann auf einen Tag."
-            : "Wählen Sie eine Farbe, um Tage zu markieren."}
-        </p>
-      ) : null}
-    </>
-  );
-}
-
-const VacationMonthCalendar = memo(function VacationMonthCalendar({
-  month,
-  showVacationOverview,
-  canManageWithPicker,
-  canOpenMonthTable,
-  isMobile,
-  isUpdating,
-  availableDoctors,
-  openDate,
-  pickerSearchTerm,
-  selectedDoctorIdsByDate,
-  pickerMarkerClassName,
-  modifiers,
-  modifierClasses,
-  vacationsByDate,
-  hasPendingByDate,
-  onOpenMonthTable,
-  onOpenDateChange,
-  onPickerSearchTermChange,
-  onToggleDoctor,
-  onDayClick,
-  pickerEnabled,
-}: VacationMonthCalendarProps) {
-  const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const cellRefs = useRef(new Map<string, HTMLButtonElement>());
-  const openDateEntries = openDate ? vacationsByDate.get(openDate) ?? [] : [];
-  const pickerPosition = useAnchoredOverlay({
-    anchorKey: openDate,
-    anchorRefs: cellRefs,
-    wrapperRef,
-    isEnabled: canManageWithPicker,
-    isMobile,
-    recalculateKey: pickerSearchTerm,
-    onRequestClose: () => onOpenDateChange(null),
-  });
-
-  return (
-    <div ref={wrapperRef} className="relative rounded-md border">
-      {canOpenMonthTable ? (
-        <Button
-          type="button"
-          size="icon"
-          variant="outline"
-          className="absolute right-3 top-3 z-20 size-8"
-          aria-label="Monatstabelle öffnen"
-          title="Monatstabelle öffnen"
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpenMonthTable(month);
-          }}
-        >
-          <Table2 className="size-4" />
-        </Button>
-      ) : null}
-      <Calendar
-        month={month}
-        disableNavigation
-        showOutsideDays={false}
-        modifiers={modifiers}
-        modifiersClassNames={modifierClasses}
-        onDayClick={(day) => {
-          if (canManageWithPicker) {
-            onOpenDateChange(dayToKey(day));
-            return;
-          }
-
-          onDayClick(day);
-        }}
-        components={{
-          DayButton: (props: React.ComponentProps<typeof RdpDayButton>) => {
-            const { day, modifiers, className, children, ...rest } = props;
-            const dayKey = dayToKey(day.date);
-            const entries = vacationsByDate.get(dayKey) ?? [];
-            const tooltip = getSortedUniqueNames(
-              entries.map((entry) => entry.doctorName),
-            ).join("\n");
-            const colors = Array.from(new Set(entries.map((entry) => entry.color))).sort(
-              compareVacationColors,
-            ) as DisplayVacationColor[];
-            const hasPendingApproval = hasPendingByDate.get(dayKey) ?? false;
-            const pendingQuestionMarkClass =
-              colors.length > 0
-                ? VACATION_COLOR_STYLES[colors[0]].questionMark
-                : "text-blue-600";
-
-            const defaultClassNames = getDefaultClassNames();
-            return (
-              <Button
-                ref={(node) => {
-                  if (node) {
-                    cellRefs.current.set(dayKey, node);
-                  } else {
-                    cellRefs.current.delete(dayKey);
-                  }
-                }}
-                variant="ghost"
-                size="icon"
-                data-day={day.date.toLocaleDateString()}
-                data-open={openDate === dayKey}
-                data-selected-single={
-                  modifiers.selected &&
-                  !modifiers.range_start &&
-                  !modifiers.range_end &&
-                  !modifiers.range_middle
-                }
-                data-range-start={modifiers.range_start}
-                data-range-end={modifiers.range_end}
-                data-range-middle={modifiers.range_middle}
-                title={!isMobile ? tooltip || undefined : undefined}
-                className={cn(
-                  "relative data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 hover:bg-transparent dark:hover:text-inherit flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
-                  canManageWithPicker && "cursor-pointer",
-                  openDate === dayKey && "ring-2 ring-sky-500 ring-offset-1",
-                  defaultClassNames.day,
-                  className,
-                )}
-                {...rest}
-              >
-                {showVacationOverview && colors.length > 0 && (
-                  <span className="absolute inset-0 overflow-hidden rounded-md">
-                    {colors.map((color, index) => {
-                      const segmentHeight = 100 / colors.length;
-
-                      return (
-                        <span
-                          key={`${dayKey}-${color}`}
-                          className={cn(
-                            "absolute inset-x-0 opacity-80",
-                            VACATION_COLOR_STYLES[color].classes,
-                          )}
-                          style={{
-                            top: `${index * segmentHeight}%`,
-                            height: `${segmentHeight}%`,
-                          }}
-                        />
-                      );
-                    })}
-                  </span>
-                )}
-                {hasPendingApproval && (
-                  <span
-                    className={cn(
-                      "absolute right-0.5 top-0.5 z-20",
-                      pendingQuestionMarkClass,
-                    )}
-                  >
-                    <CircleHelp className="h-3 w-3" />
-                  </span>
-                )}
-                <span className="relative z-10">{children}</span>
-              </Button>
-            );
-          },
-        }}
-        className="w-full"
-      />
-
-      {canManageWithPicker && !isMobile && openDate && pickerPosition ? (
-        <div
-          className="pointer-events-auto absolute z-30 overflow-hidden rounded-lg border bg-background p-3 shadow-xl"
-          style={{
-            top: pickerPosition.top,
-            left: pickerPosition.left,
-            minWidth: pickerPosition.minWidth,
-          }}
-          onMouseDown={(event) => {
-            event.stopPropagation();
-          }}
-          onClick={(event) => {
-            event.stopPropagation();
-          }}
-        >
-          {isUpdating ? (
-            <Loader2 className="absolute right-3 top-3 size-4 animate-spin text-muted-foreground" />
-          ) : null}
-          <div className="mb-3">
-            <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-              Urlaub
-            </div>
-            <div className="mt-1 text-sm font-medium">
-              {format(new Date(`${openDate}T00:00:00`), "dd.MM.yyyy")}
-            </div>
-          </div>
-          <div className="mb-3">
-            <VacationEntryPills entries={openDateEntries} />
-          </div>
-          {pickerEnabled ? (
-            <DoctorPicker
-              open={openDate != null}
-              doctors={availableDoctors}
-              searchTerm={pickerSearchTerm}
-              selectedDoctorIds={selectedDoctorIdsByDate.get(openDate) ?? []}
-              selectionMarkerClassName={pickerMarkerClassName}
-              onSearchTermChange={onPickerSearchTermChange}
-              onToggleDoctor={(doctorId) => {
-                onToggleDoctor(openDate, doctorId);
-              }}
-              onClose={() => onOpenDateChange(null)}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Wählen Sie zuerst eine Farbe.
-            </p>
-          )}
-        </div>
-      ) : null}
-
-      {canManageWithPicker && isMobile ? (
-        <Dialog
-          open={openDate != null}
-          onOpenChange={(isOpen) => !isOpen && onOpenDateChange(null)}
-        >
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Urlaub</DialogTitle>
-              <DialogDescription>
-                {openDate
-                  ? `Arzte fur ${format(new Date(`${openDate}T00:00:00`), "dd.MM.yyyy")} auswahlen oder entfernen.`
-                  : ""}
-              </DialogDescription>
-            </DialogHeader>
-            {openDate ? (
-              <div className="relative">
-                {isUpdating ? (
-                  <Loader2 className="absolute right-0 top-0 size-4 animate-spin text-muted-foreground" />
-                ) : null}
-                <div className="mb-3">
-                  <VacationEntryPills
-                    entries={vacationsByDate.get(openDate) ?? []}
-                  />
-                </div>
-                {pickerEnabled ? (
-                  <DoctorPicker
-                    open={openDate != null}
-                    doctors={availableDoctors}
-                    searchTerm={pickerSearchTerm}
-                    selectedDoctorIds={
-                      selectedDoctorIdsByDate.get(openDate) ?? []
-                    }
-                    selectionMarkerClassName={pickerMarkerClassName}
-                    onSearchTermChange={onPickerSearchTermChange}
-                    onToggleDoctor={(doctorId) => {
-                      onToggleDoctor(openDate, doctorId);
-                    }}
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Wählen Sie zuerst eine Farbe.
-                  </p>
-                )}
-              </div>
-            ) : null}
-          </DialogContent>
-        </Dialog>
-      ) : null}
-    </div>
-  );
-});
+import {
+  ALL_DOCTORS_VALUE,
+  alphabeticCollator,
+  countColors,
+  createDisplayColorCountMap,
+  dayToKey,
+  DEFAULT_DOCTOR_COLOR,
+  EMPTY_VACATION_DAYS,
+  getDayColors,
+  getSortedUniqueNames,
+  sortVacationEntries,
+  VACATION_TABLE_COLUMN,
+  VacationColorControls,
+  VacationEntryPills,
+  VacationMonthCalendar,
+} from "@/components/vacations/VacationCalendar";
 
 export default function VacationsPage() {
   const { user, isLoading } = useAuth();
   const { doctorsApi, shiftsApi, vacationsApi } = useApiClient();
-  const queryClient = useQueryClient();
   const doctorId = user?.doctorId ?? null;
   const canApprove = user?.role === "secretary";
   const canViewAllVacations =
@@ -563,15 +77,7 @@ export default function VacationsPage() {
   const canEditVacations = canEditAllVacations || canEditOwnVacations;
   const canViewVacations = canViewAllVacations;
   const year = new Date().getFullYear();
-  const vacationsQueryKey = useMemo(
-    () => [
-      "vacations",
-      canViewAllVacations ? ALL_DOCTORS_VALUE : doctorId,
-      year,
-    ],
-    [canViewAllVacations, doctorId, year],
-  );
-
+  const vacationsQueryKey = queryKeys.vacations(year);
   const { data: doctors = [], isLoading: isDoctorsLoading } = useQuery({
     queryKey: ["doctors"],
     queryFn: doctorsApi.getAll,
@@ -584,14 +90,12 @@ export default function VacationsPage() {
     enabled: canViewVacations,
   });
   const { data: allShifts = [] } = useQuery({
-    queryKey: ["shifts"],
-    queryFn: shiftsApi.getAll,
+    queryKey: queryKeys.shifts(schedulingRange(new Date(year, 0, 1), "year")),
+    queryFn: () =>
+      shiftsApi.getAll(schedulingRange(new Date(year, 0, 1), "year")),
     enabled: canViewVacations,
   });
-  const [optimisticVacationDays, setOptimisticVacationDays] = useState<
-    VacationDay[] | null
-  >(null);
-  const manualVacationDays = optimisticVacationDays ?? data ?? EMPTY_VACATION_DAYS;
+  const manualVacationDays = data ?? EMPTY_VACATION_DAYS;
   const automaticVacationDays = useMemo(
     () =>
       getAutomaticNightShiftVacationDays(allShifts, doctors).filter((entry) =>
@@ -602,7 +106,8 @@ export default function VacationsPage() {
   const vacationDays = useMemo(() => {
     const manualDayKeys = new Set(
       manualVacationDays.map(
-        (entry) => `${entry.doctorId ?? "unknown"}:${entry.date}:${entry.color}`,
+        (entry) =>
+          `${entry.doctorId ?? "unknown"}:${entry.date}:${entry.color}`,
       ),
     );
 
@@ -621,7 +126,6 @@ export default function VacationsPage() {
     [vacationDays],
   );
 
-  const [dayColors, setDayColors] = useState<Record<string, VacationColor>>({});
   const [activeColor, setActiveColor] = useState<VacationColor | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -660,10 +164,6 @@ export default function VacationsPage() {
   const isOverviewMode = canApprove || editableDoctorId == null;
 
   useEffect(() => {
-    setOptimisticVacationDays(null);
-  }, [data]);
-
-  useEffect(() => {
     setPickerSearchTerm("");
   }, [openDate, tableOpenDate]);
 
@@ -689,280 +189,46 @@ export default function VacationsPage() {
     }
   }, [doctorId, selectedDoctorId, user?.role]);
 
-  useEffect(() => {
-    if (editableDoctorId == null) {
-      setDayColors({});
-      return;
-    }
-
-    const next = manualVacationDays.reduce<Record<string, VacationColor>>(
-      (acc, entry) => {
-        if (entry.doctorId !== editableDoctorId) {
-          return acc;
-        }
-
-        acc[entry.date] = entry.color;
-        return acc;
-      },
-      {},
-    );
-    setDayColors(next);
-  }, [editableDoctorId, manualVacationDays]);
+  const dayColors = useMemo(
+    () =>
+      Object.fromEntries(
+        manualVacationDays
+          .filter((entry) => entry.doctorId === editableDoctorId)
+          .map((entry) => [entry.date, entry.color]),
+      ),
+    [editableDoctorId, manualVacationDays],
+  );
 
   const colorCounts = useMemo(() => countColors(dayColors), [dayColors]);
 
-  const updateMutation = useMutation({
-    mutationFn: ({
-      doctorId,
-      days,
-    }: {
-      doctorId: number;
-      days: VacationDay[];
-    }) => vacationsApi.updateYear(year, days, doctorId),
-    onSuccess: () => {
-      console.log("synced");
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: vacationsQueryKey });
-      queryClient.invalidateQueries({
-        queryKey: ["vacations", "calendar", year],
-      });
-    },
-  });
-
-  const invalidateVacationsQueries = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: vacationsQueryKey });
-    queryClient.invalidateQueries({
-      queryKey: ["vacations", "calendar", year],
-    });
-  }, [queryClient, vacationsQueryKey, year]);
-
-  const approvalMutation = useMutation({
-    mutationFn: ({ id, approved }: { id: number; approved: boolean }) =>
-      vacationsApi.updateApproval(id, approved),
-    onMutate: async ({ id, approved }) => {
-      await queryClient.cancelQueries({ queryKey: vacationsQueryKey });
-
-      const previousVacationDays =
-        queryClient.getQueryData<VacationDay[]>(vacationsQueryKey) ?? [];
-
-      queryClient.setQueryData<VacationDay[]>(
-        vacationsQueryKey,
-        previousVacationDays.map((entry) =>
-          entry.id === id ? { ...entry, approved } : entry,
-        ),
-      );
-
-      return { previousVacationDays };
-    },
-    onError: (_error, _variables, context) => {
-      if (context?.previousVacationDays) {
-        queryClient.setQueryData(
-          vacationsQueryKey,
-          context.previousVacationDays,
-        );
-      }
-    },
-    onSuccess: () => {
-      console.log("synced");
-    },
-    onSettled: () => {
-      invalidateVacationsQueries();
-    },
-  });
-
-  const denyMutation = useMutation({
-    mutationFn: (id: number) => vacationsApi.deny(id),
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: vacationsQueryKey });
-
-      const previousVacationDays =
-        queryClient.getQueryData<VacationDay[]>(vacationsQueryKey) ?? [];
-
-      queryClient.setQueryData<VacationDay[]>(
-        vacationsQueryKey,
-        previousVacationDays.filter((entry) => entry.id !== id),
-      );
-
-      return { previousVacationDays };
-    },
-    onError: (_error, _variables, context) => {
-      if (context?.previousVacationDays) {
-        queryClient.setQueryData(
-          vacationsQueryKey,
-          context.previousVacationDays,
-        );
-      }
-    },
-    onSuccess: () => {
-      console.log("synced");
-    },
-    onSettled: () => {
-      invalidateVacationsQueries();
-    },
-  });
-
-  const persistDays = useCallback(
-    (nextMap: Record<string, VacationColor>) => {
-      if (editableDoctorId == null) {
-        return;
-      }
-
-      const payload: VacationDay[] = Object.entries(nextMap).map(
-        ([date, color]) => ({ date, color }),
-      );
-      updateMutation.mutate({ doctorId: editableDoctorId, days: payload });
-    },
-    [editableDoctorId, updateMutation],
-  );
-
+  const { updateMutation, approvalMutation, denyMutation, editDay } =
+    useVacationMutations(year, doctors);
   const handleDayClick = useCallback(
     (day: Date) => {
       if (!activeColor || editableDoctorId == null) return;
-      const key = dayToKey(day);
-
-      const existing = dayColors[key];
-      const counts = countColors(dayColors);
-      const yearlyLimit = VACATION_DAYS_PER_YEAR[activeColor];
-      const isUnlimited = !Number.isFinite(yearlyLimit);
-      const remaining = isUnlimited
-        ? Number.POSITIVE_INFINITY
-        : yearlyLimit -
-          counts[activeColor] +
-          (existing === activeColor ? 1 : 0);
-      if (existing !== activeColor && remaining <= 0) {
-        toast.error(
-          `${VACATION_COLOR_STYLES[activeColor].label} ist bereits vollständig verbraucht.`,
-        );
-        return;
-      }
-
-      const next = { ...dayColors };
-      if (existing === activeColor) {
-        delete next[key];
-      } else {
-        next[key] = activeColor;
-      }
-
-      flushSync(() => {
-        setDayColors(next);
-      });
-
-      requestAnimationFrame(() => {
-        persistDays(next);
+      const date = dayToKey(day);
+      editDay({
+        doctorId: editableDoctorId,
+        date,
+        color: dayColors[date] === activeColor ? null : activeColor,
       });
     },
-    [activeColor, dayColors, editableDoctorId, persistDays],
+    [activeColor, editableDoctorId, dayColors, editDay],
   );
-
   const handleToggleDoctor = useCallback(
-    (date: string, doctorIdToToggle: string) => {
-      if (!canEditAllVacations || !activeColor) {
-        return;
-      }
-
-      const parsedDoctorId = Number(doctorIdToToggle);
-      if (!Number.isInteger(parsedDoctorId)) {
-        return;
-      }
-
-      const existingEntry = manualVacationDays.find(
-        (entry) =>
-          entry.date === date &&
-          entry.doctorId === parsedDoctorId &&
-          entry.color === activeColor,
+    (date: string, value: string) => {
+      if (!canEditAllVacations || !activeColor) return;
+      const doctorId = Number(value);
+      const existing = manualVacationDays.find(
+        (entry) => entry.doctorId === doctorId && entry.date === date,
       );
-      const activeColorEntriesForDate = manualVacationDays.filter(
-        (entry) => entry.date === date && entry.color === activeColor,
-      );
-      const yearlyLimit = VACATION_DAYS_PER_YEAR[activeColor];
-      const isUnlimited = !Number.isFinite(yearlyLimit);
-      const usedDays = manualVacationDays.reduce((count, entry) => {
-        if (
-          entry.doctorId === parsedDoctorId &&
-          entry.color === activeColor &&
-          entry.date !== date
-        ) {
-          return count + 1;
-        }
-
-        return count;
-      }, 0);
-
-      if (!isUnlimited && !existingEntry && usedDays >= yearlyLimit) {
-        toast.error(
-          `${VACATION_COLOR_STYLES[activeColor].label} ist für diesen Arzt bereits vollständig verbraucht.`,
-        );
-        return;
-      }
-
-      const doctor = doctors.find(
-        (entry) => String(entry.id) === doctorIdToToggle,
-      );
-      const affectedDoctorIds = Array.from(
-        new Set(
-          activeColorEntriesForDate
-            .map((entry) => entry.doctorId)
-            .filter((entry): entry is number => typeof entry === "number")
-            .concat(parsedDoctorId),
-        ),
-      );
-      const nextVacationDays = (() => {
-        if (existingEntry) {
-          return manualVacationDays.filter(
-            (entry) =>
-              !(
-                entry.date === date &&
-                entry.doctorId === parsedDoctorId &&
-                entry.color === activeColor
-              ),
-          );
-        }
-
-        const nextEntry: VacationDay = {
-          doctorId: parsedDoctorId,
-          doctorName: doctor?.name ?? `Arzt #${parsedDoctorId}`,
-          date,
-          color: activeColor,
-          approved: true,
-        };
-
-        const filtered = manualVacationDays.filter(
-          (entry) =>
-            !(entry.date === date && entry.doctorId === parsedDoctorId),
-        );
-
-        return [...filtered, nextEntry].sort((left, right) => {
-          const dateComparison = left.date.localeCompare(right.date);
-          if (dateComparison !== 0) {
-            return dateComparison;
-          }
-
-          return (left.doctorId ?? 0) - (right.doctorId ?? 0);
-        });
-      })();
-
-      flushSync(() => {
-        setOptimisticVacationDays(nextVacationDays);
-      });
-
-      requestAnimationFrame(() => {
-        affectedDoctorIds.forEach((affectedDoctorId) => {
-          const affectedPayload = nextVacationDays
-            .filter((entry) => entry.doctorId === affectedDoctorId)
-            .map(({ date: vacationDate, color }) => ({
-              date: vacationDate,
-              color,
-            }));
-
-          updateMutation.mutate({
-            doctorId: affectedDoctorId,
-            days: affectedPayload,
-          });
-        });
+      editDay({
+        doctorId,
+        date,
+        color: existing?.color === activeColor ? null : activeColor,
       });
     },
-    [activeColor, canEditAllVacations, doctors, manualVacationDays, updateMutation],
+    [canEditAllVacations, activeColor, manualVacationDays, editDay],
   );
 
   const visibleVacationDays = useMemo(() => {
@@ -1085,24 +351,24 @@ export default function VacationsPage() {
       return {
         approved: 0,
         unapproved: 0,
-          doctors: [] as Array<{
-            key: string;
-            doctorName: string;
-            approved: Record<DisplayVacationColor, number>;
-            unapproved: Record<DisplayVacationColor, number>;
-          }>,
-        };
-    }
-
-    const byDoctor = new Map<
-      string,
-        {
+        doctors: [] as Array<{
           key: string;
           doctorName: string;
           approved: Record<DisplayVacationColor, number>;
           unapproved: Record<DisplayVacationColor, number>;
-        }
-      >();
+        }>,
+      };
+    }
+
+    const byDoctor = new Map<
+      string,
+      {
+        key: string;
+        doctorName: string;
+        approved: Record<DisplayVacationColor, number>;
+        unapproved: Record<DisplayVacationColor, number>;
+      }
+    >();
 
     let approved = 0;
     let unapproved = 0;
@@ -1351,7 +617,7 @@ export default function VacationsPage() {
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
                       <th className="py-2 pr-2 font-medium">Arzt</th>
-                       {DISPLAY_VACATION_COLORS.map((color) => (
+                      {DISPLAY_VACATION_COLORS.map((color) => (
                         <th
                           key={`header-${color}`}
                           className="py-2 pr-2 font-medium"
@@ -1370,7 +636,7 @@ export default function VacationsPage() {
                         <td className="py-2 pr-2 font-medium">
                           {doctor.doctorName}
                         </td>
-                         {DISPLAY_VACATION_COLORS.map((color) => (
+                        {DISPLAY_VACATION_COLORS.map((color) => (
                           <td
                             key={`${doctor.key}-${color}`}
                             className="py-2 pr-2"
@@ -1423,11 +689,15 @@ export default function VacationsPage() {
               isMobile={isMobile}
               isUpdating={updateMutation.isPending}
               availableDoctors={availableDoctors}
-              openDate={openDate}
+              openDate={
+                openDate?.startsWith(format(month, "yyyy-MM")) ? openDate : null
+              }
               pickerSearchTerm={pickerSearchTerm}
               selectedDoctorIdsByDate={selectedDoctorIdsByDate}
               pickerMarkerClassName={
-                activeColor ? VACATION_COLOR_STYLES[activeColor].classes : undefined
+                activeColor
+                  ? VACATION_COLOR_STYLES[activeColor].classes
+                  : undefined
               }
               modifiers={monthSpecificModifiers[index]}
               modifierClasses={modifierClasses}
@@ -1553,7 +823,9 @@ export default function VacationsPage() {
                   </div>
                   <div className="mb-3">
                     <VacationEntryPills
-                      entries={activeTableVacationsByDate.get(tableOpenDate) ?? []}
+                      entries={
+                        activeTableVacationsByDate.get(tableOpenDate) ?? []
+                      }
                     />
                   </div>
                   {activeColor ? (
@@ -1637,7 +909,9 @@ export default function VacationsPage() {
                 ) : null}
                 <div className="mb-3">
                   <VacationEntryPills
-                    entries={activeTableVacationsByDate.get(tableOpenDate) ?? []}
+                    entries={
+                      activeTableVacationsByDate.get(tableOpenDate) ?? []
+                    }
                   />
                 </div>
                 {activeColor ? (
@@ -1673,6 +947,9 @@ export default function VacationsPage() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Urlaubsfreigaben</DialogTitle>
+              <DialogDescription>
+                Prüfen Sie die Anträge und genehmigen oder lehnen Sie sie ab.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div className="text-sm text-muted-foreground">
@@ -1710,11 +987,18 @@ export default function VacationsPage() {
                         </span>
                         <Switch
                           checked={!!vacation.approved}
-                          disabled={vacation.isAutomatic || !vacation.id}
+                          disabled={
+                            vacation.isAutomatic ||
+                            !vacation.id ||
+                            vacation.id < 0 ||
+                            approvalMutation.isPending ||
+                            denyMutation.isPending
+                          }
                           onCheckedChange={(checked) => {
                             if (!vacation.id) return;
                             approvalMutation.mutate({
                               id: vacation.id,
+                              expectedColor: vacation.color,
                               approved: checked,
                             });
                           }}
@@ -1723,10 +1007,19 @@ export default function VacationsPage() {
                           type="button"
                           size="sm"
                           variant="destructive"
-                          disabled={vacation.isAutomatic || !vacation.id}
+                          disabled={
+                            vacation.isAutomatic ||
+                            !vacation.id ||
+                            vacation.id < 0 ||
+                            approvalMutation.isPending ||
+                            denyMutation.isPending
+                          }
                           onClick={() => {
                             if (!vacation.id) return;
-                            denyMutation.mutate(vacation.id);
+                            denyMutation.mutate({
+                              id: vacation.id,
+                              expectedColor: vacation.color,
+                            });
                           }}
                         >
                           Ablehnen

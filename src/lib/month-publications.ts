@@ -1,12 +1,8 @@
-import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { monthPublications } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
 
-const MONTH_KEY_PATTERN = /^\d{4}-\d{2}$/;
-
-export function isValidMonthKey(value: string): boolean {
-  return MONTH_KEY_PATTERN.test(value);
-}
+export { isValidMonthKey } from "./dates";
 
 export async function getMonthPublication(month: string) {
   const record = await db

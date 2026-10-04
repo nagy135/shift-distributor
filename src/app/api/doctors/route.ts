@@ -1,137 +1,133 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { doctors, unavailableDates } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
 import { getUserFromAuthHeader } from "@/lib/authz";
+import { isDateKey } from "@/lib/dates";
+import { db } from "@/lib/db";
+import {
+  doctors,
+  unavailableDates,
+  type Doctor,
+  type NewDoctor,
+} from "@/lib/db/schema";
 import { isAssigner } from "@/lib/roles";
-import { withNormalizedUnavailableShiftTypes } from "@/lib/server/doctor-route-helpers";
+import { apiError, readBody, requireValue } from "@/lib/server/errors";
+import { ALL_CALENDAR_SHIFT_TYPES } from "@/lib/shifts";
+import { eq } from "drizzle-orm";
+import { NextRequest, NextResponse } from "next/server";
 
+const doctorDto = (doctor: Doctor) => ({
+  ...doctor,
+  createdAt: doctor.createdAt?.toISOString() ?? null,
+});
+function validateFields(body: Record<string, unknown>) {
+  requireValue(
+    body.name === undefined ||
+      (typeof body.name === "string" &&
+        body.name.trim().length > 0 &&
+        body.name.length <= 200),
+    "Bitte Namen angeben.",
+  );
+  requireValue(
+    body.color === undefined ||
+      body.color === null ||
+      (typeof body.color === "string" && body.color.length <= 64),
+    "Ungültige Farbe.",
+  );
+  requireValue(
+    body.unavailableShiftTypes === undefined ||
+      (Array.isArray(body.unavailableShiftTypes) &&
+        body.unavailableShiftTypes.every(
+          (value) =>
+            typeof value === "string" &&
+            ALL_CALENDAR_SHIFT_TYPES.includes(value),
+        )),
+    "Ungültige Dienstsperren.",
+  );
+  requireValue(
+    body.disabled === undefined || typeof body.disabled === "boolean",
+    "Ungültige Einstellung.",
+  );
+  requireValue(
+    body.oa === undefined || typeof body.oa === "boolean",
+    "Ungültige Einstellung.",
+  );
+}
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromAuthHeader(
-      request.headers.get("authorization"),
+    requireValue(
+      await getUserFromAuthHeader(request.headers.get("authorization")),
+      "Bitte anmelden.",
+      401,
     );
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const allDoctors = await db.select().from(doctors);
-
-    const doctorsWithParsedTypes = allDoctors.map(
-      withNormalizedUnavailableShiftTypes,
-    );
-
-    return NextResponse.json(doctorsWithParsedTypes);
+    return NextResponse.json(db.select().from(doctors).all().map(doctorDto));
   } catch (error) {
-    console.error("Error fetching doctors:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch doctors" },
-      { status: 500 },
-    );
+    return apiError(error);
   }
 }
-
 export async function POST(request: NextRequest) {
   try {
     const user = await getUserFromAuthHeader(
       request.headers.get("authorization"),
     );
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (!isAssigner(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const {
-      name,
-      color,
-      unavailableDates: unavailableDatesList,
-    } = await request.json();
-
-    if (!name) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 });
-    }
-
-    // Insert the doctor
-    const [newDoctor] = await db
-      .insert(doctors)
-      .values({ name, color })
-      .returning();
-
-    // Insert unavailable dates if provided
-    if (unavailableDatesList && unavailableDatesList.length > 0) {
-      const unavailableDatesToInsert = unavailableDatesList.map(
-        (date: string) => ({
-          doctorId: newDoctor.id,
-          date,
-        }),
-      );
-
-      await db.insert(unavailableDates).values(unavailableDatesToInsert);
-    }
-
-    return NextResponse.json(newDoctor, { status: 201 });
-  } catch (error) {
-    console.error("Error creating doctor:", error);
-    return NextResponse.json(
-      { error: "Failed to create doctor" },
-      { status: 500 },
+    requireValue(user, "Bitte anmelden.", 401);
+    requireValue(isAssigner(user.role), "Keine Berechtigung.", 403);
+    const body = await readBody(request);
+    validateFields(body);
+    requireValue(typeof body.name === "string", "Bitte Namen angeben.");
+    const dates = body.unavailableDates ?? [];
+    requireValue(
+      Array.isArray(dates) && dates.every(isDateKey),
+      "Ungültige Sperrtage.",
     );
+    const doctor = db.transaction((tx) => {
+      const created = tx
+        .insert(doctors)
+        .values({ name: body.name.trim(), color: body.color })
+        .returning()
+        .get()!;
+      const uniqueDates = [...new Set<string>(dates)];
+      if (uniqueDates.length)
+        tx.insert(unavailableDates)
+          .values(uniqueDates.map((date) => ({ doctorId: created.id, date })))
+          .run();
+      return created;
+    });
+    return NextResponse.json(doctorDto(doctor), { status: 201 });
+  } catch (error) {
+    return apiError(error);
   }
 }
-
 export async function PATCH(request: NextRequest) {
   try {
     const user = await getUserFromAuthHeader(
       request.headers.get("authorization"),
     );
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    requireValue(user, "Bitte anmelden.", 401);
+    requireValue(isAssigner(user.role), "Keine Berechtigung.", 403);
+    const body = await readBody(request);
+    validateFields(body);
+    requireValue(Number.isInteger(body.id) && body.id > 0, "Ungültiger Arzt.");
+    const values: Partial<NewDoctor> = {};
+    for (const key of [
+      "name",
+      "color",
+      "unavailableShiftTypes",
+      "disabled",
+      "oa",
+    ] as const) {
+      if (body[key] !== undefined)
+        Object.assign(values, {
+          [key]: key === "name" ? body[key].trim() : body[key],
+        });
     }
-    if (!isAssigner(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const { id, color, name, unavailableShiftTypes, disabled, oa } =
-      await request.json();
-    if (!id) {
-      return NextResponse.json(
-        { error: "Doctor id is required" },
-        { status: 400 },
-      );
-    }
-    const updateValues: Record<string, unknown> = {};
-    if (typeof color !== "undefined") {
-      updateValues.color = color;
-    }
-    if (typeof name !== "undefined") {
-      updateValues.name = name;
-    }
-    if (typeof unavailableShiftTypes !== "undefined") {
-      updateValues.unavailableShiftTypes = Array.isArray(unavailableShiftTypes)
-        ? JSON.stringify(unavailableShiftTypes)
-        : unavailableShiftTypes;
-    }
-    if (typeof disabled !== "undefined") {
-      updateValues.disabled = disabled;
-    }
-    if (typeof oa !== "undefined") {
-      updateValues.oa = oa;
-    }
-    const [updated] = await db
+    requireValue(Object.keys(values).length > 0, "Keine Änderung angegeben.");
+    const updated = db
       .update(doctors)
-      .set(updateValues)
-      .where(eq(doctors.id, id))
-      .returning();
-    const updatedWithParsedTypes = withNormalizedUnavailableShiftTypes(updated);
-
-    return NextResponse.json(updatedWithParsedTypes);
+      .set(values)
+      .where(eq(doctors.id, body.id))
+      .returning()
+      .get();
+    requireValue(updated, "Arzt nicht gefunden.", 404);
+    return NextResponse.json(doctorDto(updated));
   } catch (error) {
-    console.error("Error updating doctor:", error);
-    return NextResponse.json(
-      { error: "Failed to update doctor" },
-      { status: 500 },
-    );
+    return apiError(error);
   }
 }

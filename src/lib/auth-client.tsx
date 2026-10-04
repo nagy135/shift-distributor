@@ -1,14 +1,16 @@
 "use client";
 
+import type { UserRole } from "@/lib/roles";
+import { useQueryClient } from "@tanstack/react-query";
 import React, {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
-import type { UserRole } from "@/lib/roles";
 
 export class AuthRedirectError extends Error {
   constructor() {
@@ -32,6 +34,7 @@ type AuthContextValue = {
   reloadUser: () => Promise<void>;
   refreshAccessToken: () => Promise<string | null>;
   clearAuth: () => void;
+  getSessionGeneration: () => number;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -49,75 +52,91 @@ async function fetchJson<T>(
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  const loadMe = useCallback(async (token: string) => {
-    const me = await fetchJson<{
-      id: number;
-      email: string;
-      role: UserRole;
-      admin: boolean;
-      doctorId: number | null;
-    }>("/api/auth/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    setUser(me);
-  }, []);
-
-  const refreshAccessToken = useCallback(async () => {
-    try {
-      const { accessToken: newToken } = await fetchJson<{
-        accessToken: string;
-      }>("/api/auth/refresh", {
-        method: "POST",
-      });
-      setAccessToken(newToken);
-      await loadMe(newToken);
-      return newToken;
-    } catch {
-      setUser(null);
-      setAccessToken(null);
-      return null;
-    }
-  }, [loadMe]);
-
-  const reloadUser = useCallback(async () => {
-    if (!accessToken) {
-      setUser(null);
-      return;
-    }
-
-    await loadMe(accessToken);
-  }, [accessToken, loadMe]);
-
+  const generation = useRef(0);
+  const currentUser = useRef<User>(null);
+  const refreshFlight = useRef<Promise<string | null> | null>(null);
+  const getSessionGeneration = useCallback(() => generation.current, []);
   const clearAuth = useCallback(() => {
+    generation.current += 1;
+    refreshFlight.current = null;
+    currentUser.current = null;
+    void queryClient.cancelQueries();
+    queryClient.clear();
     setUser(null);
     setAccessToken(null);
-  }, []);
-
-  useEffect(() => {
-    // Attempt to refresh on mount
-    (async () => {
-      await refreshAccessToken();
-      setIsLoading(false);
+  }, [queryClient]);
+  const loadMe = useCallback(
+    async (token: string, expectedGeneration = generation.current) => {
+      const me = await fetchJson<NonNullable<User>>("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (generation.current !== expectedGeneration)
+        throw new AuthRedirectError();
+      const previous = currentUser.current;
+      if (
+        previous &&
+        (previous.id !== me.id ||
+          previous.role !== me.role ||
+          previous.admin !== me.admin ||
+          previous.doctorId !== me.doctorId)
+      ) {
+        generation.current += 1;
+        void queryClient.cancelQueries();
+        queryClient.clear();
+      }
+      currentUser.current = me;
+      setUser(me);
+    },
+    [queryClient],
+  );
+  const refreshAccessToken = useCallback(() => {
+    if (refreshFlight.current) return refreshFlight.current;
+    const expected = generation.current;
+    const flight = (async () => {
+      try {
+        const { accessToken: token } = await fetchJson<{ accessToken: string }>(
+          "/api/auth/refresh",
+          { method: "POST" },
+        );
+        if (expected !== generation.current) return null;
+        await loadMe(token, expected);
+        setAccessToken(token);
+        return token;
+      } catch {
+        if (expected === generation.current) clearAuth();
+        return null;
+      }
     })();
+    refreshFlight.current = flight;
+    void flight.finally(() => {
+      if (refreshFlight.current === flight) refreshFlight.current = null;
+    });
+    return flight;
+  }, [clearAuth, loadMe]);
+  const reloadUser = useCallback(async () => {
+    if (accessToken) await loadMe(accessToken);
+  }, [accessToken, loadMe]);
+  useEffect(() => {
+    void refreshAccessToken().finally(() => setIsLoading(false));
   }, [refreshAccessToken]);
-
   useEffect(() => {
     if (!accessToken) return;
     const interval = setInterval(
       () => {
-        refreshAccessToken().catch(() => {});
+        void refreshAccessToken();
       },
-      1000 * 60 * 4,
+      4 * 60 * 1000,
     );
     return () => clearInterval(interval);
   }, [accessToken, refreshAccessToken]);
-
   const login = useCallback(
     async (email: string, password: string) => {
+      clearAuth();
+      const expected = generation.current;
       const { accessToken: token } = await fetchJson<{ accessToken: string }>(
         "/api/auth/login",
         {
@@ -126,12 +145,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({ email, password }),
         },
       );
+      if (expected !== generation.current) throw new AuthRedirectError();
+      await loadMe(token, expected);
       setAccessToken(token);
-      await loadMe(token);
     },
-    [loadMe],
+    [clearAuth, loadMe],
   );
-
   const register = useCallback(
     async (email: string, password: string) => {
       await fetchJson("/api/auth/register", {
@@ -143,12 +162,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     [login],
   );
-
   const logout = useCallback(async () => {
-    await fetchJson("/api/auth/logout", { method: "POST" });
     clearAuth();
+    await fetchJson("/api/auth/logout", { method: "POST" });
   }, [clearAuth]);
-
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -160,6 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       register,
       logout,
+      getSessionGeneration,
     }),
     [
       user,
@@ -171,6 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login,
       register,
       logout,
+      getSessionGeneration,
     ],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

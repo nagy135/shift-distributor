@@ -1,6 +1,7 @@
-import { format, getDay } from "date-fns";
-import { AUTO_DISTRIBUTE_SHIFT_TYPES, isWeekendOnly } from "@/lib/shifts";
 import type { Shift } from "@/lib/api";
+import { isWeekendOrHoliday } from "@/lib/holidays";
+import { AUTO_DISTRIBUTE_SHIFT_TYPES, isWeekendOnly } from "@/lib/shifts";
+import { format } from "date-fns";
 
 export type CalendarShiftTarget = {
   date: Date;
@@ -41,7 +42,7 @@ type UnassignedCheckParams = {
 export function isDayUnassigned({ date, allShifts }: UnassignedCheckParams) {
   const dateStr = format(date, "yyyy-MM-dd");
   const dayShifts = allShifts.filter((shift) => shift.date === dateStr);
-  const isWeekend = [0, 6].includes(getDay(date));
+  const isWeekend = isWeekendOrHoliday(date);
 
   const requiredTypes = AUTO_DISTRIBUTE_SHIFT_TYPES.filter(
     (type) => isWeekend || !isWeekendOnly(type),

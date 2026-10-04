@@ -14,8 +14,10 @@
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             git
-            nodejs_25
-            pnpm
+            nodejs_24
+            python3
+            gnumake
+            pkg-config
           ];
         };
       });

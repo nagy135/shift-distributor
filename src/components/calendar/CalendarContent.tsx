@@ -1,22 +1,14 @@
 "use client";
 
-import React from "react";
-import {
-  Building2,
-  CalendarDays,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
-import { ClientOnly } from "@/components/client-only";
-import { Button } from "@/components/ui/button";
+import { DoctorShiftCounts } from "@/components/calendar/DoctorShiftCounts";
 import type {
   CalendarCellClickOptions,
   CalendarShiftTarget,
 } from "@/components/calendar/utils";
+import { ClientOnly } from "@/components/client-only";
 import { MonthlyShiftTable } from "@/components/shifts/MonthlyShiftTable";
 import type { QuickAssignOption } from "@/components/shifts/QuickAssignOverlay";
-import { DoctorShiftCounts } from "@/components/calendar/DoctorShiftCounts";
+import { Button } from "@/components/ui/button";
 import type { Doctor, Shift } from "@/lib/api";
 import {
   DEPARTMENT_SHIFT_COLUMNS,
@@ -24,6 +16,14 @@ import {
   SHIFT_TABLE_COLUMNS,
   SHIFT_TYPES,
 } from "@/lib/shifts";
+import {
+  Building2,
+  CalendarDays,
+  ChartColumn,
+  ChevronDown,
+  ChevronLeft,
+} from "lucide-react";
+import React from "react";
 
 export type CalendarTableView = "shifts" | "departments";
 
@@ -36,6 +36,7 @@ type CalendarContentProps = {
   allShifts: Shift[];
   unavailableByDoctor: Record<number, Set<string>>;
   approvedVacationsByDate: Record<string, string[]>;
+  vacationDoctorIdsByDate: Record<string, number[]>;
   manualApprovedVacationsByDate: Record<string, string[]>;
   automaticNightVacationsByDate: Record<string, string[]>;
   selectedTargets?: readonly CalendarShiftTarget[];
@@ -74,6 +75,7 @@ export function CalendarContent({
   allShifts,
   unavailableByDoctor,
   approvedVacationsByDate,
+  vacationDoctorIdsByDate,
   manualApprovedVacationsByDate,
   automaticNightVacationsByDate,
   selectedTargets,
@@ -165,7 +167,11 @@ export function CalendarContent({
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-10">
         <details className="group overflow-hidden rounded-xl border bg-card shadow-sm md:hidden">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-1.5 select-none [&::-webkit-details-marker]:hidden">
-            <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <ChartColumn
+                className="size-4 text-muted-foreground"
+                aria-hidden="true"
+              />
               <p className="text-sm font-semibold leading-none">Statistik</p>
             </div>
             <span className="flex size-8 shrink-0 items-center justify-center rounded-full border bg-background text-muted-foreground transition-transform duration-200 group-open:rotate-180">
@@ -195,6 +201,7 @@ export function CalendarContent({
             variant="outline"
             className="size-8 shrink-0 transition-all duration-500 ease-in-out"
             onClick={() => setStatisticsVisible((current) => !current)}
+            aria-expanded={statisticsVisible}
             aria-label={
               statisticsVisible
                 ? "Statistik ausblenden"
@@ -207,9 +214,9 @@ export function CalendarContent({
             }
           >
             {statisticsVisible ? (
-              <ChevronLeft className="size-4 transition-transform duration-500 ease-in-out" />
+              <ChevronLeft className="size-4" aria-hidden="true" />
             ) : (
-              <ChevronRight className="size-4 transition-transform duration-500 ease-in-out" />
+              <ChartColumn className="size-4" aria-hidden="true" />
             )}
           </Button>
         </div>
@@ -232,8 +239,8 @@ export function CalendarContent({
                 shifts={allShifts}
                 doctors={doctors}
                 unavailableByDoctor={unavailableByDoctor}
-                considerUnavailableDates={tableView === "shifts"}
                 approvedVacationsByDate={approvedVacationsByDate}
+                vacationDoctorIdsByDate={vacationDoctorIdsByDate}
                 vacationColumnByDate={
                   tableView === "departments"
                     ? manualApprovedVacationsByDate
@@ -273,7 +280,9 @@ export function CalendarContent({
                 onQuickAssignShowAvailableOnlyChange={
                   onQuickAssignShowAvailableOnlyChange
                 }
-                onQuickAssignShowOaDoctorsChange={onQuickAssignShowOaDoctorsChange}
+                onQuickAssignShowOaDoctorsChange={
+                  onQuickAssignShowOaDoctorsChange
+                }
               />
             )}
           </ClientOnly>

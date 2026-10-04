@@ -64,8 +64,12 @@ export function CalendarHeaderActions({
           className="relative"
           aria-busy={isDistributing}
         >
-          <DistributeIcon className={isDistributing ? "opacity-0" : "opacity-100"} />
-          <span className={`hidden sm:inline ${isDistributing ? "opacity-0" : "opacity-100"}`}>
+          <DistributeIcon
+            className={isDistributing ? "opacity-0" : "opacity-100"}
+          />
+          <span
+            className={`hidden sm:inline ${isDistributing ? "opacity-0" : "opacity-100"}`}
+          >
             Verteilen
           </span>
           {isDistributing && (
@@ -108,8 +112,12 @@ export function CalendarHeaderActions({
           className="relative"
           aria-busy={isSendingCalendars}
         >
-          <MailIcon className={isSendingCalendars ? "opacity-0" : "opacity-100"} />
-          <span className={`hidden sm:inline ${isSendingCalendars ? "opacity-0" : "opacity-100"}`}>
+          <MailIcon
+            className={isSendingCalendars ? "opacity-0" : "opacity-100"}
+          />
+          <span
+            className={`hidden sm:inline ${isSendingCalendars ? "opacity-0" : "opacity-100"}`}
+          >
             {sendCalendarsLabel}
           </span>
           {isSendingCalendars && (
@@ -146,7 +154,12 @@ export function CalendarHeaderActions({
         </Button>
       )}
 
-      <Button variant="default" onClick={onExport} disabled={shiftsLoading} title="Exportieren">
+      <Button
+        variant="default"
+        onClick={onExport}
+        disabled={shiftsLoading}
+        title="Exportieren"
+      >
         <DownloadIcon className="size-4" />
         <span className="ml-1 hidden sm:inline">Exportieren</span>
       </Button>
