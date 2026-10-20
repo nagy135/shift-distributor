@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { addDays } from "date-fns";
+import { addDays, eachDayOfInterval, isFriday } from "date-fns";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -22,6 +22,7 @@ import {
   queryKeys,
 } from "../src/lib/query-keys";
 import { generateAssignmentsForMonth } from "../src/lib/scheduler";
+import { AUTO_DISTRIBUTE_SHIFT_TYPES } from "../src/lib/shifts";
 import {
   getAssignmentConflicts,
   indexAbsences,
@@ -102,6 +103,125 @@ test("distribution is deterministic and respects holidays, vacations and existin
     generateAssignmentsForMonth(params),
     generateAssignmentsForMonth(params),
   );
+});
+test("every Friday has two distinct late-duty doctors, including holidays", () => {
+  const assignments = generateAssignmentsForMonth({
+    dates: eachDayOfInterval({
+      start: parseDateKey("2026-04-01"),
+      end: parseDateKey("2026-04-30"),
+    }),
+    doctors: Array.from({ length: 10 }, (_, index) => doctor(index + 1)),
+    shiftTypes: AUTO_DISTRIBUTE_SHIFT_TYPES,
+    random: () => 0.5,
+  });
+  for (const assignment of assignments) {
+    if (assignment.shiftType === "20shift") {
+      assert.equal(
+        assignment.doctorIds.length,
+        isFriday(parseDateKey(assignment.date)) ? 2 : 1,
+        assignment.date,
+      );
+    }
+    assert.equal(
+      new Set(assignment.doctorIds).size,
+      assignment.doctorIds.length,
+    );
+  }
+  assert.equal(
+    assignments.find(
+      (assignment) =>
+        assignment.date === "2026-04-03" && assignment.shiftType === "17shift",
+    )?.doctorIds.length,
+    1,
+  );
+  assert.equal(
+    assignments.find(
+      (assignment) =>
+        assignment.date === "2026-04-10" && assignment.shiftType === "17shift",
+    )?.doctorIds.length,
+    0,
+  );
+  for (const assignment of assignments.filter(
+    (assignment) => assignment.shiftType === "17shift",
+  )) {
+    const lateDuty = assignments.find(
+      (other) =>
+        other.date === assignment.date && other.shiftType === "20shift",
+    )!;
+    assert(
+      assignment.doctorIds.every((id) => !lateDuty.doctorIds.includes(id)),
+    );
+  }
+});
+test("both Friday slots respect eligibility, absences and existing assignments", () => {
+  const doctors = Array.from({ length: 9 }, (_, index) => doctor(index + 1));
+  doctors[0].disabled = true;
+  doctors[1].oa = true;
+  doctors[2].unavailableShiftTypes = ["20shift"];
+  assert.deepEqual(
+    generateAssignmentsForMonth({
+      dates: [parseDateKey("2026-10-02")],
+      doctors,
+      shiftTypes: AUTO_DISTRIBUTE_SHIFT_TYPES,
+      vacationDoctorIdsByDate: { "2026-10-02": [4] },
+      unavailableDatesByDoctor: { 5: new Set(["2026-10-02"]) },
+      existingShifts: [
+        shift("2026-10-02", "night", [6]),
+        shift("2026-10-02", "ITS-1", [7]),
+      ],
+      random: () => 0.5,
+    }),
+    [
+      { date: "2026-10-02", shiftType: "20shift", doctorIds: [8, 9] },
+      { date: "2026-10-02", shiftType: "17shift", doctorIds: [] },
+    ],
+  );
+});
+test("Friday selections preserve rest-day preferences and count both workloads", () => {
+  assert.deepEqual(
+    generateAssignmentsForMonth({
+      dates: [parseDateKey("2026-10-02"), parseDateKey("2026-10-09")],
+      doctors: [doctor(1), doctor(2), doctor(3), doctor(4)],
+      shiftTypes: ["20shift"],
+      random: () => 0.5,
+    }),
+    [
+      { date: "2026-10-02", shiftType: "20shift", doctorIds: [1, 2] },
+      { date: "2026-10-09", shiftType: "20shift", doctorIds: [3, 4] },
+    ],
+  );
+  assert.deepEqual(
+    generateAssignmentsForMonth({
+      dates: [parseDateKey("2026-10-02"), parseDateKey("2026-10-03")],
+      doctors: [doctor(1), doctor(2), doctor(3), doctor(4)],
+      shiftTypes: ["20shift"],
+      existingShifts: [shift("2026-10-01", "20shift", [1])],
+      random: () => 0.5,
+    }),
+    [
+      { date: "2026-10-02", shiftType: "20shift", doctorIds: [2, 3] },
+      { date: "2026-10-03", shiftType: "20shift", doctorIds: [1] },
+    ],
+  );
+});
+test("Friday staffing shortages never duplicate doctors or override conflicts", () => {
+  for (const available of [[], [doctor(1)]]) {
+    assert.deepEqual(
+      generateAssignmentsForMonth({
+        dates: [parseDateKey("2026-10-02")],
+        doctors: [...available, { ...doctor(2), disabled: true }],
+        shiftTypes: ["20shift"],
+        random: () => 0.5,
+      }),
+      [
+        {
+          date: "2026-10-02",
+          shiftType: "20shift",
+          doctorIds: available.map((d) => d.id),
+        },
+      ],
+    );
+  }
 });
 test("rest days cross year boundaries and preserve the consecutive-block bonus", () => {
   const dates = [

@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import type { MonthCalendarEmailResult } from "@/lib/api";
 import { useAuth } from "@/lib/auth-client";
+import { parseDateKey } from "@/lib/dates";
 import { useDistributeLockStore } from "@/lib/distribute-lock-store";
 import { useMonthStore } from "@/lib/month-store";
 import { canEditCalendarView, isAssigner, isShiftAssigner } from "@/lib/roles";
@@ -39,7 +40,13 @@ import {
 import { AUTO_DISTRIBUTE_SHIFT_TYPES, SHIFT_TYPES } from "@/lib/shifts";
 import { useApiClient } from "@/lib/use-api-client";
 import { useMediaQuery } from "@/lib/use-media-query";
-import { eachDayOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
+import {
+  eachDayOfInterval,
+  endOfMonth,
+  format,
+  isFriday,
+  startOfMonth,
+} from "date-fns";
 import { de } from "date-fns/locale";
 import { AlertTriangle as AlertTriangleIcon } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -805,6 +812,18 @@ export default function CalendarPage() {
 
       // Ensure fresh data when done
       await invalidateShifts();
+
+      const understaffedFridays = assignments.filter(
+        (assignment) =>
+          assignment.shiftType === "20shift" &&
+          isFriday(parseDateKey(assignment.date)) &&
+          assignment.doctorIds.length < 2,
+      );
+      if (understaffedFridays.length > 0) {
+        toast.warning(
+          `Spätdienst am ${understaffedFridays.map((assignment) => format(parseDateKey(assignment.date), "dd.MM.")).join(", ")}: Es stehen nicht genügend geeignete Personen für eine Doppelbesetzung zur Verfügung. Bitte manuell prüfen.`,
+        );
+      }
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Verteilung fehlgeschlagen.",
@@ -1071,6 +1090,9 @@ export default function CalendarPage() {
             <DialogTitle>Dienste verteilen?</DialogTitle>
             <DialogDescription>
               {`Die automatische Verteilung wird fuer ${format(month, "MMMM yyyy", { locale: de })} gestartet und kann bestehende Eintraege ueberschreiben.`}
+              {
+                " Freitags werden zwei Personen im Spätdienst eingeplant. Alle bestehenden Planungsregeln werden dabei berücksichtigt."
+              }
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

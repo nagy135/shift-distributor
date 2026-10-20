@@ -1,4 +1,4 @@
-import { addDays } from "date-fns";
+import { addDays, isFriday } from "date-fns";
 import type { Doctor, Shift } from "./contracts";
 import { dateKey, parseDateKey } from "./dates";
 import {
@@ -73,25 +73,26 @@ export function generateAssignmentsForMonth({
         );
       const previous = dateKey(addDays(parseDateKey(key), -1)),
         following = dateKey(addDays(parseDateKey(key), 1));
-      const preferred = ranked.find(
-        ({ doctor }) =>
-          ![...contextShifts, ...assignments].some(
-            (shift) =>
-              (shift.date === previous || shift.date === following) &&
-              shift.doctorIds.includes(doctor.id),
-          ),
-      );
-      const selected = preferred ?? ranked[0];
+      const requiredCount = shiftType === "20shift" && isFriday(date) ? 2 : 1;
+      const doctorIds: number[] = [];
+      for (let slot = 0; slot < requiredCount && ranked.length > 0; slot++) {
+        const preferredIndex = ranked.findIndex(
+          ({ doctor }) =>
+            ![...contextShifts, ...assignments].some(
+              (shift) =>
+                (shift.date === previous || shift.date === following) &&
+                shift.doctorIds.includes(doctor.id),
+            ),
+        );
+        const [{ doctor }] = ranked.splice(Math.max(0, preferredIndex), 1);
+        doctorIds.push(doctor.id);
+        counts.set(doctor.id, (counts.get(doctor.id) ?? 0) + 1);
+      }
       assignments.push({
         date: key,
         shiftType,
-        doctorIds: selected ? [selected.doctor.id] : [],
+        doctorIds,
       });
-      if (selected)
-        counts.set(
-          selected.doctor.id,
-          (counts.get(selected.doctor.id) ?? 0) + 1,
-        );
     }
   }
   return assignments;
