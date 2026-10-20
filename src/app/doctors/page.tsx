@@ -166,27 +166,25 @@ export default function DoctorsPage() {
 
   return (
     <div className="space-y-6">
-      <MonthSelector
-        rightActions={
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="oa-toggle" className="cursor-pointer">
-                OA
-              </Label>
-              <Switch
-                id="oa-toggle"
-                checked={oaOnly}
-                onCheckedChange={setOaOnly}
-              />
-            </div>
-            {isShiftAssigner && (
-              <Button onClick={() => setIsAddDialogOpen(true)}>
-                Arzt hinzufügen
-              </Button>
-            )}
+      <MonthSelector ariaLabel="Ärztesteuerung">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="oa-toggle" className="cursor-pointer">
+              OA
+            </Label>
+            <Switch
+              id="oa-toggle"
+              checked={oaOnly}
+              onCheckedChange={setOaOnly}
+            />
           </div>
-          }
-        />
+          {isShiftAssigner && (
+            <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
+              Arzt hinzufügen
+            </Button>
+          )}
+        </div>
+      </MonthSelector>
       <AddDoctorDialog
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}

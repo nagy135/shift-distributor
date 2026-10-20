@@ -2,40 +2,67 @@
 
 import { format, isSameMonth } from "date-fns";
 import { de } from "date-fns/locale";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMonthStore } from "@/lib/month-store";
 import type { ReactNode } from "react";
 
 type Props = {
-  rightActions?: ReactNode;
+  ariaLabel: string;
+  children?: ReactNode;
 };
 
-export function MonthSelector({ rightActions }: Props) {
+export function MonthSelector({ ariaLabel, children }: Props) {
   const { month, prevMonth, nextMonth, setMonth } = useMonthStore();
-  const isTodayMonth = isSameMonth(month, new Date());
+  const isCurrentMonth = isSameMonth(month, new Date());
 
   return (
-    <div className="flex flex-col lg:flex-row lg:items-center gap-2">
-      <div className="flex items-center gap-2">
-        <Button variant="outline" onClick={prevMonth}>
-          {"<"}
-        </Button>
-        <div className="text-sm font-medium w-30 text-center">
-          {format(month, "MMMM yyyy", { locale: de })}
+    <section
+      aria-label={ariaLabel}
+      className="space-y-2.5 rounded-xl border bg-card p-3 sm:space-y-3 sm:p-4"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1 sm:flex-none sm:gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7 min-[360px]:size-8"
+            onClick={prevMonth}
+            aria-label="Vorheriger Monat"
+            title="Vorheriger Monat"
+          >
+            <ChevronLeft aria-hidden="true" />
+          </Button>
+          <h2 className="min-w-0 flex-1 whitespace-nowrap text-center text-sm font-semibold min-[360px]:text-base sm:min-w-40 sm:text-lg">
+            {format(month, "MMMM yyyy", { locale: de })}
+          </h2>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7 min-[360px]:size-8"
+            onClick={nextMonth}
+            aria-label="Nächster Monat"
+            title="Nächster Monat"
+          >
+            <ChevronRight aria-hidden="true" />
+          </Button>
         </div>
-        <Button variant="outline" onClick={nextMonth}>
-          {">"}
-        </Button>
-        <div className="flex-1 lg:hidden" />
         <Button
-          disabled={isTodayMonth}
-          variant={isTodayMonth ? "secondary" : "outline"}
+          type="button"
+          size="sm"
+          variant="outline"
+          className="px-2 shadow-none sm:px-3"
+          disabled={isCurrentMonth}
           onClick={() => setMonth(new Date())}
         >
           Heute
         </Button>
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-2 lg:ml-auto">{rightActions}</div>
-    </div>
+      {children && (
+        <div className="border-t pt-2.5 sm:pt-3">{children}</div>
+      )}
+    </section>
   );
 }
