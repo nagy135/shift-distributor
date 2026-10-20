@@ -104,6 +104,69 @@ test("distribution is deterministic and respects holidays, vacations and existin
     generateAssignmentsForMonth(params),
   );
 });
+test("late and station duties conflict for the same doctor on the same date in either direction", () => {
+  for (const [type, other] of [
+    ["20shift", "17shift"],
+    ["17shift", "20shift"],
+  ]) {
+    const context = {
+      shifts: [
+        shift("2026-10-05", type, [1]),
+        shift("2026-10-05", other, [2, 1]),
+      ],
+    };
+    assert.deepEqual(
+      getAssignmentConflicts(doctor(1), "2026-10-05", type, context),
+      ["late-station-overlap"],
+    );
+    assert.deepEqual(
+      getAssignmentConflicts(doctor(3), "2026-10-05", type, context),
+      [],
+    );
+    assert.deepEqual(
+      getAssignmentConflicts(doctor(1), "2026-10-06", type, context),
+      [],
+    );
+    assert.deepEqual(
+      getAssignmentConflicts(doctor(1), "2026-10-05", type, {
+        shifts: [shift("2026-10-05", type, [1])],
+      }),
+      [],
+    );
+  }
+});
+test("both generation modes exclude station doctors from both Friday late-duty places", () => {
+  for (const mode of ["replace", "fill-empty"] as const) {
+    const existingShifts = [shift("2026-10-02", "17shift", [1])];
+    const generated = generateAssignmentsForMonth({
+      dates: [parseDateKey("2026-10-02")],
+      doctors: [doctor(1), doctor(2), doctor(3)],
+      shiftTypes: AUTO_DISTRIBUTE_SHIFT_TYPES,
+      existingShifts,
+      mode,
+      random: () => 0.5,
+    });
+    assert.deepEqual(generated, [
+      { date: "2026-10-02", shiftType: "20shift", doctorIds: [2, 3] },
+    ]);
+    assert.deepEqual(existingShifts[0].doctorIds, [1]);
+  }
+});
+test("generation excludes existing late-duty doctors when filling station duty", () => {
+  for (const mode of ["replace", "fill-empty"] as const) {
+    assert.deepEqual(
+      generateAssignmentsForMonth({
+        dates: [parseDateKey("2026-10-10")],
+        doctors: [doctor(1), doctor(2)],
+        shiftTypes: ["17shift"],
+        existingShifts: [shift("2026-10-10", "20shift", [1])],
+        mode,
+        random: () => 0.5,
+      }),
+      [{ date: "2026-10-10", shiftType: "17shift", doctorIds: [2] }],
+    );
+  }
+});
 test("every Friday has two distinct late-duty doctors, including holidays", () => {
   const assignments = generateAssignmentsForMonth({
     dates: eachDayOfInterval({

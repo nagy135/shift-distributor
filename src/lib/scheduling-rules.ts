@@ -14,6 +14,7 @@ export type ConflictReason =
   | "unavailable"
   | "vacation"
   | "night-overlap"
+  | "late-station-overlap"
   | "oa-only";
 export interface SchedulingContext {
   shifts: Pick<Shift, "date" | "shiftType" | "doctorIds">[];
@@ -61,6 +62,22 @@ export function getAssignmentConflicts(
     )
   )
     reasons.push("night-overlap");
+  const conflictingDuty =
+    shiftType === "20shift"
+      ? "17shift"
+      : shiftType === "17shift"
+        ? "20shift"
+        : null;
+  if (
+    conflictingDuty &&
+    context.shifts.some(
+      (shift) =>
+        shift.date === date &&
+        shift.shiftType === conflictingDuty &&
+        shift.doctorIds.includes(doctor.id),
+    )
+  )
+    reasons.push("late-station-overlap");
   return reasons;
 }
 

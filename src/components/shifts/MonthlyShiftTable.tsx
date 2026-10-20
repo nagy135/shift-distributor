@@ -16,7 +16,10 @@ import {
 import type { Doctor, Shift } from "@/lib/api";
 import { isHoliday } from "@/lib/holidays";
 import { NIGHT_FREE_COLUMN_ID } from "@/lib/night-shift-vacations";
-import { getAssignmentConflicts } from "@/lib/scheduling-rules";
+import {
+  getAssignmentConflicts,
+  type ConflictReason,
+} from "@/lib/scheduling-rules";
 import { SHIFT_TABLE_COLUMNS, type CalendarShiftColumn } from "@/lib/shifts";
 import { useAnchoredOverlay } from "@/lib/use-anchored-overlay";
 import { cn } from "@/lib/utils";
@@ -119,36 +122,25 @@ export function MonthlyShiftTable({
     [activeColumnIds, selectableColumnIds],
   );
 
-  // Helper function to check if a shift assignment violates constraints
-  const hasDoctorConflict = React.useCallback(
+  const getShiftConflicts = React.useCallback(
     (
-      doctorId: number,
       shift: Shift,
       date: string,
       byType: Record<string, Shift>,
-    ): boolean => {
-      const doctor = doctorById.get(doctorId);
-      return (
-        !!doctor &&
-        getAssignmentConflicts(doctor, date, shift.shiftType, {
-          shifts: Object.values(byType),
-          unavailableByDoctor,
-          vacationDoctorIdsByDate,
-        }).length > 0
-      );
+    ): ConflictReason[] => {
+      if (!Array.isArray(shift.doctorIds)) return [];
+      return shift.doctorIds.flatMap((doctorId) => {
+        const doctor = doctorById.get(doctorId);
+        return doctor
+          ? getAssignmentConflicts(doctor, date, shift.shiftType, {
+              shifts: Object.values(byType),
+              unavailableByDoctor,
+              vacationDoctorIdsByDate,
+            })
+          : [];
+      });
     },
     [doctorById, unavailableByDoctor, vacationDoctorIdsByDate],
-  );
-
-  const hasShiftConflict = React.useCallback(
-    (shift: Shift, date: string, byType: Record<string, Shift>): boolean => {
-      if (!Array.isArray(shift.doctorIds) || shift.doctorIds.length === 0)
-        return false;
-      return shift.doctorIds.some((doctorId) =>
-        hasDoctorConflict(doctorId, shift, date, byType),
-      );
-    },
-    [hasDoctorConflict],
   );
 
   const canRowClick = typeof onRowClick === "function";
@@ -311,7 +303,8 @@ export function MonthlyShiftTable({
       const hasShiftConflictInRow = columns.some((column) => {
         const shift = visibleByType[column.id];
         return shift
-          ? hasShiftConflict(shift, dateKey, shiftIndex.get(dateKey) ?? {})
+          ? getShiftConflicts(shift, dateKey, shiftIndex.get(dateKey) ?? {})
+              .length > 0
           : false;
       });
       const hasVacationConflict = Array.from(vacationDoctorIds).some(
@@ -332,7 +325,7 @@ export function MonthlyShiftTable({
       vacationDoctorIdsByDate,
       automaticNightVacationsByDate,
       columns,
-      hasShiftConflict,
+      getShiftConflicts,
       shiftIndex,
       vacationColumnByDate,
     ],
@@ -573,13 +566,13 @@ export function MonthlyShiftTable({
               const isEditableCell =
                 isInteractiveColumn && !isSelectionDisabled;
               const isSelectedCell = selectedCellKeys?.has(cellKey) ?? false;
-              const hasShiftCellConflict = shift
-                ? hasShiftConflict(
+              const shiftConflicts = shift
+                ? getShiftConflicts(
                     shift,
                     dateKey,
                     shiftIndex.get(dateKey) ?? {},
                   )
-                : false;
+                : [];
               const hasVacationCellConflict =
                 !!shift &&
                 Array.isArray(shift.doctorIds) &&
@@ -587,11 +580,17 @@ export function MonthlyShiftTable({
                   vacationDoctorIds.has(doctorId),
                 );
               const cellConflict =
-                hasShiftCellConflict || hasVacationCellConflict;
+                shiftConflicts.length > 0 || hasVacationCellConflict;
 
               return (
                 <td
                   key={column.id}
+                  aria-invalid={cellConflict || undefined}
+                  title={
+                    shiftConflicts.includes("late-station-overlap")
+                      ? "Doppelbelegung: Derselbe Arzt ist am selben Tag im Spätdienst und im Stationsdienst eingeteilt."
+                      : undefined
+                  }
                   ref={(node) => {
                     if (node) {
                       cellRefs.current.set(cellKey, node);

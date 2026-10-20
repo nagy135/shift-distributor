@@ -75,6 +75,8 @@ The annual vacation and night-shift calendars support click-and-drag ranges, inc
 
 Monthly distribution writes only populated assignments that actually change the selected doctors. Skipped or unfillable duties retain their existing entries and versions, and those entries participate in conflict and workload checks. The primary confirmation action regenerates occupied duties; the smaller “Nur leere Felder füllen” action fills only empty cells and preserves every occupied cell, including Fridays with one doctor. Friday coverage warnings reflect the resulting plan in either mode.
 
+A doctor assigned to both Spätdienst and Stationsdienst on the same date is flagged in both cells and in the doctor selectors. Both generation modes avoid this overlap, including either place in a Friday Spätdienst. Doctors are matched by ID so different doctors sharing a name remain independent.
+
 Unpublished months are filtered on the server for doctors in both the monthly calendar and annual night-shift view. Missing publication records retain the legacy published behavior. Planners and secretaries retain the visibility needed for their roles.
 
 Authentication changes cancel and clear server-state queries. Generation checks prevent late responses or optimistic rollbacks from restoring a previous account's cached data.
