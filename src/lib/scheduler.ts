@@ -13,6 +13,7 @@ export interface GeneratedAssignment {
   shiftType: ShiftType;
   doctorIds: number[];
 }
+export type GenerationMode = "replace" | "fill-empty";
 interface GenerateAssignmentsParams {
   dates: Date[];
   doctors: Doctor[];
@@ -21,6 +22,7 @@ interface GenerateAssignmentsParams {
   vacationDoctorIdsByDate?: Record<string, readonly number[]>;
   existingShifts?: Shift[];
   random?: () => number;
+  mode?: GenerationMode;
 }
 
 export function generateAssignmentsForMonth({
@@ -31,35 +33,43 @@ export function generateAssignmentsForMonth({
   vacationDoctorIdsByDate,
   existingShifts = [],
   random = Math.random,
+  mode = "replace",
 }: GenerateAssignmentsParams): GeneratedAssignment[] {
   const assignments: GeneratedAssignment[] = [];
   const targetDates = new Set(dates.map(dateKey));
-  const contextShifts = existingShifts.filter(
-    (shift) =>
-      !targetDates.has(shift.date) ||
-      !shiftTypes.includes(shift.shiftType as ShiftType),
-  );
-  const counts = new Map<number, number>();
-  for (const shift of contextShifts.filter((shift) =>
+  const plannedShifts = new Map<
+    string,
+    Pick<Shift, "date" | "shiftType" | "doctorIds">
+  >(existingShifts.map((shift) => [`${shift.date}|${shift.shiftType}`, shift]));
+  let counts = new Map<number, number>();
+  for (const shift of existingShifts.filter((shift) =>
     targetDates.has(shift.date),
   ))
     for (const id of shift.doctorIds) counts.set(id, (counts.get(id) ?? 0) + 1);
   for (const date of [...dates].sort((a, b) => a.getTime() - b.getTime())) {
     const key = dateKey(date);
     for (const shiftType of shiftTypes) {
-      if (!isScheduledDutyDay(key, shiftType)) {
-        assignments.push({ date: key, shiftType, doctorIds: [] });
+      if (!isScheduledDutyDay(key, shiftType)) continue;
+      const assignmentKey = `${key}|${shiftType}`;
+      const existingShift = plannedShifts.get(assignmentKey);
+      if (mode === "fill-empty" && (existingShift?.doctorIds.length ?? 0) > 0)
         continue;
-      }
+      // Keep every other assignment until it has a populated replacement.
+      const contextShifts = [...plannedShifts.values()].filter(
+        (shift) => shift.date !== key || shift.shiftType !== shiftType,
+      );
+      const nextCounts = new Map(counts);
+      for (const id of existingShift?.doctorIds ?? [])
+        nextCounts.set(id, (nextCounts.get(id) ?? 0) - 1);
       const eligible = doctors.filter(
         (doctor) =>
           isDoctorEligible(doctor, shiftType) &&
           getAssignmentConflicts(doctor, key, shiftType, {
-            shifts: [...contextShifts, ...assignments],
+            shifts: contextShifts,
             unavailableByDoctor: unavailableDatesByDoctor,
             vacationDoctorIdsByDate,
           }).length === 0 &&
-          ![...contextShifts, ...assignments].some(
+          !contextShifts.some(
             (shift) =>
               shift.date === key && shift.doctorIds.includes(doctor.id),
           ),
@@ -68,8 +78,8 @@ export function generateAssignmentsForMonth({
         .map((doctor) => ({ doctor, tie: random() }))
         .sort(
           (a, b) =>
-            (counts.get(a.doctor.id) ?? 0) - (counts.get(b.doctor.id) ?? 0) ||
-            a.tie - b.tie,
+            (nextCounts.get(a.doctor.id) ?? 0) -
+              (nextCounts.get(b.doctor.id) ?? 0) || a.tie - b.tie,
         );
       const previous = dateKey(addDays(parseDateKey(key), -1)),
         following = dateKey(addDays(parseDateKey(key), 1));
@@ -78,7 +88,7 @@ export function generateAssignmentsForMonth({
       for (let slot = 0; slot < requiredCount && ranked.length > 0; slot++) {
         const preferredIndex = ranked.findIndex(
           ({ doctor }) =>
-            ![...contextShifts, ...assignments].some(
+            !contextShifts.some(
               (shift) =>
                 (shift.date === previous || shift.date === following) &&
                 shift.doctorIds.includes(doctor.id),
@@ -86,13 +96,22 @@ export function generateAssignmentsForMonth({
         );
         const [{ doctor }] = ranked.splice(Math.max(0, preferredIndex), 1);
         doctorIds.push(doctor.id);
-        counts.set(doctor.id, (counts.get(doctor.id) ?? 0) + 1);
+        nextCounts.set(doctor.id, (nextCounts.get(doctor.id) ?? 0) + 1);
       }
-      assignments.push({
+      if (doctorIds.length === 0) continue;
+      counts = nextCounts;
+      const assignment = {
         date: key,
         shiftType,
         doctorIds,
-      });
+      };
+      plannedShifts.set(assignmentKey, assignment);
+      if (
+        existingShift?.doctorIds.length === doctorIds.length &&
+        doctorIds.every((id) => existingShift.doctorIds.includes(id))
+      )
+        continue;
+      assignments.push(assignment);
     }
   }
   return assignments;

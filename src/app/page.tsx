@@ -28,11 +28,13 @@ import {
 } from "@/components/ui/dialog";
 import type { MonthCalendarEmailResult } from "@/lib/api";
 import { useAuth } from "@/lib/auth-client";
-import { parseDateKey } from "@/lib/dates";
 import { useDistributeLockStore } from "@/lib/distribute-lock-store";
 import { useMonthStore } from "@/lib/month-store";
 import { canEditCalendarView, isAssigner, isShiftAssigner } from "@/lib/roles";
-import { generateAssignmentsForMonth } from "@/lib/scheduler";
+import {
+  generateAssignmentsForMonth,
+  type GenerationMode,
+} from "@/lib/scheduler";
 import {
   getAssignmentConflicts,
   isDoctorEligible,
@@ -769,7 +771,7 @@ export default function CalendarPage() {
     setIsDistributeConfirmOpen(true);
   }, [canDistribute, isDistributing]);
 
-  const confirmDistributeMonth = async () => {
+  const confirmDistributeMonth = async (mode: GenerationMode = "replace") => {
     if (!canDistribute) return;
 
     try {
@@ -795,33 +797,44 @@ export default function CalendarPage() {
         unavailableDatesByDoctor,
         vacationDoctorIdsByDate,
         existingShifts: allShifts,
+        mode,
       });
 
-      // Use batch endpoint for all assignments in a single request
-      await shiftsApi.assignBatch(
-        assignments.map((assignment) => ({
-          ...assignment,
-          expectedVersion:
-            allShifts.find(
-              (shift) =>
-                shift.date === assignment.date &&
-                shift.shiftType === assignment.shiftType,
-            )?.version ?? 0,
-        })),
-      );
+      if (assignments.length > 0) {
+        await shiftsApi.assignBatch(
+          assignments.map((assignment) => ({
+            ...assignment,
+            expectedVersion:
+              allShifts.find(
+                (shift) =>
+                  shift.date === assignment.date &&
+                  shift.shiftType === assignment.shiftType,
+              )?.version ?? 0,
+          })),
+        );
+        await invalidateShifts();
+      }
 
-      // Ensure fresh data when done
-      await invalidateShifts();
-
-      const understaffedFridays = assignments.filter(
-        (assignment) =>
-          assignment.shiftType === "20shift" &&
-          isFriday(parseDateKey(assignment.date)) &&
-          assignment.doctorIds.length < 2,
-      );
+      const understaffedFridays = dates.filter((date) => {
+        if (!isFriday(date)) return false;
+        const key = format(date, "yyyy-MM-dd");
+        const shift =
+          assignments.find(
+            (assignment) =>
+              assignment.date === key && assignment.shiftType === "20shift",
+          ) ??
+          allShifts.find(
+            (shift) => shift.date === key && shift.shiftType === "20shift",
+          );
+        return (shift?.doctorIds.length ?? 0) < 2;
+      });
       if (understaffedFridays.length > 0) {
         toast.warning(
-          `Spätdienst am ${understaffedFridays.map((assignment) => format(parseDateKey(assignment.date), "dd.MM.")).join(", ")}: Es stehen nicht genügend geeignete Personen für eine Doppelbesetzung zur Verfügung. Bitte manuell prüfen.`,
+          `Spätdienst am ${understaffedFridays.map((date) => format(date, "dd.MM.")).join(", ")} ist nicht doppelt besetzt. Bitte manuell prüfen.`,
+        );
+      } else if (assignments.length === 0) {
+        toast.info(
+          "Keine Änderungen an der bestehenden Besetzung erforderlich.",
         );
       }
     } catch (err) {
@@ -1085,32 +1098,42 @@ export default function CalendarPage() {
         open={isDistributeConfirmOpen && canDistribute}
         onOpenChange={setIsDistributeConfirmOpen}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Dienste verteilen?</DialogTitle>
             <DialogDescription>
               {`Die automatische Verteilung wird fuer ${format(month, "MMMM yyyy", { locale: de })} gestartet und kann bestehende Eintraege ueberschreiben.`}
               {
-                " Freitags werden zwei Personen im Spätdienst eingeplant. Alle bestehenden Planungsregeln werden dabei berücksichtigt."
+                " Freitags werden zwei Personen im Spätdienst eingeplant. Bestehende Einträge bleiben erhalten, wenn für einen Dienst keine neue Besetzung ermittelt wird. Mit „Nur leere Felder füllen“ bleiben alle besetzten Felder unverändert. Alle bestehenden Planungsregeln werden dabei berücksichtigt."
               }
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="flex-col gap-4 sm:items-center sm:justify-between sm:space-x-0">
             <Button
               type="button"
-              variant="outline"
+              variant="destructive"
               onClick={() => setIsDistributeConfirmOpen(false)}
               disabled={isDistributing}
             >
               Abbrechen
             </Button>
-            <Button
-              type="button"
-              onClick={confirmDistributeMonth}
-              disabled={isDistributing}
-            >
-              Verteilung starten
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void confirmDistributeMonth("fill-empty")}
+                disabled={isDistributing}
+              >
+                Nur leere Felder füllen
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void confirmDistributeMonth()}
+                disabled={isDistributing}
+              >
+                Verteilung starten
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

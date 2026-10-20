@@ -18,6 +18,9 @@ import {
   editVacations,
 } from "../src/lib/server/vacation-service";
 import { getVacationQuotaIssues } from "../src/lib/vacations";
+import { generateAssignmentsForMonth } from "../src/lib/scheduler";
+import { parseDateKey } from "../src/lib/dates";
+import { AUTO_DISTRIBUTE_SHIFT_TYPES } from "../src/lib/shifts";
 
 const require = createRequire(import.meta.url);
 const { migrateDatabase } = require("../scripts/migrate.cjs") as {
@@ -153,6 +156,119 @@ test("SQLite failures roll back the complete assignment batch", () => {
     ),
   );
   assert.equal(db.select().from(shifts).all().length, 0);
+  sqlite.close();
+});
+test("generation updates only populated changes and preserves skipped assignment versions", () => {
+  const { db, sqlite, doctor, actor } = fixture();
+  const second = db
+    .insert(doctors)
+    .values({ name: "Second" })
+    .returning()
+    .get()!;
+  const third = db.insert(doctors).values({ name: "Third" }).returning().get()!;
+  db.insert(shifts)
+    .values([
+      {
+        date: "2026-10-05",
+        shiftType: "17shift",
+        doctorIds: [doctor.id],
+        version: 7,
+      },
+      {
+        date: "2026-10-05",
+        shiftType: "night",
+        doctorIds: [third.id],
+        version: 4,
+      },
+      {
+        date: "2026-10-05",
+        shiftType: "20shift",
+        doctorIds: [doctor.id],
+        version: 2,
+      },
+      {
+        date: "2026-10-06",
+        shiftType: "20shift",
+        doctorIds: [third.id],
+        version: 6,
+      },
+    ])
+    .run();
+  const before = db.select().from(shifts).all();
+  const generated = generateAssignmentsForMonth({
+    dates: [parseDateKey("2026-10-05"), parseDateKey("2026-10-06")],
+    doctors: [doctor, second, third].map((d) => ({ ...d, createdAt: null })),
+    existingShifts: before.map((s) => ({ ...s, doctors: [] })),
+    shiftTypes: AUTO_DISTRIBUTE_SHIFT_TYPES,
+    unavailableDatesByDoctor: Object.fromEntries(
+      [doctor, second, third].map((d) => [d.id, new Set(["2026-10-06"])]),
+    ),
+    random: () => 0.5,
+  });
+  assert.deepEqual(generated, [
+    { date: "2026-10-05", shiftType: "20shift", doctorIds: [second.id] },
+  ]);
+  saveAssignments(
+    db,
+    actor,
+    generated.map((assignment) => ({ ...assignment, expectedVersion: 2 })),
+  );
+  const after = db.select().from(shifts).all();
+  for (const previous of before) {
+    const saved = after.find((s) => s.id === previous.id)!;
+    if (previous.date === "2026-10-05" && previous.shiftType === "20shift") {
+      assert.deepEqual(saved.doctorIds, [second.id]);
+      assert.equal(saved.version, 3);
+    } else assert.deepEqual(saved, previous);
+  }
+  sqlite.close();
+});
+test("fill-empty generation leaves occupied slots untouched when saving the missing cell", () => {
+  const { db, sqlite, doctor, actor } = fixture();
+  const second = db
+    .insert(doctors)
+    .values({ name: "Second" })
+    .returning()
+    .get()!;
+  db.insert(shifts)
+    .values([
+      {
+        date: "2026-10-05",
+        shiftType: "20shift",
+        doctorIds: [doctor.id],
+        version: 5,
+      },
+      { date: "2026-10-06", shiftType: "20shift", doctorIds: [], version: 3 },
+    ])
+    .run();
+  const before = db.select().from(shifts).all();
+  const generated = generateAssignmentsForMonth({
+    dates: [parseDateKey("2026-10-05"), parseDateKey("2026-10-06")],
+    doctors: [doctor, second].map((d) => ({ ...d, createdAt: null })),
+    existingShifts: before.map((s) => ({ ...s, doctors: [] })),
+    shiftTypes: AUTO_DISTRIBUTE_SHIFT_TYPES,
+    mode: "fill-empty",
+    random: () => 0.5,
+  });
+  assert.deepEqual(generated, [
+    { date: "2026-10-06", shiftType: "20shift", doctorIds: [second.id] },
+  ]);
+  saveAssignments(
+    db,
+    actor,
+    generated.map((assignment) => ({ ...assignment, expectedVersion: 3 })),
+  );
+  assert.deepEqual(
+    db.select().from(shifts).where(eq(shifts.id, before[0].id)).get(),
+    before[0],
+  );
+  const filled = db
+    .select()
+    .from(shifts)
+    .where(eq(shifts.id, before[1].id))
+    .get()!;
+  assert.deepEqual(filled.doctorIds, [second.id]);
+  assert.equal(filled.version, 4);
   sqlite.close();
 });
 test("vacation requests remain pending, preserve IDs and notify exactly once on approval", () => {

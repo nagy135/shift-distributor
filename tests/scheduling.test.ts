@@ -138,8 +138,8 @@ test("every Friday has two distinct late-duty doctors, including holidays", () =
     assignments.find(
       (assignment) =>
         assignment.date === "2026-04-10" && assignment.shiftType === "17shift",
-    )?.doctorIds.length,
-    0,
+    ),
+    undefined,
   );
   for (const assignment of assignments.filter(
     (assignment) => assignment.shiftType === "17shift",
@@ -171,10 +171,7 @@ test("both Friday slots respect eligibility, absences and existing assignments",
       ],
       random: () => 0.5,
     }),
-    [
-      { date: "2026-10-02", shiftType: "20shift", doctorIds: [8, 9] },
-      { date: "2026-10-02", shiftType: "17shift", doctorIds: [] },
-    ],
+    [{ date: "2026-10-02", shiftType: "20shift", doctorIds: [8, 9] }],
   );
 });
 test("Friday selections preserve rest-day preferences and count both workloads", () => {
@@ -213,15 +210,116 @@ test("Friday staffing shortages never duplicate doctors or override conflicts", 
         shiftTypes: ["20shift"],
         random: () => 0.5,
       }),
-      [
-        {
-          date: "2026-10-02",
-          shiftType: "20shift",
-          doctorIds: available.map((d) => d.id),
-        },
-      ],
+      available.length > 0
+        ? [
+            {
+              date: "2026-10-02",
+              shiftType: "20shift",
+              doctorIds: available.map((d) => d.id),
+            },
+          ]
+        : [],
     );
   }
+});
+test("generation preserves weekday station duty and respects its existing doctor", () => {
+  const existingShifts = [
+    shift("2026-10-05", "17shift", [1]),
+    shift("2026-10-05", "night", [2]),
+  ];
+  const before = structuredClone(existingShifts);
+  assert.deepEqual(
+    generateAssignmentsForMonth({
+      dates: [parseDateKey("2026-10-05")],
+      doctors: [doctor(1), doctor(2), doctor(3)],
+      existingShifts,
+      shiftTypes: AUTO_DISTRIBUTE_SHIFT_TYPES,
+      random: () => 0.5,
+    }),
+    [{ date: "2026-10-05", shiftType: "20shift", doctorIds: [3] }],
+  );
+  assert.deepEqual(existingShifts, before);
+});
+test("unfillable station duty is retained without assigning its doctor to another shift", () => {
+  assert.deepEqual(
+    generateAssignmentsForMonth({
+      dates: [parseDateKey("2026-10-10")],
+      doctors: [doctor(1), doctor(2)].map((d) => ({
+        ...d,
+        unavailableShiftTypes: ["17shift"],
+      })),
+      existingShifts: [shift("2026-10-10", "17shift", [1])],
+      shiftTypes: AUTO_DISTRIBUTE_SHIFT_TYPES,
+      random: () => 0.5,
+    }),
+    [{ date: "2026-10-10", shiftType: "20shift", doctorIds: [2] }],
+  );
+  assert.deepEqual(
+    generateAssignmentsForMonth({
+      dates: [parseDateKey("2026-10-10")],
+      doctors: [{ ...doctor(1), disabled: true }],
+      existingShifts: [shift("2026-10-10", "20shift", [1])],
+      shiftTypes: AUTO_DISTRIBUTE_SHIFT_TYPES,
+    }),
+    [],
+  );
+});
+test("replace mode still regenerates occupied duties but omits identical assignments", () => {
+  const params = {
+    dates: [parseDateKey("2026-10-05")],
+    doctors: [doctor(1), doctor(2)],
+    shiftTypes: AUTO_DISTRIBUTE_SHIFT_TYPES,
+    random: () => 0.5,
+  };
+  assert.deepEqual(
+    generateAssignmentsForMonth({
+      ...params,
+      existingShifts: [shift("2026-10-05", "20shift", [2])],
+    }),
+    [{ date: "2026-10-05", shiftType: "20shift", doctorIds: [1] }],
+  );
+  assert.deepEqual(
+    generateAssignmentsForMonth({
+      ...params,
+      existingShifts: [shift("2026-10-05", "20shift", [1])],
+    }),
+    [],
+  );
+  assert.deepEqual(
+    generateAssignmentsForMonth({
+      ...params,
+      dates: [parseDateKey("2026-10-02")],
+      existingShifts: [shift("2026-10-02", "20shift", [2, 1])],
+    }),
+    [],
+  );
+});
+test("fill-empty mode fills just the missing cell and preserves occupied cells", () => {
+  assert.deepEqual(
+    generateAssignmentsForMonth({
+      dates: [parseDateKey("2026-10-05"), parseDateKey("2026-10-06")],
+      doctors: [doctor(1), doctor(2), doctor(3)],
+      existingShifts: [
+        shift("2026-10-05", "20shift", [1]),
+        shift("2026-10-05", "17shift", [3]),
+        shift("2026-10-06", "20shift", []),
+      ],
+      shiftTypes: AUTO_DISTRIBUTE_SHIFT_TYPES,
+      mode: "fill-empty",
+      random: () => 0.5,
+    }),
+    [{ date: "2026-10-06", shiftType: "20shift", doctorIds: [2] }],
+  );
+  assert.deepEqual(
+    generateAssignmentsForMonth({
+      dates: [parseDateKey("2026-10-02")],
+      doctors: [doctor(1), doctor(2)],
+      existingShifts: [shift("2026-10-02", "20shift", [1])],
+      shiftTypes: AUTO_DISTRIBUTE_SHIFT_TYPES,
+      mode: "fill-empty",
+    }),
+    [],
+  );
 });
 test("rest days cross year boundaries and preserve the consecutive-block bonus", () => {
   const dates = [

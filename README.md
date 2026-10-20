@@ -73,6 +73,8 @@ Vacation color quotas are advisory: doctors and planners can save days beyond th
 
 The annual vacation and night-shift calendars support click-and-drag ranges, including across weeks and months. Release on the last day to include every date in between. Vacation edits for a selected doctor save the range at once; doctor pickers apply each chosen doctor to the whole range. A mixed range is filled, while a fully assigned range is removed. Night-shift batches preserve other assignees and reject stale edits atomically. Escape cancels a drag; touch users can scroll from outside the day buttons.
 
+Monthly distribution writes only populated assignments that actually change the selected doctors. Skipped or unfillable duties retain their existing entries and versions, and those entries participate in conflict and workload checks. The primary confirmation action regenerates occupied duties; the smaller “Nur leere Felder füllen” action fills only empty cells and preserves every occupied cell, including Fridays with one doctor. Friday coverage warnings reflect the resulting plan in either mode.
+
 Unpublished months are filtered on the server for doctors in both the monthly calendar and annual night-shift view. Missing publication records retain the legacy published behavior. Planners and secretaries retain the visibility needed for their roles.
 
 Authentication changes cancel and clear server-state queries. Generation checks prevent late responses or optimistic rollbacks from restoring a previous account's cached data.
