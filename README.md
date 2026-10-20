@@ -71,6 +71,8 @@ New doctor vacation entries require secretary approval. A category change return
 
 Vacation color quotas are advisory: doctors and planners can save days beyond the annual limits. The doctor selectors flag affected doctors, and the vacation page shows a warning dropdown with each exceeded color, total and excess. Counts include approved and pending requests for the displayed year; unlimited blue days and automatic night-shift rest days do not produce quota warnings.
 
+The annual vacation and night-shift calendars support click-and-drag ranges, including across weeks and months. Release on the last day to include every date in between. Vacation edits for a selected doctor save the range at once; doctor pickers apply each chosen doctor to the whole range. A mixed range is filled, while a fully assigned range is removed. Night-shift batches preserve other assignees and reject stale edits atomically. Escape cancels a drag; touch users can scroll from outside the day buttons.
+
 Unpublished months are filtered on the server for doctors in both the monthly calendar and annual night-shift view. Missing publication records retain the legacy published behavior. Planners and secretaries retain the visibility needed for their roles.
 
 Authentication changes cancel and clear server-state queries. Generation checks prevent late responses or optimistic rollbacks from restoring a previous account's cached data.

@@ -149,6 +149,19 @@ export function createApiClient(apiFetch: ApiFetch = fetch) {
       });
       return readJson(response, "Failed to update night shifts");
     },
+    updateBatch: async (
+      shifts: { date: string; doctorIds: number[]; expectedVersion: number }[],
+    ): Promise<NightShift[]> => {
+      const response = await apiFetch("/api/night-shifts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shifts }),
+      });
+      return readJson(
+        response,
+        "Nachtdienste konnten nicht gespeichert werden.",
+      );
+    },
   };
 
   const unavailableDatesApi = {

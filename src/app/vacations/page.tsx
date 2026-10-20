@@ -1,5 +1,11 @@
 "use client";
 
+import { useCalendarDateRange } from "@/components/calendar/useCalendarDateRange";
+import {
+  calendarDateRange,
+  vacationRangeChanges,
+} from "@/lib/calendar-date-range";
+
 import {
   DoctorPicker,
   DoctorWarningIndicator,
@@ -136,6 +142,7 @@ export default function VacationsPage() {
   const [selectedDoctorId, setSelectedDoctorId] =
     useState<string>(ALL_DOCTORS_VALUE);
   const [openDate, setOpenDate] = useState<string | null>(null);
+  const [rangeDates, setRangeDates] = useState<string[]>([]);
   const [pickerSearchTerm, setPickerSearchTerm] = useState("");
   const isMobile = useMediaQuery("(max-width: 767px)");
   const [tableMonth, setTableMonth] = useState<Date | null>(null);
@@ -166,6 +173,11 @@ export default function VacationsPage() {
   });
 
   const isOverviewMode = canApprove || editableDoctorId == null;
+
+  useEffect(() => {
+    setOpenDate(null);
+    setRangeDates([]);
+  }, [selectedDoctorId, activeColor]);
 
   useEffect(() => {
     setPickerSearchTerm("");
@@ -209,7 +221,7 @@ export default function VacationsPage() {
     [manualVacationDays, year],
   );
 
-  const { updateMutation, approvalMutation, denyMutation, editDay } =
+  const { updateMutation, approvalMutation, denyMutation, editDay, editDays } =
     useVacationMutations(year, doctors);
   const handleDayClick = useCallback(
     (day: Date) => {
@@ -227,17 +239,56 @@ export default function VacationsPage() {
     (date: string, value: string) => {
       if (!canEditAllVacations || !activeColor) return;
       const doctorId = Number(value);
-      const existing = manualVacationDays.find(
-        (entry) => entry.doctorId === doctorId && entry.date === date,
+      const dates =
+        date === openDate && rangeDates.length > 0 ? rangeDates : [date];
+      editDays(
+        vacationRangeChanges(dates, doctorId, activeColor, manualVacationDays),
       );
-      editDay({
-        doctorId,
-        date,
-        color: existing?.color === activeColor ? null : activeColor,
-      });
     },
-    [canEditAllVacations, activeColor, manualVacationDays, editDay],
+    [
+      canEditAllVacations,
+      activeColor,
+      manualVacationDays,
+      editDays,
+      openDate,
+      rangeDates,
+    ],
   );
+
+  const changeOpenDate = (date: string | null) => {
+    setRangeDates([]);
+    setOpenDate(date);
+  };
+  const canDragSelect =
+    canEditVacations &&
+    canUseVacationEditor &&
+    activeColor != null &&
+    !updateMutation.isPending;
+  const dateRangeSelection = useCalendarDateRange({
+    enabled: canDragSelect,
+    onDragStart: () => changeOpenDate(null),
+    onSelectRange: (dates, end) => {
+      if (!activeColor) return;
+      if (isPickerMode) {
+        setRangeDates(dates);
+        setOpenDate(end);
+      } else if (editableDoctorId != null) {
+        editDays(
+          vacationRangeChanges(
+            dates,
+            editableDoctorId,
+            activeColor,
+            manualVacationDays,
+          ),
+        );
+      }
+    },
+  });
+  const selectedRange =
+    dateRangeSelection.previewRange ??
+    (rangeDates.length > 0 && openDate
+      ? calendarDateRange(rangeDates[0], rangeDates[rangeDates.length - 1])
+      : null);
 
   const visibleVacationDays = useMemo(() => {
     if (selectedDoctorId === ALL_DOCTORS_VALUE) {
@@ -621,6 +672,12 @@ export default function VacationsPage() {
             />
           </>
         )}
+        {canEditVacations && (
+          <p className="text-xs text-muted-foreground">
+            Für mehrere Tage: den ersten Tag gedrückt halten, bis zum letzten
+            Tag ziehen und loslassen. Alle Tage dazwischen werden ausgewählt.
+          </p>
+        )}
       </div>
 
       {canApprove && (
@@ -713,7 +770,12 @@ export default function VacationsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      <div
+        ref={dateRangeSelection.gridRef}
+        onPointerDownCapture={dateRangeSelection.onPointerDownCapture}
+        onClickCapture={dateRangeSelection.onClickCapture}
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+      >
         {months.map((month, index) =>
           !isVacationsLoading ? (
             <VacationMonthCalendar
@@ -730,6 +792,9 @@ export default function VacationsPage() {
               }
               pickerSearchTerm={pickerSearchTerm}
               selectedDoctorIdsByDate={selectedDoctorIdsByDate}
+              range={selectedRange}
+              selectionDates={rangeDates}
+              canDragSelect={canDragSelect}
               pickerMarkerClassName={
                 activeColor
                   ? VACATION_COLOR_STYLES[activeColor].classes
@@ -740,11 +805,11 @@ export default function VacationsPage() {
               vacationsByDate={vacationsByMonth[index] ?? new Map()}
               hasPendingByDate={pendingByMonth[index] ?? new Map()}
               onOpenMonthTable={(selectedMonth) => {
-                setOpenDate(null);
+                changeOpenDate(null);
                 setTableOpenDate(null);
                 setTableMonth(selectedMonth);
               }}
-              onOpenDateChange={setOpenDate}
+              onOpenDateChange={changeOpenDate}
               onPickerSearchTermChange={setPickerSearchTerm}
               onToggleDoctor={handleToggleDoctor}
               onDayClick={(day) => {

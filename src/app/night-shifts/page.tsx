@@ -1,5 +1,11 @@
 "use client";
 
+import { useCalendarDateRange } from "@/components/calendar/useCalendarDateRange";
+import {
+  calendarDateRange,
+  nightShiftRangeChanges,
+} from "@/lib/calendar-date-range";
+
 import {
   DoctorPicker,
   type DoctorPickerOption,
@@ -77,6 +83,7 @@ export default function NightShiftsPage() {
   const saveInFlight = useRef(false);
   const [selectedDoctorId, setSelectedDoctorId] = useState(ALL_DOCTORS_VALUE);
   const [openDate, setOpenDate] = useState<string | null>(null);
+  const [rangeDates, setRangeDates] = useState<string[]>([]);
   const [pickerSearchTerm, setPickerSearchTerm] = useState("");
   const isMobile = useMediaQuery("(max-width: 767px)");
   const [mobileInfoDate, setMobileInfoDate] = useState<string | null>(null);
@@ -96,6 +103,11 @@ export default function NightShiftsPage() {
     onRequestClose: () => setTableOpenDate(null),
   });
   const nightShifts = data ?? EMPTY_NIGHT_SHIFTS;
+
+  useEffect(() => {
+    setOpenDate(null);
+    setRangeDates([]);
+  }, [selectedDoctorId]);
 
   useEffect(() => {
     setPickerSearchTerm("");
@@ -166,39 +178,34 @@ export default function NightShiftsPage() {
     selectedDoctorId === ALL_DOCTORS_VALUE ? null : selectedDoctorId;
 
   const updateMutation = useMutation({
-    mutationFn: ({
-      date,
-      doctorIds,
-      expectedVersion,
-    }: {
-      date: string;
-      doctorIds: number[];
-      expectedVersion: number;
-    }) => nightShiftsApi.update(date, doctorIds, expectedVersion),
-    onMutate: async ({ date, doctorIds }) => {
+    mutationFn: nightShiftsApi.updateBatch,
+    onMutate: async (changes) => {
       const generation = getSessionGeneration();
       await queryClient.cancelQueries({ queryKey: nightShiftsQueryKey });
       if (generation !== getSessionGeneration()) return;
       const previous =
         queryClient.getQueryData<NightShift[]>(nightShiftsQueryKey) ?? [];
-      const existing = previous.find((shift) => shift.date === date);
-      const next: NightShift = {
-        id: existing?.id ?? 0,
-        date,
-        shiftType: "night",
-        version: existing?.version ?? 0,
-        doctorIds,
-        doctors: doctors
-          .filter((doctor) => doctorIds.includes(doctor.id))
-          .map((doctor) => ({
-            id: doctor.id,
-            name: doctor.name,
-            color: doctor.color,
-          })),
-      };
+      const next = changes.map(({ date, doctorIds }): NightShift => {
+        const existing = previous.find((shift) => shift.date === date);
+        return {
+          id: existing?.id ?? 0,
+          date,
+          shiftType: "night",
+          version: existing?.version ?? 0,
+          doctorIds,
+          doctors: doctors
+            .filter((doctor) => doctorIds.includes(doctor.id))
+            .map((doctor) => ({
+              id: doctor.id,
+              name: doctor.name,
+              color: doctor.color,
+            })),
+        };
+      });
+      const changedDates = new Set(changes.map((change) => change.date));
       queryClient.setQueryData(nightShiftsQueryKey, [
-        ...previous.filter((shift) => shift.date !== date),
-        next,
+        ...previous.filter((shift) => !changedDates.has(shift.date)),
+        ...next,
       ]);
       return { previous, generation };
     },
@@ -305,21 +312,33 @@ export default function NightShiftsPage() {
       return;
     }
 
-    const existingShift = nightShiftByDate.get(date);
-    const currentDoctorIds = existingShift?.doctorIds ?? [];
-    const nextDoctorIds = currentDoctorIds.includes(parsedDoctorId)
-      ? currentDoctorIds.filter((doctorId) => doctorId !== parsedDoctorId)
-      : [...currentDoctorIds, parsedDoctorId].sort(
-          (left, right) => left - right,
-        );
-
+    const dates =
+      date === openDate && rangeDates.length > 0 ? rangeDates : [date];
     saveInFlight.current = true;
-    updateMutation.mutate({
-      date,
-      doctorIds: nextDoctorIds,
-      expectedVersion: existingShift?.version ?? 0,
-    });
+    updateMutation.mutate(
+      nightShiftRangeChanges(dates, parsedDoctorId, nightShiftByDate),
+    );
   };
+
+  const changeOpenDate = (date: string | null) => {
+    setRangeDates([]);
+    setOpenDate(date);
+  };
+  const canDragSelect =
+    canManage && !updateMutation.isPending && !isNightShiftsFetching;
+  const dateRangeSelection = useCalendarDateRange({
+    enabled: canDragSelect,
+    onDragStart: () => changeOpenDate(null),
+    onSelectRange: (dates, end) => {
+      setRangeDates(dates);
+      setOpenDate(end);
+    },
+  });
+  const selectedRange =
+    dateRangeSelection.previewRange ??
+    (rangeDates.length > 0 && openDate
+      ? calendarDateRange(rangeDates[0], rangeDates[rangeDates.length - 1])
+      : null);
 
   if (isLoading) {
     return <div className="text-center">Lädt...</div>;
@@ -343,7 +362,7 @@ export default function NightShiftsPage() {
           <h2 className="text-2xl font-semibold">Nachtdienste</h2>
           <p className="text-sm text-muted-foreground">
             {canManage
-              ? "Klicken Sie auf einen Tag, um Aerzte per Suche hinzuzufugen oder zu entfernen."
+              ? "Klicken Sie auf einen Tag oder halten Sie den ersten Tag gedrückt und ziehen Sie bis zum letzten Tag, um einen Zeitraum auszuwählen."
               : `Hier sehen Sie Ihre Nachtdienste fur ${year}.`}
           </p>
         </div>
@@ -370,7 +389,12 @@ export default function NightShiftsPage() {
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      <div
+        ref={dateRangeSelection.gridRef}
+        onPointerDownCapture={dateRangeSelection.onPointerDownCapture}
+        onClickCapture={dateRangeSelection.onClickCapture}
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+      >
         {months.map((month, index) =>
           !isNightShiftsLoading ? (
             <NightShiftsMonthCalendar
@@ -387,8 +411,11 @@ export default function NightShiftsPage() {
               }
               pickerSearchTerm={pickerSearchTerm}
               selectedDoctorIdsByDate={selectedDoctorIdsByDate}
+              range={selectedRange}
+              selectionDates={rangeDates}
+              canDragSelect={canDragSelect}
               onOpenMonthTable={(selectedMonth) => {
-                setOpenDate(null);
+                changeOpenDate(null);
                 setTableOpenDate(null);
                 setTableMonth(selectedMonth);
               }}
@@ -398,7 +425,7 @@ export default function NightShiftsPage() {
                   return;
                 }
 
-                setOpenDate(date);
+                changeOpenDate(date);
               }}
               onPickerSearchTermChange={setPickerSearchTerm}
               onToggleDoctor={handleToggleDoctor}

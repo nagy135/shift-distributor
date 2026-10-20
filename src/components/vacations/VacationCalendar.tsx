@@ -15,6 +15,11 @@ import {
 } from "@/components/ui/dialog";
 import { RealPill } from "@/components/ui/real-pill";
 import { type VacationDay } from "@/lib/api";
+import {
+  commonDoctorIds,
+  formatCalendarDateRange,
+  type CalendarDateRange,
+} from "@/lib/calendar-date-range";
 import { type VacationDisplayDay } from "@/lib/night-shift-vacations";
 import { useAnchoredOverlay } from "@/lib/use-anchored-overlay";
 import { cn } from "@/lib/utils";
@@ -152,6 +157,9 @@ export type VacationMonthCalendarProps = {
   onToggleDoctor: (date: string, doctorId: string) => void;
   onDayClick: (day: Date) => void;
   pickerEnabled: boolean;
+  range?: CalendarDateRange | null;
+  selectionDates?: readonly string[];
+  canDragSelect?: boolean;
 };
 
 export type VacationColorControlsProps = {
@@ -298,9 +306,15 @@ export const VacationMonthCalendar = memo(function VacationMonthCalendar({
   onToggleDoctor,
   onDayClick,
   pickerEnabled,
+  range,
+  selectionDates = [],
+  canDragSelect = false,
 }: VacationMonthCalendarProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const cellRefs = useRef(new Map<string, HTMLButtonElement>());
+  const pickerDates =
+    selectionDates.length > 0 ? selectionDates : openDate ? [openDate] : [];
+  const pickerDoctorIds = commonDoctorIds(pickerDates, selectedDoctorIdsByDate);
   const openDateEntries = openDate ? (vacationsByDate.get(openDate) ?? []) : [];
   const pickerPosition = useAnchoredOverlay({
     anchorKey: openDate,
@@ -308,6 +322,7 @@ export const VacationMonthCalendar = memo(function VacationMonthCalendar({
     wrapperRef,
     isEnabled: canManageWithPicker,
     isMobile,
+    alignWithinViewport: true,
     recalculateKey: pickerSearchTerm,
     onRequestClose: () => onOpenDateChange(null),
   });
@@ -374,6 +389,7 @@ export const VacationMonthCalendar = memo(function VacationMonthCalendar({
                 variant="ghost"
                 size="icon"
                 data-day={day.date.toLocaleDateString()}
+                data-range-date={canDragSelect ? dayKey : undefined}
                 data-open={openDate === dayKey}
                 data-selected-single={
                   modifiers.selected &&
@@ -388,12 +404,19 @@ export const VacationMonthCalendar = memo(function VacationMonthCalendar({
                 className={cn(
                   "relative data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 hover:bg-transparent dark:hover:text-inherit flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md [&>span]:text-xs [&>span]:opacity-70",
                   canManageWithPicker && "cursor-pointer",
+                  canDragSelect && "touch-none select-none",
                   openDate === dayKey && "ring-2 ring-sky-500 ring-offset-1",
                   defaultClassNames.day,
                   className,
                 )}
                 {...rest}
               >
+                {range && dayKey >= range.start && dayKey <= range.end && (
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 z-10 rounded-md bg-sky-500/20 ring-2 ring-inset ring-sky-500"
+                  />
+                )}
                 {showVacationOverview && colors.length > 0 && (
                   <span className="absolute inset-0 overflow-hidden rounded-md">
                     {colors.map((color, index) => {
@@ -456,7 +479,7 @@ export const VacationMonthCalendar = memo(function VacationMonthCalendar({
               Urlaub
             </div>
             <div className="mt-1 text-sm font-medium">
-              {format(new Date(`${openDate}T00:00:00`), "dd.MM.yyyy")}
+              {formatCalendarDateRange(pickerDates)}
             </div>
           </div>
           <div className="mb-3">
@@ -467,7 +490,7 @@ export const VacationMonthCalendar = memo(function VacationMonthCalendar({
               open={openDate != null}
               doctors={availableDoctors}
               searchTerm={pickerSearchTerm}
-              selectedDoctorIds={selectedDoctorIdsByDate.get(openDate) ?? []}
+              selectedDoctorIds={pickerDoctorIds}
               selectionMarkerClassName={pickerMarkerClassName}
               onSearchTermChange={onPickerSearchTermChange}
               onToggleDoctor={(doctorId) => {
@@ -493,7 +516,7 @@ export const VacationMonthCalendar = memo(function VacationMonthCalendar({
               <DialogTitle>Urlaub</DialogTitle>
               <DialogDescription>
                 {openDate
-                  ? `Arzte fur ${format(new Date(`${openDate}T00:00:00`), "dd.MM.yyyy")} auswahlen oder entfernen.`
+                  ? `Ärzte für ${formatCalendarDateRange(pickerDates)} auswählen oder entfernen.`
                   : ""}
               </DialogDescription>
             </DialogHeader>
@@ -512,9 +535,7 @@ export const VacationMonthCalendar = memo(function VacationMonthCalendar({
                     open={openDate != null}
                     doctors={availableDoctors}
                     searchTerm={pickerSearchTerm}
-                    selectedDoctorIds={
-                      selectedDoctorIdsByDate.get(openDate) ?? []
-                    }
+                    selectedDoctorIds={pickerDoctorIds}
                     selectionMarkerClassName={pickerMarkerClassName}
                     onSearchTermChange={onPickerSearchTermChange}
                     onToggleDoctor={(doctorId) => {

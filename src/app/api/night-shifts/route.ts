@@ -3,7 +3,10 @@ import { parseYear, yearRange } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { shifts } from "@/lib/db/schema";
 import { listUnpublishedMonths } from "@/lib/month-publications";
-import { saveAssignments } from "@/lib/server/assignment-service";
+import {
+  saveAssignments,
+  type AssignmentInput,
+} from "@/lib/server/assignment-service";
 import { apiError, readBody, requireValue } from "@/lib/server/errors";
 import { hydrateShiftRows } from "@/lib/server/shift-route-helpers";
 import { and, eq, gte, lte } from "drizzle-orm";
@@ -57,6 +60,29 @@ export async function POST(request: NextRequest) {
       true,
     );
     return NextResponse.json((await hydrateShiftRows(rows))[0]);
+  } catch (error) {
+    return apiError(error);
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const user = await getUserFromAuthHeader(
+      request.headers.get("authorization"),
+    );
+    requireValue(user, "Bitte anmelden.", 401);
+    const body = await readBody(request);
+    requireValue(Array.isArray(body.shifts), "Bitte Nachtdienste angeben.");
+    const rows = saveAssignments(
+      db,
+      user,
+      body.shifts.map((input: AssignmentInput) => ({
+        ...input,
+        shiftType: "night",
+      })),
+      true,
+    );
+    return NextResponse.json(await hydrateShiftRows(rows));
   } catch (error) {
     return apiError(error);
   }

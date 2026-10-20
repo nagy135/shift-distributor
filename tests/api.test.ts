@@ -152,6 +152,65 @@ test("doctor-created vacation entries are pending through the actual API", async
     403,
   );
 });
+test("night-shift ranges save atomically with role checks and stale-version protection", async () => {
+  const secretary = db
+    .insert(users)
+    .values({
+      email: "secretary@example.invalid",
+      passwordHash: "unused",
+      role: "secretary",
+    })
+    .returning()
+    .get()!;
+  const changes = ["2026-06-01", "2026-06-02", "2026-06-03"].map((date) => ({
+    date,
+    doctorIds: [doctor.id],
+    expectedVersion: 0,
+  }));
+  const put = (actor = secretary, values: unknown = changes) =>
+    annual.PUT(
+      new NextRequest("http://localhost/api/night-shifts", {
+        method: "PUT",
+        headers: {
+          authorization: `Bearer ${signAccessToken(actor)}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ shifts: values }),
+      }),
+    );
+  assert.equal((await put(linkedUser)).status, 403);
+  assert.equal(
+    (await put(secretary, [{ ...changes[0], doctorIds: [99999] }])).status,
+    400,
+  );
+  assert.equal((await put(secretary, null)).status, 400);
+  const response = await put();
+  assert.equal(response.status, 200);
+  const saved = await response.json();
+  assert.equal(saved.length, 3);
+  assert(
+    saved.every(
+      (shift: { shiftType: string; version: number }) =>
+        shift.shiftType === "night" && shift.version === 1,
+    ),
+  );
+  assert.equal(
+    (
+      await put(secretary, [
+        { ...changes[0], doctorIds: [], expectedVersion: 1 },
+        { ...changes[1], doctorIds: [], expectedVersion: 0 },
+      ])
+    ).status,
+    409,
+  );
+  const unchanged = db
+    .select()
+    .from(shifts)
+    .where(eq(shifts.date, changes[0].date))
+    .get()!;
+  assert.deepEqual(unchanged.doctorIds, [doctor.id]);
+  assert.equal(unchanged.version, 1);
+});
 test("doctor settings store JSON arrays without double encoding", async () => {
   const response = await doctorRoutes.PATCH(
     request("/api/doctors", assigner, {

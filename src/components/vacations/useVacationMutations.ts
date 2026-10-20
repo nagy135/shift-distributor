@@ -89,17 +89,21 @@ export function useVacationMutations(year: number, doctors: Doctor[]) {
     },
     onSettled: settle,
   });
-  const editDay = useCallback(
-    (change: {
-      doctorId: number;
-      date: string;
-      color: VacationColor | null;
-    }) => {
-      if (busy.current) return;
+  const editDays = useCallback(
+    (
+      changes: {
+        doctorId: number;
+        date: string;
+        color: VacationColor | null;
+      }[],
+    ) => {
+      if (busy.current || changes.length === 0) return;
       busy.current = true;
-      updateMutation.mutate([change]);
+      updateMutation.mutate(changes);
     },
     [updateMutation],
   );
-  return { updateMutation, approvalMutation, denyMutation, editDay };
+  const editDay = (change: Parameters<typeof editDays>[0][number]) =>
+    editDays([change]);
+  return { updateMutation, approvalMutation, denyMutation, editDay, editDays };
 }

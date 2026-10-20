@@ -14,6 +14,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { NightShift, ShiftDoctor } from "@/lib/api";
+import {
+  commonDoctorIds,
+  formatCalendarDateRange,
+  type CalendarDateRange,
+} from "@/lib/calendar-date-range";
 import { useAnchoredOverlay } from "@/lib/use-anchored-overlay";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -54,6 +59,9 @@ export type NightShiftsMonthCalendarProps = {
   openDate: string | null;
   pickerSearchTerm: string;
   selectedDoctorIdsByDate: Map<string, string[]>;
+  range?: CalendarDateRange | null;
+  selectionDates?: readonly string[];
+  canDragSelect?: boolean;
   onOpenMonthTable: (month: Date) => void;
   onOpenDateChange: (date: string | null) => void;
   onPickerSearchTermChange: (value: string) => void;
@@ -71,6 +79,9 @@ export const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
   openDate,
   pickerSearchTerm,
   selectedDoctorIdsByDate,
+  range,
+  selectionDates = [],
+  canDragSelect = false,
   onOpenMonthTable,
   onOpenDateChange,
   onPickerSearchTermChange,
@@ -78,6 +89,9 @@ export const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
 }: NightShiftsMonthCalendarProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const cellRefs = useRef(new Map<string, HTMLButtonElement>());
+  const pickerDates =
+    selectionDates.length > 0 ? selectionDates : openDate ? [openDate] : [];
+  const pickerDoctorIds = commonDoctorIds(pickerDates, selectedDoctorIdsByDate);
   const pickerPosition = useAnchoredOverlay({
     anchorKey: openDate,
     anchorRefs: cellRefs,
@@ -141,17 +155,25 @@ export const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
                 variant="ghost"
                 size="icon"
                 data-day={day.date.toLocaleDateString()}
+                data-range-date={canDragSelect ? dayKey : undefined}
                 data-open={openDate === dayKey}
                 title={!isMobile ? tooltip || undefined : undefined}
                 className={cn(
                   "relative flex aspect-square size-auto w-full min-w-(--cell-size) items-start justify-start overflow-hidden rounded-md px-1 py-0.5 text-left font-normal hover:bg-transparent",
                   canManage && "cursor-pointer",
+                  canDragSelect && "touch-none select-none",
                   openDate === dayKey && "ring-2 ring-sky-500 ring-offset-1",
                   defaultClassNames.day,
                   className,
                 )}
                 {...rest}
               >
+                {range && dayKey >= range.start && dayKey <= range.end && (
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 z-10 rounded-md bg-sky-500/20 ring-2 ring-inset ring-sky-500"
+                  />
+                )}
                 {doctorsForDay.length > 0 && (
                   <span className="absolute inset-0 overflow-hidden rounded-md">
                     {doctorsForDay.map((doctor, index) => {
@@ -209,14 +231,14 @@ export const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
               Nachtdienst
             </div>
             <div className="mt-1 text-sm font-medium">
-              {format(new Date(`${openDate}T00:00:00`), "dd.MM.yyyy")}
+              {formatCalendarDateRange(pickerDates)}
             </div>
           </div>
           <DoctorPicker
             open={openDate != null}
             doctors={availableDoctors}
             searchTerm={pickerSearchTerm}
-            selectedDoctorIds={selectedDoctorIdsByDate.get(openDate) ?? []}
+            selectedDoctorIds={pickerDoctorIds}
             onSearchTermChange={onPickerSearchTermChange}
             onToggleDoctor={(doctorId) => {
               onToggleDoctor(openDate, doctorId);
@@ -236,7 +258,7 @@ export const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
               <DialogTitle>Nachtdienst</DialogTitle>
               <DialogDescription>
                 {openDate
-                  ? `Aerzte fur ${format(new Date(`${openDate}T00:00:00`), "dd.MM.yyyy")} suchen, auswahlen oder entfernen.`
+                  ? `Ärzte für ${formatCalendarDateRange(pickerDates)} suchen, auswählen oder entfernen.`
                   : ""}
               </DialogDescription>
             </DialogHeader>
@@ -249,9 +271,7 @@ export const NightShiftsMonthCalendar = memo(function NightShiftsMonthCalendar({
                   open={openDate != null}
                   doctors={availableDoctors}
                   searchTerm={pickerSearchTerm}
-                  selectedDoctorIds={
-                    selectedDoctorIdsByDate.get(openDate) ?? []
-                  }
+                  selectedDoctorIds={pickerDoctorIds}
                   onSearchTermChange={onPickerSearchTermChange}
                   onToggleDoctor={(doctorId) => {
                     onToggleDoctor(openDate, doctorId);
