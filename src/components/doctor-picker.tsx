@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { Check, Search, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Search, Trash2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Pill } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,25 @@ export type DoctorPickerOption = {
   id: string;
   name: string;
   color: string;
+  warning?: string;
 };
+
+export function DoctorWarningIndicator({ message }: { message?: string }) {
+  if (!message) return null;
+  return (
+    <span
+      role="img"
+      aria-label={message}
+      title={message}
+      className="inline-flex shrink-0"
+    >
+      <AlertTriangle
+        aria-hidden="true"
+        className="size-4 text-amber-600 dark:text-amber-400"
+      />
+    </span>
+  );
+}
 
 type DoctorPickerProps = {
   open: boolean;
@@ -110,6 +128,7 @@ export function DoctorPicker({
                 >
                   <span>{doctor.name}</span>
                 </Pill>
+                <DoctorWarningIndicator message={doctor.warning} />
                 <Trash2 className="size-3 text-muted-foreground group-hover:text-red-950 dark:group-hover:text-red-50" />
               </button>
             ))}
@@ -136,8 +155,8 @@ export function DoctorPicker({
                   isSelected && "bg-sky-50/60 dark:bg-sky-950/20",
                 )}
                 onClick={() => onToggleDoctor(doctor.id)}
-                >
-                  <div
+              >
+                <div
                   className={cn(
                     "flex size-4 shrink-0 items-center justify-center rounded border transition-colors",
                     isSelected
@@ -146,11 +165,15 @@ export function DoctorPicker({
                   )}
                 >
                   {isSelected ? <Check className="size-3" /> : null}
-                  </div>
-                  <Pill color={doctor.color} className="inline-flex items-center gap-1 text-xs">
-                   {doctor.name}
-                 </Pill>
-               </button>
+                </div>
+                <Pill
+                  color={doctor.color}
+                  className="inline-flex items-center gap-1 text-xs"
+                >
+                  {doctor.name}
+                </Pill>
+                <DoctorWarningIndicator message={doctor.warning} />
+              </button>
             );
           })
         )}

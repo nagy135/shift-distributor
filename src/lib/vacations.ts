@@ -52,3 +52,43 @@ export const VACATION_DAYS_PER_YEAR: Record<VacationColor, number> = {
   yellow: 15,
   blue: Number.POSITIVE_INFINITY,
 };
+
+export interface VacationQuotaIssue {
+  color: VacationColor;
+  used: number;
+  limit: number;
+  excess: number;
+}
+
+export function getVacationQuotaIssues(
+  days: readonly { doctorId: number; date: string; color: string }[],
+  year: number,
+): Map<number, VacationQuotaIssue[]> {
+  const countsByDoctor = new Map<number, Map<VacationColor, number>>();
+  for (const day of days) {
+    const color = day.color as VacationColor;
+    if (
+      !day.date.startsWith(`${year}-`) ||
+      !Number.isFinite(VACATION_DAYS_PER_YEAR[color])
+    )
+      continue;
+    const counts = countsByDoctor.get(day.doctorId) ?? new Map();
+    counts.set(color, (counts.get(color) ?? 0) + 1);
+    countsByDoctor.set(day.doctorId, counts);
+  }
+
+  const issuesByDoctor = new Map<number, VacationQuotaIssue[]>();
+  for (const [doctorId, counts] of countsByDoctor) {
+    const issues = VACATION_COLORS.flatMap((color) => {
+      const used = counts.get(color) ?? 0;
+      const limit = VACATION_DAYS_PER_YEAR[color];
+      return used > limit ? [{ color, used, limit, excess: used - limit }] : [];
+    });
+    if (issues.length > 0) issuesByDoctor.set(doctorId, issues);
+  }
+  return issuesByDoctor;
+}
+
+export function formatVacationQuotaIssue(issue: VacationQuotaIssue): string {
+  return `${VACATION_COLOR_STYLES[issue.color].label}: ${issue.used} von ${issue.limit} Tagen (${issue.excess} ${issue.excess === 1 ? "Tag" : "Tage"} zu viel)`;
+}

@@ -251,9 +251,6 @@ export function VacationColorControls({
                   : "justify-center sm:min-w-[88px]",
                 isActive ? `ring-2 ring-offset-2 ${style.ring}` : "",
               )}
-              disabled={
-                showCounts && !isUnlimited && remaining === 0 && !isActive
-              }
               onClick={() => onColorSelect(color)}
             >
               <span className="sr-only sm:not-sr-only">{style.label}</span>

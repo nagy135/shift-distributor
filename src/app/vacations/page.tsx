@@ -2,6 +2,7 @@
 
 import {
   DoctorPicker,
+  DoctorWarningIndicator,
   type DoctorPickerOption,
 } from "@/components/doctor-picker";
 import { MonthlySingleColumnTable } from "@/components/shifts/MonthlySingleColumnTable";
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useVacationMutations } from "@/components/vacations/useVacationMutations";
+import { VacationQuotaWarnings } from "@/components/vacations/VacationQuotaWarnings";
 import { useAuth } from "@/lib/auth-client";
 import { schedulingRange } from "@/lib/dates";
 import {
@@ -38,6 +40,8 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
 import {
   DISPLAY_VACATION_COLORS,
+  formatVacationQuotaIssue,
+  getVacationQuotaIssues,
   VACATION_COLOR_STYLES,
   type DisplayVacationColor,
   type VacationColor,
@@ -200,6 +204,10 @@ export default function VacationsPage() {
   );
 
   const colorCounts = useMemo(() => countColors(dayColors), [dayColors]);
+  const quotaIssuesByDoctor = useMemo(
+    () => getVacationQuotaIssues(manualVacationDays, year),
+    [manualVacationDays, year],
+  );
 
   const { updateMutation, approvalMutation, denyMutation, editDay } =
     useVacationMutations(year, doctors);
@@ -285,10 +293,25 @@ export default function VacationsPage() {
       }
     });
 
-    return Array.from(next.values()).sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
-  }, [doctors, manualVacationDays]);
+    return Array.from(next.values())
+      .map((doctor) => ({
+        ...doctor,
+        warning: quotaIssuesByDoctor
+          .get(Number(doctor.id))
+          ?.map(formatVacationQuotaIssue)
+          .join("; "),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [doctors, manualVacationDays, quotaIssuesByDoctor]);
+
+  const doctorsWithQuotaIssues = useMemo(
+    () =>
+      availableDoctors.flatMap((doctor) => {
+        const issues = quotaIssuesByDoctor.get(Number(doctor.id));
+        return issues ? [{ id: doctor.id, name: doctor.name, issues }] : [];
+      }),
+    [availableDoctors, quotaIssuesByDoctor],
+  );
 
   const doctorNameById = useMemo(
     () => new Map(availableDoctors.map((doctor) => [doctor.id, doctor.name])),
@@ -662,18 +685,31 @@ export default function VacationsPage() {
             onValueChange={setSelectedDoctorId}
             disabled={availableDoctors.length === 0}
           >
-            <SelectTrigger className="w-full sm:w-72">
+            <SelectTrigger
+              className="w-full sm:w-72"
+              aria-label="Arzt auswählen"
+            >
               <SelectValue placeholder="Arzt auswählen" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_DOCTORS_VALUE}>Alle Ärzte</SelectItem>
               {availableDoctors.map((doctor) => (
-                <SelectItem key={doctor.id} value={doctor.id}>
+                <SelectItem
+                  key={doctor.id}
+                  value={doctor.id}
+                  textValue={doctor.name}
+                >
                   {doctor.name}
+                  <DoctorWarningIndicator message={doctor.warning} />
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          <VacationQuotaWarnings
+            year={year}
+            doctors={doctorsWithQuotaIssues}
+            onSelectDoctor={setSelectedDoctorId}
+          />
         </div>
       )}
 

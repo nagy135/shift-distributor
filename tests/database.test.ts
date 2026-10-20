@@ -17,6 +17,7 @@ import {
   decideVacation,
   editVacations,
 } from "../src/lib/server/vacation-service";
+import { getVacationQuotaIssues } from "../src/lib/vacations";
 
 const require = createRequire(import.meta.url);
 const { migrateDatabase } = require("../scripts/migrate.cjs") as {
@@ -179,7 +180,7 @@ test("vacation requests remain pending, preserve IDs and notify exactly once on 
   assert.throws(() => decideVacation(db, own, first.id, true));
   sqlite.close();
 });
-test("invalid vacation batches and quota violations leave every existing day untouched", () => {
+test("invalid vacation batches leave every existing day untouched", () => {
   const { db, sqlite, doctor, actor } = fixture();
   editVacations(db, actor, [
     { doctorId: doctor.id, date: "2026-10-05", color: "blue" },
@@ -192,16 +193,64 @@ test("invalid vacation batches and quota violations leave every existing day unt
   );
   assert.equal(db.select().from(vacationDays).all().length, 1);
   assert.throws(() =>
-    editVacations(
-      db,
-      actor,
-      Array.from({ length: 11 }, (_, i) => ({
-        doctorId: doctor.id,
-        date: `2026-11-${String(i + 1).padStart(2, "0")}`,
-        color: "red",
-      })),
-    ),
+    editVacations(db, actor, [
+      { doctorId: doctor.id, date: "2026-10-05", color: null },
+      { doctorId: 999, date: "2026-10-06", color: "red" },
+    ]),
   );
   assert.equal(db.select().from(vacationDays).all().length, 1);
   sqlite.close();
+});
+test("planners and doctors can save beyond every vacation quota and correct the warnings", () => {
+  for (const role of [
+    "shift_assigner",
+    "department_assigner",
+    "doctor",
+  ] as const) {
+    const { db, sqlite, doctor, actor } = fixture();
+    const user = { ...actor, role };
+    for (const [color, month, count] of [
+      ["red", "01", 11],
+      ["orange", "02", 6],
+      ["yellow", "03", 16],
+    ] as const) {
+      editVacations(
+        db,
+        user,
+        Array.from({ length: count }, (_, index) => ({
+          doctorId: doctor.id,
+          date: `2026-${month}-${String(index + 1).padStart(2, "0")}`,
+          color,
+        })),
+      );
+    }
+    const saved = db.select().from(vacationDays).all();
+    assert.equal(saved.length, 33);
+    assert(saved.every((day) => !day.approved));
+    assert.deepEqual(getVacationQuotaIssues(saved, 2026).get(doctor.id), [
+      { color: "red", used: 11, limit: 10, excess: 1 },
+      { color: "orange", used: 6, limit: 5, excess: 1 },
+      { color: "yellow", used: 16, limit: 15, excess: 1 },
+    ]);
+    editVacations(db, user, [
+      { doctorId: doctor.id, date: "2026-01-11", color: "blue" },
+      { doctorId: doctor.id, date: "2026-02-06", color: null },
+      { doctorId: doctor.id, date: "2026-03-16", color: null },
+    ]);
+    assert.equal(
+      getVacationQuotaIssues(db.select().from(vacationDays).all(), 2026).size,
+      0,
+    );
+    const other = db
+      .insert(doctors)
+      .values({ name: "Other doctor" })
+      .returning()
+      .get()!;
+    assert.throws(() =>
+      editVacations(db, { ...actor, role: "doctor" }, [
+        { doctorId: other.id, date: "2026-01-12", color: "red" },
+      ]),
+    );
+    sqlite.close();
+  }
 });

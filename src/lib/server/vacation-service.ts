@@ -1,14 +1,10 @@
 import type { AuthUser } from "@/lib/authz";
-import { isDateKey, yearRange } from "@/lib/dates";
+import { isDateKey } from "@/lib/dates";
 import type { AppDatabase } from "@/lib/db";
 import { doctors, notifications, users, vacationDays } from "@/lib/db/schema";
 import { isAssigner } from "@/lib/roles";
-import {
-  VACATION_COLORS,
-  VACATION_DAYS_PER_YEAR,
-  type VacationColor,
-} from "@/lib/vacations";
-import { and, eq, gte, inArray, lte } from "drizzle-orm";
+import { VACATION_COLORS, type VacationColor } from "@/lib/vacations";
+import { and, eq, inArray } from "drizzle-orm";
 import { InputError, requireValue } from "./errors";
 
 export interface VacationEdit {
@@ -62,42 +58,6 @@ export function editVacations(
         .all().length === doctorIds.length,
       "Arzt nicht gefunden.",
     );
-    const periods = new Set(
-      changes.map((change) => `${change.doctorId}|${change.date.slice(0, 4)}`),
-    );
-    for (const period of periods) {
-      const [doctorId, year] = period.split("|").map(Number);
-      const { start, end } = yearRange(year);
-      const existing = tx
-        .select()
-        .from(vacationDays)
-        .where(
-          and(
-            eq(vacationDays.doctorId, doctorId),
-            gte(vacationDays.date, start),
-            lte(vacationDays.date, end),
-          ),
-        )
-        .all();
-      const next = new Map(existing.map((day) => [day.date, day.color]));
-      for (const change of changes.filter(
-        (change) =>
-          change.doctorId === doctorId && change.date.startsWith(`${year}-`),
-      )) {
-        if (change.color === null) next.delete(change.date);
-        else next.set(change.date, change.color);
-      }
-      for (const color of VACATION_COLORS) {
-        const count = [...next.values()].filter(
-          (value) => value === color,
-        ).length;
-        const previous = existing.filter((day) => day.color === color).length;
-        requireValue(
-          count <= VACATION_DAYS_PER_YEAR[color] || count <= previous,
-          "Das Jahreskontingent dieser Urlaubsart ist ausgeschöpft.",
-        );
-      }
-    }
     for (const change of changes) {
       const predicate = and(
         eq(vacationDays.doctorId, change.doctorId),
