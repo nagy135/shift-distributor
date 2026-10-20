@@ -1,5 +1,5 @@
 import { isSameMonth } from "date-fns";
-import type { Shift } from "@/lib/api";
+import type { Doctor, Shift } from "@/lib/api";
 
 export function getAllDatesInMonth(month: Date | string): Date[] {
   const monthDate = month instanceof Date ? month : new Date(month);
@@ -45,4 +45,11 @@ export function getDoctorShiftsForMonth(
   return getDoctorShifts(doctorId, shifts).filter((shift) =>
     isSameMonth(new Date(shift.date), month),
   );
+}
+
+export function matchesDoctorSearch(doctor: Doctor, query: string): boolean {
+  const normalize = (value: string) =>
+    value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("de");
+
+  return normalize(doctor.name).includes(normalize(query.trim()));
 }

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Search, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { MonthSelector } from "@/components/MonthSelector";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -14,7 +16,10 @@ import { DoctorSettingsDialog } from "@/components/doctors/DoctorSettingsDialog"
 import { UnavailableDatesDialog } from "@/components/doctors/UnavailableDatesDialog";
 import { ShiftDetailsDialog } from "@/components/doctors/ShiftDetailsDialog";
 import { exportDoctorShifts } from "@/components/doctors/export-doctor-shifts";
-import { getDoctorShiftCount } from "@/components/doctors/utils";
+import {
+  getDoctorShiftCount,
+  matchesDoctorSearch,
+} from "@/components/doctors/utils";
 import { useAuth } from "@/lib/auth-client";
 import { isAssigner } from "@/lib/roles";
 import { SHIFT_TYPES } from "@/lib/shifts";
@@ -28,6 +33,8 @@ export default function DoctorsPage() {
     useState(false);
   const [isColorDialogOpen, setIsColorDialogOpen] = useState(false);
   const [oaOnly, setOaOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const { month: selectedMonth, setMonth } = useMonthStore();
   const isShiftAssigner = isAssigner(user?.role);
   const {
@@ -167,19 +174,53 @@ export default function DoctorsPage() {
   return (
     <div className="space-y-6">
       <MonthSelector ariaLabel="Ärztesteuerung">
-        <div className="flex flex-wrap items-center justify-end gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-full sm:mr-auto sm:max-w-sm">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              ref={searchInputRef}
+              type="search"
+              aria-label="Ärzte nach Namen filtern"
+              placeholder="Name suchen …"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="h-9 pr-9 pl-9 [&::-webkit-search-cancel-button]:appearance-none"
+            />
+            {searchQuery && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute top-1/2 right-1 size-7 -translate-y-1/2"
+                aria-label="Suche zurücksetzen"
+                onClick={() => {
+                  setSearchQuery("");
+                  searchInputRef.current?.focus();
+                }}
+              >
+                <X aria-hidden="true" />
+              </Button>
+            )}
+          </div>
           <div className="flex items-center gap-2">
-            <Label htmlFor="oa-toggle" className="cursor-pointer">
+            <Label htmlFor="doctor-oa-filter" className="cursor-pointer">
               OA
             </Label>
             <Switch
-              id="oa-toggle"
+              id="doctor-oa-filter"
               checked={oaOnly}
               onCheckedChange={setOaOnly}
             />
           </div>
           {isShiftAssigner && (
-            <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
+            <Button
+              size="sm"
+              className="ml-auto sm:ml-0"
+              onClick={() => setIsAddDialogOpen(true)}
+            >
               Arzt hinzufügen
             </Button>
           )}
@@ -195,6 +236,7 @@ export default function DoctorsPage() {
       {isShiftAssigner ? (
         <DoctorList
           doctors={filteredDoctors}
+          searchQuery={searchQuery}
           shifts={doctorPageShifts}
           month={selectedMonth}
           onOpenShiftDetails={openShiftDetailsDialog}
@@ -212,7 +254,16 @@ export default function DoctorsPage() {
             </div>
 
             <div className="space-y-2">
+              {doctorsByShiftCount.filter((doctor) =>
+                matchesDoctorSearch(doctor, searchQuery),
+              ).length === 0 && (
+                <p role="status" className="py-4 text-sm text-muted-foreground">
+                  Keine Ärzte gefunden. Passen Sie die Suche oder den OA-Filter
+                  an.
+                </p>
+              )}
               {doctorsByShiftCount.map((doctor, index) => {
+                if (!matchesDoctorSearch(doctor, searchQuery)) return null;
                 const isCurrentDoctor = doctor.id === currentDoctorId;
                 const shiftCount = getDoctorShiftCount(
                   doctor.id,
