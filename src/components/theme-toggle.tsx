@@ -14,21 +14,18 @@ import {
 const THEME_STORAGE_KEY = "theme";
 type ThemePreference = "system" | "light" | "dark";
 
-function SystemThemeIcon({ className }: { className?: string }) {
+function SystemThemeIcon() {
   return (
-    <span
-      className={`relative inline-flex shrink-0 ${className ?? ""}`}
-      aria-hidden="true"
-    >
-      <Monitor className="size-full" />
-      <Sun className="absolute -right-1 -bottom-1 size-3 rounded-full bg-background dark:hidden" />
-      <Moon className="absolute -right-1 -bottom-1 hidden size-3 rounded-full bg-background dark:block" />
+    <span className="relative inline-flex size-5 shrink-0" aria-hidden="true">
+      <Monitor className="absolute top-0 left-0 size-4" />
+      <Sun className="absolute right-0 bottom-0 size-3 rounded-full bg-background dark:hidden" />
+      <Moon className="absolute right-0 bottom-0 hidden size-3 rounded-full bg-background dark:block" />
     </span>
   );
 }
 
 const themeOptions = [
-  { value: "system", label: "System", icon: SystemThemeIcon },
+  { value: "system", label: "System", icon: Monitor },
   { value: "light", label: "Hell", icon: Sun },
   { value: "dark", label: "Dunkel", icon: Moon },
 ] as const;
@@ -145,7 +142,11 @@ export function ThemeToggle() {
         className="w-9 justify-center border-0 px-0 shadow-none hover:bg-accent dark:bg-transparent dark:hover:bg-accent/50 [&>svg]:hidden"
       >
         <SelectValue>
-          <SelectedIcon className="size-4" aria-hidden="true" />
+          {theme === "system" ? (
+            <SystemThemeIcon />
+          ) : (
+            <SelectedIcon className="size-4" aria-hidden="true" />
+          )}
           <span className="sr-only">{selectedOption.label}</span>
         </SelectValue>
       </SelectTrigger>
