@@ -14,8 +14,21 @@ import {
 const THEME_STORAGE_KEY = "theme";
 type ThemePreference = "system" | "light" | "dark";
 
+function SystemThemeIcon({ className }: { className?: string }) {
+  return (
+    <span
+      className={`relative inline-flex shrink-0 ${className ?? ""}`}
+      aria-hidden="true"
+    >
+      <Monitor className="size-full" />
+      <Sun className="absolute -right-1 -bottom-1 size-3 rounded-full bg-background dark:hidden" />
+      <Moon className="absolute -right-1 -bottom-1 hidden size-3 rounded-full bg-background dark:block" />
+    </span>
+  );
+}
+
 const themeOptions = [
-  { value: "system", label: "System", icon: Monitor },
+  { value: "system", label: "System", icon: SystemThemeIcon },
   { value: "light", label: "Hell", icon: Sun },
   { value: "dark", label: "Dunkel", icon: Moon },
 ] as const;
@@ -129,12 +142,11 @@ export function ThemeToggle() {
       <SelectTrigger
         ref={buttonRef}
         aria-label="Designmodus"
-        title={`Designmodus: ${selectedOption.label}`}
-        className="w-9 justify-center border-0 px-0 shadow-none hover:bg-accent sm:w-fit sm:justify-between sm:px-3 dark:bg-transparent dark:hover:bg-accent/50 [&>svg]:hidden sm:[&>svg]:block"
+        className="w-9 justify-center border-0 px-0 shadow-none hover:bg-accent dark:bg-transparent dark:hover:bg-accent/50 [&>svg]:hidden"
       >
         <SelectValue>
           <SelectedIcon className="size-4" aria-hidden="true" />
-          <span className="sr-only sm:not-sr-only">{selectedOption.label}</span>
+          <span className="sr-only">{selectedOption.label}</span>
         </SelectValue>
       </SelectTrigger>
       <SelectContent align="end">
